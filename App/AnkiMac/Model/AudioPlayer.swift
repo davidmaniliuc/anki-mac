@@ -1,5 +1,6 @@
 import AVFoundation
 import AnkiKit
+import os
 
 /// Plays a card's [sound:] files and TTS tags in order, natively. Desktop
 /// uses mpv for this; AVFoundation covers the common formats (mp3, m4a, wav,
@@ -9,7 +10,10 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
     private var player: AVPlayer?
     private let synthesizer = AVSpeechSynthesizer()
     private var playback: Task<Void, Never>?
-    private var speechFinished: CheckedContinuation<Void, Never>?
+    /// Keyed by utterance: a stopped utterance's late didCancel must not
+    /// resume the next one's continuation.
+    private var speechFinished: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
+    private let log = Logger(subsystem: "AnkiMac", category: "audio")
 
     override init() {
         super.init()
@@ -45,6 +49,7 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func playFile(_ url: URL) async {
+        log.notice("play file \(url.lastPathComponent, privacy: .public)")
         let item = AVPlayerItem(url: url)
         let player = AVPlayer(playerItem: item)
         self.player = player
@@ -63,9 +68,12 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
             await group.next()
             group.cancelAll()
         }
+        log.notice("file \(url.lastPathComponent, privacy: .public) done, status \(item.status.rawValue)")
     }
 
     private func speak(_ tag: Anki_CardRendering_TTSTag) async {
+        if Task.isCancelled { return }
+        log.notice("speak \(tag.lang, privacy: .public)")
         let utterance = AVSpeechUtterance(string: tag.fieldText)
         // Anki writes languages as en_US; AVSpeech wants en-US.
         let language = tag.lang.replacingOccurrences(of: "_", with: "-")
@@ -76,7 +84,7 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         }
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                speechFinished = continuation
+                speechFinished[ObjectIdentifier(utterance)] = continuation
                 synthesizer.speak(utterance)
             }
         } onCancel: {
@@ -85,15 +93,16 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.resumeSpeech() }
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.resumeSpeech(id) }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.resumeSpeech() }
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.resumeSpeech(id) }
     }
 
-    private func resumeSpeech() {
-        speechFinished?.resume()
-        speechFinished = nil
+    private func resumeSpeech(_ id: ObjectIdentifier) {
+        speechFinished.removeValue(forKey: id)?.resume()
     }
 }
