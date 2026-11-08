@@ -9,3 +9,5 @@ xcuserdata/
 /bench/fixtures/
 /AnkiKit/Frameworks/
 /AnkiKit/Sources/AnkiKit/Generated/
+/App/*.xcodeproj/
+__pycache__/

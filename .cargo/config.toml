@@ -1,4 +1,5 @@
 [env]
 DESCRIPTORS_BIN = { value = "out/descriptors.bin", relative = true }
 MACOSX_DEPLOYMENT_TARGET = "26.0"
-PROTOC = "/opt/homebrew/bin/protoc"
+# Table form so it merges with anki/.cargo/config.toml when building upstream web assets.
+PROTOC = { value = "/opt/homebrew/bin/protoc" }

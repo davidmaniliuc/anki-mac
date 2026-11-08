@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Rust bridge and regenerates every Swift binding from anki/proto.
+# Builds upstream's web assets too.
 # Run after cloning and after bumping the anki submodule.
+# Needs ninja (brew install ninja) for the web build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,3 +29,7 @@ xcodebuild -create-xcframework \
   -headers bridge/include \
   -output "$FRAMEWORK" >/dev/null
 echo "backend ready: $FRAMEWORK"
+
+# Upstream's web assets (reviewer, MathJax, Svelte pages) for the app's card view.
+(cd anki && ./ninja qt:aqt:data:web)
+echo "web assets ready: anki/out/qt/_aqt/data/web"
