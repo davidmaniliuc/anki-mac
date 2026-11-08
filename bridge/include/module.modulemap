@@ -1,0 +1,4 @@
+module CAnkiBridge {
+    header "anki_bridge.h"
+    export *
+}

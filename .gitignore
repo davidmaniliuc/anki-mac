@@ -1,6 +1,5 @@
 .DS_Store
 /target/
-/build/
 /out/
 *.xcframework
 .build/
@@ -8,3 +7,5 @@ DerivedData/
 xcuserdata/
 /bench/results/*.local.*
 /bench/fixtures/
+/AnkiKit/Frameworks/
+/AnkiKit/Sources/AnkiKit/Generated/

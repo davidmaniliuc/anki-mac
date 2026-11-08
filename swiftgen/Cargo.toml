@@ -1,0 +1,11 @@
+[package]
+name = "swiftgen"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+anki_proto_gen = { path = "../anki/rslib/proto_gen" }
+anyhow = "1"
+prost-reflect = "0.14"

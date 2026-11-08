@@ -1,0 +1,4 @@
+[env]
+DESCRIPTORS_BIN = { value = "out/descriptors.bin", relative = true }
+MACOSX_DEPLOYMENT_TARGET = "26.0"
+PROTOC = "/opt/homebrew/bin/protoc"
