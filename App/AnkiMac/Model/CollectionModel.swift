@@ -1,4 +1,5 @@
 import AnkiKit
+import AppKit
 import Foundation
 import Observation
 
@@ -67,6 +68,9 @@ final class CollectionModel {
     private(set) var paths: CollectionPaths?
     private(set) var decks: [DeckNode] = []
     private(set) var isLoaded = false
+    private var lastRefresh = Date.distantPast
+    private var rolloverTask: Task<Void, Never>?
+    private var activationTask: Task<Void, Never>?
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
     var errorMessage: String?
@@ -104,6 +108,7 @@ final class CollectionModel {
                 selectedDeckID = decks.max { $0.dueCount < $1.dueCount }?.id
             }
             isLoaded = true
+            refreshWhenActivated()
             Task { await prepareReviewer() }
         } catch {
             errorMessage = "Could not open the collection: \(error)"
@@ -122,6 +127,8 @@ final class CollectionModel {
 
     /// Called on quit. Closing flushes the WAL and releases the file lock.
     func close() {
+        rolloverTask?.cancel()
+        activationTask?.cancel()
         session?.stop()
         guard paths != nil, let backend else { return }
         try? backend.closeCollection(Anki_Collection_CloseCollectionRequest())
@@ -131,15 +138,40 @@ final class CollectionModel {
     func refreshDecks() async {
         guard let backend else { return }
         do {
-            let tree = try await backend.perform { backend in
+            let (tree, nextDayAt) = try await backend.perform { backend in
                 var request = Anki_Decks_DeckTreeRequest()
                 request.now = Int64(Date().timeIntervalSince1970)
-                return try backend.deckTree(request)
+                return (try backend.deckTree(request), try backend.schedTimingToday().nextDayAt)
             }
             decks = tree.children.map(DeckNode.init)
+            lastRefresh = Date()
+            scheduleRollover(at: nextDayAt)
             BenchDriver.trace("deck_tree")
         } catch {
             errorMessage = "Could not load decks: \(error)"
+        }
+    }
+
+    /// The counts are per scheduler day, so they go stale when the day rolls
+    /// over, and when another app (or a sync) changed the collection while
+    /// this one was in the background.
+    private func scheduleRollover(at nextDayAt: Int64) {
+        rolloverTask?.cancel()
+        let delay = max(1, Double(nextDayAt) - Date().timeIntervalSince1970)
+        rolloverTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.refreshDecks()
+        }
+    }
+
+    private func refreshWhenActivated() {
+        activationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
+                // Launch activates the app right after the first load.
+                guard let self, session == nil, Date().timeIntervalSince(lastRefresh) > 2 else { continue }
+                await refreshDecks()
+            }
         }
     }
 
