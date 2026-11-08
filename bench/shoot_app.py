@@ -96,6 +96,8 @@ def main() -> None:
                 break
             except RuntimeError:
                 pass
+        # Each launch cascades the window further right, off the screen edge.
+        system_events("set position of window 1 to {40, 40}\nset size of window 1 to {720, 860}")
         time.sleep(1)
         for spec in steps:
             step(out, spec)
