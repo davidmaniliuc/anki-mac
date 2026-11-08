@@ -21,6 +21,7 @@ struct ContentView: View {
             }
         }
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
+        .focusedSceneValue(\.cardTarget, model.session)
         .frame(minWidth: Theme.Window.minWidth, minHeight: Theme.Window.minHeight)
         .onChange(of: model.selectedDeckID) { _, deckID in
             // Picking another deck in the sidebar leaves the session.

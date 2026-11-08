@@ -6,7 +6,8 @@ import Foundation
 /// bench/anki_bench_addon so bench/run_app.py can compare the two.
 ///
 /// Scenario: deck list painted → idle (memory sampled by the harness) →
-/// study the top-level deck with the most due cards, 30 × Good → quit.
+/// study the top-level deck with the most due cards, 30 × Good → open the
+/// browser and time three searches → quit.
 final class BenchDriver {
     /// Timestamps from inside the app (launch, collection open, first card
     /// render…), merged into the event file to break the totals down.
@@ -19,6 +20,8 @@ final class BenchDriver {
     }
 
     private static let answers = 30
+    private static let searches = ["deck:*", "is:due", "front:*a*"]
+    private static weak var current: BenchDriver?
     private static let idleSettle = Duration.seconds(4)
     private static let idleSample = Duration.seconds(3)
 
@@ -28,12 +31,22 @@ final class BenchDriver {
     private var answerMs: [Double] = []
     private var phase = "starting"
     private var studyEnd: String?
+    private var browserEnd: String?
     private var answered = 0
     private var pendingAnswer: Double?
+    private var browser: BrowserModel?
+    private var searchMs: [String: Double] = [:]
+    private var browserRows: Int?
+    /// The search being timed, and the ids version on screen when it started:
+    /// only a paint of a newer version is its result. Version 0 is the empty
+    /// table drawn before the browser's first search returns.
+    private var pendingSearch: (query: String, start: Double, after: Int)?
+    private var shownAfter = 0
 
     init(model: CollectionModel, path: String) {
         self.model = model
         self.path = URL(fileURLWithPath: path)
+        Self.current = self
     }
 
     /// Call once the collection is open and the deck list is in the model.
@@ -98,7 +111,63 @@ final class BenchDriver {
         model.stopStudying()
         Task {
             try? await Task.sleep(for: .milliseconds(500))
-            quit()
+            startBrowser()
+        }
+    }
+
+    // MARK: Browser
+
+    /// As the desktop add-on: from asking for the browser to its first
+    /// search's rows on screen, then each search from submitting it to its
+    /// rows on screen.
+    private func startBrowser() {
+        phase = "browser"
+        mark("browser_open_start")
+        BrowserWindowController.show(collection: model)
+    }
+
+    static func browserOpened(_ browser: BrowserModel) {
+        current?.attach(browser)
+    }
+
+    private func attach(_ browser: BrowserModel) {
+        guard phase == "browser", self.browser == nil else { return }
+        self.browser = browser
+        browser.onRowsPainted = { [weak self] version, laidOut in self?.rowsPainted(version: version, laidOut: laidOut) }
+    }
+
+    private func rowsPainted(version: Int, laidOut: Int) {
+        guard let browser else { return }
+        guard version > (pendingSearch?.after ?? shownAfter) else { return }
+        let now = Date().timeIntervalSince1970
+        if events["browser_shown"] == nil {
+            mark("browser_shown")
+        } else if let pendingSearch {
+            searchMs[pendingSearch.query] = (now - pendingSearch.start) * 1000
+            browserRows = browser.ids.count
+        }
+        // A paint that laid out no rows for a non-empty result would mean the
+        // number timed an empty table.
+        if !browser.ids.isEmpty && laidOut == 0 {
+            browserEnd = "painted no rows"
+        }
+        guard let next = Self.searches.dropFirst(searchMs.count).first else {
+            pendingSearch = nil
+            browser.onRowsPainted = nil
+            flush()
+            BrowserWindowController.current?.close()
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                quit()
+            }
+            return
+        }
+        pendingSearch = (next, Date().timeIntervalSince1970, browser.idsVersion)
+        if UserDefaults.standard.bool(forKey: "XNoField") {
+            browser.search(text: next)
+        } else {
+            browser.searchText = next
+            browser.search()
         }
     }
 
@@ -115,8 +184,10 @@ final class BenchDriver {
 
     private func flush() {
         let merged = events.merging(Self.trace.mapKeys { "trace_\($0)" }) { event, _ in event }
-        var state: [String: Any] = ["events": merged, "answer_ms": answerMs, "phase": phase]
+        var state: [String: Any] = ["events": merged, "answer_ms": answerMs, "phase": phase, "search_ms": searchMs]
         if let studyEnd { state["study_end"] = studyEnd }
+        if let browserRows { state["browser_rows"] = browserRows }
+        if let browserEnd { state["browser_end"] = browserEnd }
         guard let data = try? JSONSerialization.data(withJSONObject: state) else { return }
         try? data.write(to: path, options: .atomic)
     }

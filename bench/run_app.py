@@ -82,7 +82,12 @@ def run_once(fixture: Path) -> dict:
             else None,
             "study_end": state.get("study_end"),
             "answer_ms": state.get("answer_ms", []),
-            "search_ms": {},
+            "browser_open_ms": (ev["browser_shown"] - ev["browser_open_start"]) * 1000
+            if "browser_shown" in ev
+            else None,
+            "browser_rows": state.get("browser_rows"),
+            "browser_end": state.get("browser_end"),
+            "search_ms": state.get("search_ms", {}),
             "quit_ms": (t_exit - ev["quit_requested"]) * 1000 if "quit_requested" in ev else None,
             "exit_code": proc.returncode,
         }
@@ -93,6 +98,7 @@ def run_once(fixture: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--out", type=Path, default=ROOT / "bench/results/ankimac-app.json")
     parser.add_argument("fixtures", nargs="*", default=["user", "large"])
     args = parser.parse_args()
 
@@ -120,9 +126,8 @@ def main() -> None:
         results["fixtures"][name] = {"summary": summarize(runs[1:]), "runs": runs}
         print(name, "summary", json.dumps(results["fixtures"][name]["summary"], indent=1))
 
-    out = ROOT / "bench/results/ankimac-app.json"
-    out.write_text(json.dumps(results, indent=1))
-    print("wrote", out)
+    args.out.write_text(json.dumps(results, indent=1))
+    print("wrote", args.out)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 
 /// The card, with the answer controls under it. Keyboard: Space shows the
-/// answer, 1–4 rate it, Ctrl+1 to Ctrl+7 flag it, * marks the note (see StudyCommands, which also puts every action in
-/// the menu bar).
+/// answer, 1–4 rate it, Ctrl+1 to Ctrl+7 flag it, * marks the note, B opens
+/// the browser (see StudyCommands and CardCommands, which also put every
+/// action in the menu bar).
 ///
 /// This view stays in the window for the app's lifetime, hidden while no
 /// session is running, so the card web view is attached once, not every time
@@ -62,15 +63,14 @@ struct StudyView: View {
         .onChange(of: colorScheme, initial: true) { _, scheme in
             model.reviewer.setNightMode(scheme == .dark)
         }
-        .onChange(of: session == nil, initial: true) { _, idle in
-            if idle {
-                if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-                keyMonitor = nil
-            } else if keyMonitor == nil {
-                keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                    handleKey(event) ? nil : event
-                }
+        .onAppear {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                handleKey(event) ? nil : event
             }
+        }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
         }
     }
 
@@ -78,13 +78,22 @@ struct StudyView: View {
     /// Study menu's single-key shortcuts are handled here first. Keys pass
     /// through while a text box (type-in-the-answer) has focus.
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard let session, let window = event.window, window.isKeyWindow else { return false }
+        // Only the main window, which holds the card view; the browser has its own keys.
+        guard let window = event.window, window.isKeyWindow, window === model.reviewer.webView?.window else {
+            return false
+        }
         let responder = window.firstResponder
         if responder is NSText || (responder === model.reviewer.webView && model.reviewer.isEditingText) {
             return false
         }
         let modifiers = event.modifierFlags.intersection([.command, .option, .control])
         let key = event.charactersIgnoringModifiers ?? ""
+        // Desktop's single-key shortcut, kept for muscle memory beside the menu's Shift-Command-B.
+        if modifiers.isEmpty, key == "b" {
+            BrowserWindowController.show(collection: model)
+            return true
+        }
+        guard let session else { return false }
         if modifiers == .command, key == "z" {
             session.undo()
             return true

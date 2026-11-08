@@ -122,11 +122,21 @@ result["answer_to_next_card_ms"] = median(answerMs)
 result["answers"] = answerMs.count
 
 // Browser: whole-collection searches, then the visible rows of the table.
+// Sorted as desktop's find_cards(order=True): the column and direction in the config.
+func configJSON<T: Decodable>(_ key: String, as type: T.Type) -> T? {
+    var request = Anki_Generic_String()
+    request.val = key
+    return (try? backend.getConfigJson(request).json).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+}
+var sort = Anki_Search_SortOrder.Builtin()
+sort.column = configJSON("sortType", as: String.self) ?? "noteFld"
+sort.reverse = configJSON("sortBackwards", as: Bool.self) ?? false
 var searchMs: [String: Double] = [:]
 var lastIds: [Int64] = []
-for query in ["deck:*", "is:due", "front:*a*"] {
+for query in (ProcessInfo.processInfo.environment["QUERIES"]?.components(separatedBy: "|") ?? ["deck:*", "is:due", "front:*a*"]) {
     var request = Anki_Search_SearchRequest()
     request.search = query
+    request.order.builtin = sort
     let (response, elapsed) = try time { try backend.searchCards(request) }
     searchMs[query] = elapsed
     lastIds = response.ids

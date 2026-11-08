@@ -62,7 +62,9 @@ final class StudySession {
     private(set) var card: StudyCard?
     private(set) var counts = (new: 0, learn: 0, review: 0)
     private(set) var currentQueue: Anki_Scheduler_QueuedCards.Queue?
-    private(set) var canUndo = false
+    /// What Undo would undo, as the backend names it; empty when nothing.
+    private(set) var undoLabel = ""
+    var canUndo: Bool { !undoLabel.isEmpty }
     var errorMessage: String?
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
@@ -204,12 +206,12 @@ final class StudySession {
         _ cardID: Int64, _ change: @escaping @Sendable (AnkiBackend) throws -> Void, applied: @escaping () -> Void
     ) {
         Task {
-            let canUndo = await run { backend in
+            let undoLabel = await run { backend in
                 try change(backend)
-                return !(try backend.getUndoStatus().undo.isEmpty)
+                return try backend.getUndoStatus().undo
             }
-            guard let canUndo, card?.queued.card.id == cardID else { return }
-            self.canUndo = canUndo
+            guard let undoLabel, card?.queued.card.id == cardID else { return }
+            self.undoLabel = undoLabel
             applied()
         }
     }
@@ -228,13 +230,13 @@ final class StudySession {
     private func loadNext(after change: @escaping @Sendable (AnkiBackend) throws -> Void) async {
         defer { busy = false }
         let configCache = self.configCache
-        let next: (StudyCard?, Anki_Scheduler_QueuedCards, Bool)? = await run { backend in
+        let next: (StudyCard?, Anki_Scheduler_QueuedCards, String)? = await run { backend in
             try change(backend)
             var request = Anki_Scheduler_GetQueuedCardsRequest()
             request.fetchLimit = 1
             let queue = try backend.getQueuedCards(request)
-            let canUndo = !(try backend.getUndoStatus().undo.isEmpty)
-            guard let queued = queue.cards.first else { return (nil, queue, canUndo) }
+            let undoLabel = try backend.getUndoStatus().undo
+            guard let queued = queue.cards.first else { return (nil, queue, undoLabel) }
 
             var hideKey = Anki_Config_GetConfigBoolRequest()
             hideKey.key = .hideAudioPlayButtons
@@ -248,11 +250,11 @@ final class StudySession {
             let studyCard = StudyCard(
                 queued: queued, rendered: rendered, intervals: intervals, options: options,
                 flag: CardFlag(cardFlags: queued.card.flags), isMarked: isMarked)
-            return (studyCard, queue, canUndo)
+            return (studyCard, queue, undoLabel)
         }
         BenchDriver.trace("first_card_rendered")
-        guard let (card, queue, canUndo) = next else { return }
-        self.canUndo = canUndo
+        guard let (card, queue, undoLabel) = next else { return }
+        self.undoLabel = undoLabel
         counts = (Int(queue.newCount), Int(queue.learningCount), Int(queue.reviewCount))
         self.card = card
         guard let card else {

@@ -1,3 +1,5 @@
+import AnkiKit
+import AppKit
 import SwiftUI
 
 /// Every visual decision in the app lives here: colours, spacing, type and
@@ -48,5 +50,59 @@ enum Theme {
     enum Window {
         static let minWidth: CGFloat = 720
         static let minHeight: CGFloat = 480
+    }
+
+    enum Browser {
+        static let defaultSize = CGSize(width: 1100, height: 700)
+        static let minWidth: CGFloat = 640
+        static let minHeight: CGFloat = 360
+        static let columnWidth: CGFloat = 160
+        static let columnMinWidth: CGFloat = 40
+        static let cellFont = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        static let cellPadding: CGFloat = 4
+        static let sidebarIconSize: CGFloat = 16
+        static let sidebarHeaderFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+
+        /// Whole-row tints for flagged, marked, suspended and buried cards, in
+        /// desktop's colour scheme. Translucent, so the alternating row
+        /// background shows through; stronger in dark mode, where a faint tint
+        /// disappears.
+        static func rowColor(_ color: Anki_Search_BrowserRow.Color) -> NSColor? {
+            rowColors[color]
+        }
+
+        private static let rowColors: [Anki_Search_BrowserRow.Color: NSColor] = [
+            .flagRed: tint(.systemRed),
+            .flagOrange: tint(.systemOrange),
+            .flagGreen: tint(.systemGreen),
+            .flagBlue: tint(.systemBlue),
+            .flagPink: tint(.systemPink),
+            .flagTurquoise: tint(.systemTeal),
+            .flagPurple: tint(.systemPurple),
+            .marked: tint(.systemIndigo),
+            .suspended: tint(.systemYellow),
+            .buried: tint(.systemBrown),
+        ]
+
+        private static func tint(_ base: NSColor) -> NSColor {
+            NSColor(name: nil) { appearance in
+                let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                return base.withAlphaComponent(dark ? 0.38 : 0.28)
+            }
+        }
+    }
+
+    /// Flag colours in the sidebar and menus, matching the row tints.
+    static func flagColor(_ flag: CardFlag) -> Color {
+        switch flag {
+        case .none: .secondary
+        case .red: .red
+        case .orange: .orange
+        case .green: .green
+        case .blue: .blue
+        case .pink: .pink
+        case .turquoise: .teal
+        case .purple: .purple
+        }
     }
 }
