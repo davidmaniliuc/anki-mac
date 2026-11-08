@@ -70,6 +70,8 @@ final class StudySession {
     private let audio = AudioPlayer()
     private var shownAt = Date()
     private var busy = false
+    /// The typed text is being compared; a second Return must not start another.
+    private var revealing = false
 
     init(deckID: Int64, backend: AnkiBackend, reviewer: ReviewerWebController) {
         self.deckID = deckID
@@ -96,9 +98,28 @@ final class StudySession {
     }
 
     func showAnswer() {
-        guard phase == .question, let card else { return }
+        guard phase == .question, !revealing, let card else { return }
+        guard let typeAnswer = card.rendered.typeAnswer else {
+            display(card, answer: card.rendered.answer)
+            return
+        }
+        revealing = true
+        Task {
+            let typed = await reviewer.typedAnswer()
+            let html = await run { backend in
+                try CardRenderer.answerHTML(
+                    card.rendered.answer, typeAnswer: typeAnswer, typed: typed, backend: backend)
+            }
+            revealing = false
+            // The session may have moved on (end session, undo) while the backend worked.
+            guard phase == .question, self.card?.queued.card.id == card.queued.card.id else { return }
+            display(card, answer: html ?? card.rendered.answer)
+        }
+    }
+
+    private func display(_ card: StudyCard, answer: String) {
         phase = .answer
-        reviewer.showAnswer(card.rendered.answer)
+        reviewer.showAnswer(answer)
         notifyDisplayed(.answer)
         if card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.answerAV, mediaFolder: folder)

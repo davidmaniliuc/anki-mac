@@ -48,7 +48,16 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
     }
 
     func showAnswer(_ answer: String) {
+        // The typing box is replaced, and a removed element sends no focusout.
+        isEditingText = false
         call("_showAnswer", answer, "")
+    }
+
+    /// What is in the type-in-the-answer box ("" when there is none).
+    func typedAnswer() async -> String {
+        guard isReady, let webView else { return "" }
+        let value = try? await webView.evaluateJavaScript("getTypedAnswer();")
+        return value as? String ?? ""
     }
 
     /// Runs `done` once everything queued so far is in the page.
