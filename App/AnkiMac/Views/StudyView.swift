@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The card, with the answer controls under it. Keyboard: Space shows the
-/// answer, 1–4 rate it (see StudyCommands, which also puts every action in
+/// answer, 1–4 rate it, Ctrl+1 to Ctrl+7 flag it, * marks the note (see StudyCommands, which also puts every action in
 /// the menu bar).
 ///
 /// This view stays in the window for the app's lifetime, hidden while no
@@ -89,6 +89,10 @@ struct StudyView: View {
             session.undo()
             return true
         }
+        if modifiers == .control, let digit = Int(key), let flag = CardFlag(rawValue: digit), flag != .none {
+            session.toggleFlag(flag)
+            return true
+        }
         guard modifiers.isEmpty else { return false }
 
         switch (session.phase, key) {
@@ -101,6 +105,8 @@ struct StudyView: View {
             session.answer(Rating(rawValue: Int(key)! - 1)!)
         case (.question, "r"), (.answer, "r"):
             session.replayAudio()
+        case (.question, "*"), (.answer, "*"):
+            session.toggleMark()
         case (_, "\u{1b}"):
             model.stopStudying()
         default:

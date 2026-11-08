@@ -68,8 +68,12 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         evaluate("_queueAction(() => pycmd('_shown'));")
     }
 
-    func drawFlag(_ flag: Int) {
-        evaluate("_drawFlag(\(flag));")
+    func drawFlag(_ flag: CardFlag) {
+        evaluate("_drawFlag(\(flag.rawValue));")
+    }
+
+    func drawMark(_ marked: Bool) {
+        evaluate("_drawMark(\(marked));")
     }
 
     func clear() {

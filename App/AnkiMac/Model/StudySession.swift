@@ -9,6 +9,9 @@ nonisolated struct StudyCard: Sendable {
     /// Next intervals for Again, Hard, Good, Easy ("10m", "4d").
     let intervals: [String]
     let options: DeckOptions
+    var flag: CardFlag
+    /// The note carries the "marked" tag.
+    var isMarked: Bool
 }
 
 /// The deck options the reviewer needs, from the card's home deck.
@@ -163,6 +166,54 @@ final class StudySession {
         }
     }
 
+    /// Sets the card's flag, or clears it when it already has that flag, as desktop.
+    func toggleFlag(_ flag: CardFlag) {
+        guard let card, !busy else { return }
+        let new: CardFlag = card.flag == flag ? .none : flag
+        let cardID = card.queued.card.id
+        edit(cardID) { backend in
+            var request = Anki_Cards_SetFlagRequest()
+            request.cardIds = [cardID]
+            request.flag = UInt32(new.rawValue)
+            _ = try backend.setFlag(request)
+        } applied: { [self] in
+            self.card?.flag = new
+            reviewer.drawFlag(new)
+        }
+    }
+
+    func toggleMark() {
+        guard let card, !busy else { return }
+        let marked = !card.isMarked
+        let cardID = card.queued.card.id
+        let noteID = card.queued.card.noteID
+        edit(cardID) { backend in
+            var request = Anki_Tags_NoteIdsAndTagsRequest()
+            request.noteIds = [noteID]
+            request.tags = Self.markedTag
+            _ = marked ? try backend.addNoteTags(request) : try backend.removeNoteTags(request)
+        } applied: { [self] in
+            self.card?.isMarked = marked
+            reviewer.drawMark(marked)
+        }
+    }
+
+    /// Runs an undoable change to the card on screen, then refreshes the
+    /// undo state. `applied` runs only if that card is still showing.
+    private func edit(
+        _ cardID: Int64, _ change: @escaping @Sendable (AnkiBackend) throws -> Void, applied: @escaping () -> Void
+    ) {
+        Task {
+            let canUndo = await run { backend in
+                try change(backend)
+                return !(try backend.getUndoStatus().undo.isEmpty)
+            }
+            guard let canUndo, card?.queued.card.id == cardID else { return }
+            self.canUndo = canUndo
+            applied()
+        }
+    }
+
     func replayAudio() {
         guard let card, let folder = reviewer.mediaFolder else { return }
         let tags = phase == .answer ? card.rendered.answerAV : card.rendered.questionAV
@@ -191,7 +242,13 @@ final class StudySession {
                 queued.card, hidePlayButtons: try backend.getConfigBool(hideKey).val, backend: backend)
             let intervals = try backend.describeNextStates(queued.states).vals
             let options = try Self.options(for: queued.card, cache: configCache, backend: backend)
-            return (StudyCard(queued: queued, rendered: rendered, intervals: intervals, options: options), queue, canUndo)
+            var noteID = Anki_Notes_NoteId()
+            noteID.nid = queued.card.noteID
+            let isMarked = try backend.getNote(noteID).tags.contains { $0.caseInsensitiveCompare(Self.markedTag) == .orderedSame }
+            let studyCard = StudyCard(
+                queued: queued, rendered: rendered, intervals: intervals, options: options,
+                flag: CardFlag(cardFlags: queued.card.flags), isMarked: isMarked)
+            return (studyCard, queue, canUndo)
         }
         BenchDriver.trace("first_card_rendered")
         guard let (card, queue, canUndo) = next else { return }
@@ -209,12 +266,15 @@ final class StudySession {
         phase = .question
         shownAt = Date()
         reviewer.showQuestion(card.rendered.question, answer: card.rendered.answer, bodyClass: card.rendered.bodyClass)
-        reviewer.drawFlag(Int(card.queued.card.flags & 0b111))
+        reviewer.drawFlag(card.flag)
+        reviewer.drawMark(card.isMarked)
         notifyDisplayed(.question)
         if card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)
         }
     }
+
+    nonisolated private static let markedTag = "marked"
 
     private let configCache = DeckOptionsCache()
 

@@ -69,6 +69,17 @@ struct StudyCommands: Commands {
                     .disabled(session?.phase != .answer)
             }
             Divider()
+            Menu("Flag Card") {
+                ForEach(CardFlag.assignable, id: \.self) { flag in
+                    Toggle(flag.title, isOn: Binding { session?.card?.flag == flag } set: { _ in session?.toggleFlag(flag) })
+                        .keyboardShortcut(KeyEquivalent(Character("\(flag.rawValue)")), modifiers: .control)
+                }
+            }
+            .disabled(session?.card == nil)
+            Toggle("Mark Note", isOn: Binding { session?.card?.isMarked ?? false } set: { _ in session?.toggleMark() })
+                .keyboardShortcut("*", modifiers: [])
+                .disabled(session?.card == nil)
+            Divider()
             Button("Replay Audio") { session?.replayAudio() }
                 .keyboardShortcut("r", modifiers: [])
                 .disabled(session == nil || session?.phase == .finished)
