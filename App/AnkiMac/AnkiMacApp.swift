@@ -113,14 +113,48 @@ struct CardCommands: Commands {
             Toggle("Suspend Card", isOn: Binding { card?.isSuspended ?? false } set: { _ in target?.toggleSuspend() })
                 .keyboardShortcut("j")
                 .disabled(card?.isSuspended == nil)
+            Toggle("Bury Card", isOn: Binding { card?.isBuried ?? false } set: { _ in browser?.toggleBury() })
+                .keyboardShortcut("j", modifiers: [.command, .shift])
+                .disabled(card?.isBuried == nil)
             Toggle("Mark Note", isOn: Binding { card?.isMarked ?? false } set: { _ in target?.toggleMark() })
                 .keyboardShortcut("k")
                 .disabled(card == nil)
+            Divider()
+            // The browser's own actions; the study screen doesn't offer them yet.
+            Group {
+                Button("Change Deck…") { browser?.askChangeDeck() }
+                    .keyboardShortcut("d")
+                Button("Set Due Date…") { browser?.askSetDueDate() }
+                    .keyboardShortcut("d", modifiers: [.command, .shift])
+                Button("Reset…") { browser?.askForget() }
+                    .keyboardShortcut("n", modifiers: [.command, .option])
+                Button("Reposition…") { browser?.askReposition() }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+            }
+            .disabled(!hasBrowserSelection)
             Divider()
             Button("Delete Notes…") { deleteNotes() }
                 .keyboardShortcut(.delete)
                 .disabled(!(target?.canDeleteNotes ?? false))
         }
+        CommandMenu("Notes") {
+            Group {
+                Button("Add Tags…") { browser?.askTags(adding: true) }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                Button("Remove Tags…") { browser?.askTags(adding: false) }
+                    .keyboardShortcut("a", modifiers: [.command, .option, .shift])
+                Divider()
+                Button("Find and Replace…") { browser?.askFindAndReplace() }
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+            }
+            .disabled(!hasBrowserSelection)
+        }
+    }
+
+    private var browser: BrowserModel? { KeyBrowser.shared.model }
+
+    private var hasBrowserSelection: Bool {
+        !(browser?.selectedRows.isEmpty ?? true)
     }
 
     /// Command-Delete also means "delete to the start of the line" while

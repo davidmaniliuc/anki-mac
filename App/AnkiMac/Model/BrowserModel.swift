@@ -65,6 +65,8 @@ nonisolated struct CommandCard: Equatable, Sendable {
     var isMarked: Bool
     /// nil where the target doesn't offer suspending.
     var isSuspended: Bool?
+    /// nil where the target doesn't offer burying.
+    var isBuried: Bool? = nil
 }
 
 /// One browser window: the search, the ids it found, and the visible rows.
@@ -94,6 +96,10 @@ final class BrowserModel {
     private(set) var undoLabel = ""
     /// Notes waiting for the user to confirm deleting them.
     var notesToDelete: [Int64]?
+    /// The sheet an action is waiting on (see BrowserModel+Actions).
+    var prompt: BrowserPrompt?
+    /// The rows `prompt` was asked about.
+    @ObservationIgnored var promptSelection: Selection?
     var errorMessage: String?
 
     /// Rows by id, for the current search only. nil marks an id whose card or
@@ -390,12 +396,12 @@ final class BrowserModel {
 
     // MARK: Card commands
 
-    private nonisolated struct Selection: Sendable {
+    nonisolated struct Selection: Sendable {
         let mode: BrowserMode
         let ids: [Int64]
     }
 
-    private var selection: Selection? {
+    var selection: Selection? {
         let ids = selectedIDs
         return ids.isEmpty ? nil : Selection(mode: mode, ids: ids)
     }
@@ -418,7 +424,8 @@ final class BrowserModel {
                 return CommandCard(
                     flag: CardFlag(cardFlags: card.flags),
                     isMarked: tags.contains { $0.caseInsensitiveCompare(Self.markedTag) == .orderedSame },
-                    isSuspended: card.queue == Self.suspendedQueue)
+                    isSuspended: card.queue == Self.suspendedQueue,
+                    isBuried: Self.buriedQueues.contains(card.queue))
             }
         }
     }
@@ -489,7 +496,7 @@ final class BrowserModel {
 
     /// Runs an undoable change, then redraws the rows (or searches again when
     /// rows may have appeared or gone) and refreshes the main window's decks.
-    private func change(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    func change(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) {
         guard let backend = collection.backend else { return }
         Task {
             do {
@@ -526,8 +533,10 @@ final class BrowserModel {
 
     nonisolated private static let markedTag = "marked"
     nonisolated private static let suspendedQueue: Int32 = -1
+    /// Buried by the user, or with a sibling.
+    nonisolated private static let buriedQueues: Set<Int32> = [-2, -3]
 
-    private nonisolated static func cardIDs(_ selection: Selection, backend: AnkiBackend) throws -> [Int64] {
+    nonisolated static func cardIDs(_ selection: Selection, backend: AnkiBackend) throws -> [Int64] {
         guard selection.mode == .notes else { return selection.ids }
         var node = Anki_Search_SearchNode()
         node.nids.ids = selection.ids
@@ -537,7 +546,7 @@ final class BrowserModel {
         return try backend.searchCards(request).ids
     }
 
-    private nonisolated static func noteIDs(_ selection: Selection, backend: AnkiBackend) throws -> [Int64] {
+    nonisolated static func noteIDs(_ selection: Selection, backend: AnkiBackend) throws -> [Int64] {
         guard selection.mode == .cards else { return selection.ids }
         var request = Anki_Search_SearchRequest()
         request.search = "cid:" + selection.ids.map(String.init).joined(separator: ",")

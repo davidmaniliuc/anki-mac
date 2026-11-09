@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import SwiftUI
 
 /// The Browse window, built in AppKit: a SwiftUI `Window` scene with a
 /// toolbar and split view took about 300 ms to open, most of it creating
@@ -15,6 +16,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         labels: BrowserMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
     private let errorBar = SearchErrorBar()
     private var presentingAlert = false
+    private var promptSheet: NSViewController?
 
     /// Shows the browser, creating it on first use. The first search starts
     /// before the window is built, so the two overlap.
@@ -102,6 +104,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         }
         track { [weak self] in
             guard let self else { return }
+            showPrompt(model.prompt)
+        }
+        track { [weak self] in
+            guard let self else { return }
             if let notes = model.notesToDelete {
                 confirmDelete(count: notes.count)
             } else if let message = model.errorMessage {
@@ -126,6 +132,20 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     @objc private func modeChanged(_ control: NSSegmentedControl) {
         model.setMode(BrowserMode.allCases[control.selectedSegment])
+    }
+
+    /// Shows the sheet for the model's prompt, and takes it down once the
+    /// prompt is answered or cancelled.
+    private func showPrompt(_ prompt: BrowserPrompt?) {
+        if let promptSheet {
+            promptSheet.dismiss(nil)
+            self.promptSheet = nil
+        }
+        guard let prompt, let content = window?.contentViewController else { return }
+        let sheet = NSHostingController(rootView: BrowserPromptSheet(prompt: prompt, model: model))
+        sheet.sizingOptions = .preferredContentSize
+        promptSheet = sheet
+        content.presentAsSheet(sheet)
     }
 
     private func confirmDelete(count: Int) {

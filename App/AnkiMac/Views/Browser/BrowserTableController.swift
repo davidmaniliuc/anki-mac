@@ -253,9 +253,20 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         let suspend = menuItem("Suspend Card") { [weak self] in self?.model.toggleSuspend() }
         suspend.state = card?.isSuspended == true ? .on : .off
         menu.addItem(suspend)
+        let bury = menuItem("Bury Card") { [weak self] in self?.model.toggleBury() }
+        bury.state = card?.isBuried == true ? .on : .off
+        menu.addItem(bury)
+        menu.addItem(menuItem("Change Deck…") { [weak self] in self?.model.askChangeDeck() })
+        menu.addItem(menuItem("Set Due Date…") { [weak self] in self?.model.askSetDueDate() })
+        menu.addItem(menuItem("Reset…") { [weak self] in self?.model.askForget() })
+        menu.addItem(menuItem("Reposition…") { [weak self] in self?.model.askReposition() })
+        menu.addItem(.separator())
         let mark = menuItem("Mark Note") { [weak self] in self?.model.toggleMark() }
         mark.state = card?.isMarked == true ? .on : .off
         menu.addItem(mark)
+        menu.addItem(menuItem("Add Tags…") { [weak self] in self?.model.askTags(adding: true) })
+        menu.addItem(menuItem("Remove Tags…") { [weak self] in self?.model.askTags(adding: false) })
+        menu.addItem(menuItem("Find and Replace…") { [weak self] in self?.model.askFindAndReplace() })
         menu.addItem(.separator())
         menu.addItem(menuItem("Delete Notes…") { [weak self] in self?.model.deleteNotes() })
     }

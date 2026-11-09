@@ -62,6 +62,10 @@ enum Theme {
         static let cellPadding: CGFloat = 4
         static let sidebarIconSize: CGFloat = 16
         static let sidebarHeaderFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+        /// Sheets for the Cards and Notes actions (set due date, change deck...).
+        static let sheetWidth: CGFloat = 420
+        static let deckListHeight: CGFloat = 260
+        static let tagSuggestions = 8
 
         /// Whole-row tints for flagged, marked, suspended and buried cards, in
         /// desktop's colour scheme. Translucent, so the alternating row
