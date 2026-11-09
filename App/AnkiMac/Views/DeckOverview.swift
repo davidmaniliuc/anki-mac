@@ -26,6 +26,10 @@ struct DeckOverview: View {
                 Text("Nothing is due in this deck right now.")
                     .foregroundStyle(.secondary)
             }
+
+            if !deck.filtered {
+                Button("Options…") { DeckOptionsWindowController.show(deckID: deck.id, collection: model) }
+            }
         }
         .padding(Theme.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

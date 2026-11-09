@@ -96,6 +96,22 @@ enum Theme {
         }
     }
 
+    enum DeckOptions {
+        static let defaultSize = CGSize(width: 640, height: 760)
+        static let minSize = CGSize(width: 480, height: 400)
+        static let numberFieldWidth: CGFloat = 64
+        static let stepsFieldWidth: CGFloat = 160
+        static let customSchedulingHeight: CGFloat = 140
+        static let helpWidth: CGFloat = 360
+        static let helpMaxHeight: CGFloat = 480
+        /// Desktop's alert colours for the notes under a setting.
+        static let infoColor = Color.blue
+        static let warningColor = Color.orange
+        static let dangerColor = Color.red
+        /// How often a running FSRS job's progress is read.
+        static let progressInterval = Duration.milliseconds(100)
+    }
+
     /// Flag colours in the sidebar and menus, matching the row tints.
     static func flagColor(_ flag: CardFlag) -> Color {
         switch flag {

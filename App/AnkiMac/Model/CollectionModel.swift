@@ -87,6 +87,10 @@ final class CollectionModel {
         return Self.find(id, in: decks)
     }
 
+    func deck(_ id: Int64) -> DeckNode? {
+        Self.find(id, in: decks)
+    }
+
     func open() async {
         do {
             let backend = try await backendStartup.value
@@ -201,6 +205,13 @@ final class CollectionModel {
     func stopStudying() {
         session?.stop()
         session = nil
+        Task { await refreshDecks() }
+    }
+
+    /// After the options window saved: the counts follow the new limits,
+    /// and the session reads the options again.
+    func deckOptionsChanged() {
+        session?.invalidateOptions()
         Task { await refreshDecks() }
     }
 

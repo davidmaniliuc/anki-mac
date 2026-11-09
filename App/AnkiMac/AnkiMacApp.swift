@@ -29,6 +29,7 @@ struct AnkiMacApp: App {
             SidebarCommands()
             StudyCommands(model: model)
             CardCommands()
+            DeckOptionsCommands(model: model)
             CommandGroup(before: .windowList) {
                 Button("Browse") { BrowserWindowController.show(collection: model) }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
@@ -48,6 +49,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model?.close()
+    }
+}
+
+/// Deck Options, and Save while its window is key.
+struct DeckOptionsCommands: Commands {
+    let model: CollectionModel
+
+    var body: some Commands {
+        CommandGroup(replacing: .saveItem) {
+            let options = KeyDeckOptions.shared.controller
+            Button(Tr.deckConfigSaveButton) { options?.save() }
+                .keyboardShortcut("s")
+                .disabled(options == nil)
+            Button(Tr.deckConfigSaveToAllSubdecks) { options?.save(mode: .applyToChildren) }
+                .disabled(options == nil)
+        }
+        CommandMenu("Deck") {
+            let deck = model.selectedDeck
+            Button("Options…") {
+                if let deck { DeckOptionsWindowController.show(deckID: deck.id, collection: model) }
+            }
+            .disabled(deck == nil || deck?.filtered == true)
+        }
     }
 }
 

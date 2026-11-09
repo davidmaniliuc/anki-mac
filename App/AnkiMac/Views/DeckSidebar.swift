@@ -12,6 +12,11 @@ struct DeckSidebar: View {
                 DeckRows(nodes: model.decks, expanded: $expanded)
             }
         }
+        .contextMenu(forSelectionType: Int64.self) { ids in
+            if let id = ids.first, ids.count == 1, model.deck(id)?.filtered == false {
+                Button("Options…") { DeckOptionsWindowController.show(deckID: id, collection: model) }
+            }
+        }
         .navigationSplitViewColumnWidth(min: Theme.Sidebar.minWidth, ideal: Theme.Sidebar.idealWidth)
         .onChange(of: model.decks, initial: true) { _, decks in
             seedExpansion(decks)

@@ -278,6 +278,11 @@ final class StudySession {
 
     nonisolated private static let markedTag = "marked"
 
+    /// The options changed; the next card reads them again.
+    func invalidateOptions() {
+        configCache.removeAll()
+    }
+
     private let configCache = DeckOptionsCache()
 
     /// Options come from the card's home deck, as desktop's `current_deck_id`.
@@ -337,5 +342,9 @@ nonisolated final class DeckOptionsCache: @unchecked Sendable {
     subscript(deckID: Int64) -> DeckOptions? {
         get { lock.withLock { options[deckID] } }
         set { lock.withLock { options[deckID] = newValue } }
+    }
+
+    func removeAll() {
+        lock.withLock { options.removeAll() }
     }
 }
