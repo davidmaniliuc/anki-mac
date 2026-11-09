@@ -245,6 +245,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = modeControl
             item.label = "Show"
+            // In a narrow window the search field shrinks to its button
+            // first, rather than the switch going into the overflow menu.
+            item.visibilityPriority = .high
             return item
         default:
             return nil
