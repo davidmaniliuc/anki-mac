@@ -292,7 +292,9 @@ nonisolated enum Tr {
     static func actionsOptionsFor(val: String) -> String {
         ("Options for " + String(describing: val))
     }
+    static let actionsProcessing = "Processing..."
     static let actionsCancel = "Cancel"
+    static let actionsClose = "Close"
     static let actionsSuspendCard = "Suspend Card"
     static let cardTemplatesDiscardChanges = "Discard changes?"
     static let decksLatestAddedFirst = "Latest added first"
@@ -316,8 +318,18 @@ nonisolated enum Tr {
     static let schedulingStartingEase = "Starting ease"
     static let schedulingTagOnly = "Tag Only"
     static let schedulingTheDefaultConfigurationCantBeRemoved = "The default configuration can't be removed."
+    static func statisticsCardsPerDay(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " card/day") : (String(describing: count) + " cards/day"))
+    }
+    static func statisticsMemorized(memorized: String) -> String {
+        (String(describing: memorized) + " cards memorized")
+    }
     static func statisticsReviews(reviews: Int) -> String {
         (reviews == 1 ? (String(describing: reviews) + " review") : (String(describing: reviews) + " reviews"))
     }
+    static func statisticsReviewsPerDay(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " review/day") : (String(describing: count) + " reviews/day"))
+    }
+    static let statisticsReviewsTimeCheckbox = "Time"
     static let studyingBuryCard = "Bury Card"
 }

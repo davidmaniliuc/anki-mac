@@ -108,6 +108,9 @@ enum Theme {
         static let infoColor = Color.blue
         static let warningColor = Color.orange
         static let dangerColor = Color.red
+        static let simulatorSize = CGSize(width: 620, height: 760)
+        static let simulatorMinSize = CGSize(width: 460, height: 480)
+        static let chartHeight: CGFloat = 260
         /// How often a running FSRS job's progress is read.
         static let progressInterval = Duration.milliseconds(100)
     }

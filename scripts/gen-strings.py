@@ -24,7 +24,9 @@ WHOLE_FILES = ["deck-config.ftl"]
 EXTRA = [
     "actions-auto-advance",
     "actions-options-for",
+    "actions-processing",
     "actions-cancel",
+    "actions-close",
     "actions-suspend-card",
     "card-templates-discard-changes",
     "decks-latest-added-first",
@@ -48,7 +50,11 @@ EXTRA = [
     "scheduling-starting-ease",
     "scheduling-tag-only",
     "scheduling-the-default-configuration-cant-be-removed",
+    "statistics-cards-per-day",
+    "statistics-memorized",
     "statistics-reviews",
+    "statistics-reviews-per-day",
+    "statistics-reviews-time-checkbox",
     "studying-bury-card",
 ]
 

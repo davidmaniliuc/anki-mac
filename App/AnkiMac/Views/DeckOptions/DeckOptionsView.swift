@@ -382,8 +382,11 @@ private struct DisplayOrderSection: View {
             OptionSectionHeader(title: Tr.deckConfigOrderingTitle, help: help)
         }
     }
+}
 
-    private func reviewOrderChoices(fsrs: Bool) -> [(DeckConfigInner.ReviewCardOrder, String)] {
+/// Review orders in desktop's order; FSRS speaks of difficulty rather than
+/// ease, and adds retrievability.
+func reviewOrderChoices(fsrs: Bool) -> [(DeckConfigInner.ReviewCardOrder, String)] {
         var difficulty: [(DeckConfigInner.ReviewCardOrder, String)] = [
             (.easeAscending, fsrs ? Tr.deckConfigSortOrderDescendingDifficulty : Tr.deckConfigSortOrderAscendingEase),
             (.easeDescending, fsrs ? Tr.deckConfigSortOrderAscendingDifficulty : Tr.deckConfigSortOrderDescendingEase),
@@ -405,7 +408,6 @@ private struct DisplayOrderSection: View {
             (.added, Tr.decksOrderAdded),
             (.reverseAdded, Tr.decksLatestAddedFirst),
         ]
-    }
 }
 
 private struct BurySection: View {
@@ -511,48 +513,12 @@ private struct EasyDaysSection: View {
     /// Desktop warns once the days differ from when the window opened.
     @State private var initial: [Float]?
 
-    private static let days = [
-        Tr.deckConfigEasyDaysMonday, Tr.deckConfigEasyDaysTuesday, Tr.deckConfigEasyDaysWednesday,
-        Tr.deckConfigEasyDaysThursday, Tr.deckConfigEasyDaysFriday, Tr.deckConfigEasyDaysSaturday,
-        Tr.deckConfigEasyDaysSunday,
-    ]
-
     var body: some View {
         let values = model.config.easyDaysPercentages
         Section(Tr.deckConfigEasyDaysTitle) {
-            Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.medium, verticalSpacing: Theme.Spacing.small) {
-                GridRow {
-                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                    HStack {
-                        Text(Tr.deckConfigEasyDaysMinimum)
-                        Spacer()
-                        Text(Tr.deckConfigEasyDaysReduced)
-                        Spacer()
-                        Text(Tr.deckConfigEasyDaysNormal)
-                    }
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                }
-                ForEach(Self.days.indices, id: \.self) { index in
-                    GridRow {
-                        Text(Self.days[index])
-                        Slider(
-                            value: Binding {
-                                Double(model.config.easyDaysPercentages[safe: index] ?? 1)
-                            } set: { newValue in
-                                guard model.config.easyDaysPercentages.indices.contains(index) else { return }
-                                model.config.easyDaysPercentages[index] = Float(newValue)
-                            },
-                            in: 0...1, step: 0.5
-                        ) {
-                            Text(Self.days[index])
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-            }
+            EasyDaysSliders(values: Binding { model.config.easyDaysPercentages } set: {
+                model.config.easyDaysPercentages = $0
+            })
             if !values.contains(1) {
                 OptionWarning(text: Tr.deckConfigEasyDaysNoNormalDays)
             }
@@ -561,6 +527,53 @@ private struct EasyDaysSection: View {
             }
         }
         .onAppear { if initial == nil { initial = values } }
+    }
+}
+
+/// A slider per weekday, from minimum through reduced to a normal workload.
+struct EasyDaysSliders: View {
+    @Binding var values: [Float]
+
+    private static let days = [
+        Tr.deckConfigEasyDaysMonday, Tr.deckConfigEasyDaysTuesday, Tr.deckConfigEasyDaysWednesday,
+        Tr.deckConfigEasyDaysThursday, Tr.deckConfigEasyDaysFriday, Tr.deckConfigEasyDaysSaturday,
+        Tr.deckConfigEasyDaysSunday,
+    ]
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.medium, verticalSpacing: Theme.Spacing.small) {
+            GridRow {
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                HStack {
+                    Text(Tr.deckConfigEasyDaysMinimum)
+                    Spacer()
+                    Text(Tr.deckConfigEasyDaysReduced)
+                    Spacer()
+                    Text(Tr.deckConfigEasyDaysNormal)
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+            }
+            ForEach(Self.days.indices, id: \.self) { index in
+                GridRow {
+                    Text(Self.days[index])
+                    Slider(
+                        value: Binding {
+                            Double(values[safe: index] ?? 1)
+                        } set: { newValue in
+                            guard values.indices.contains(index) else { return }
+                            values[index] = Float(newValue)
+                        },
+                        in: 0...1, step: 0.5
+                    ) {
+                        Text(Self.days[index])
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
     }
 }
 

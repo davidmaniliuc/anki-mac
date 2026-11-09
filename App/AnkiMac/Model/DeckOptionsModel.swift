@@ -258,6 +258,11 @@ final class DeckOptionsModel {
         }
     }
 
+    /// The preset's limits changed from elsewhere (the simulator).
+    func presetChanged() {
+        resetPresetTabs()
+    }
+
     /// The preset tabs follow the newly selected preset.
     private func resetPresetTabs() {
         for limit in Limit.allCases {

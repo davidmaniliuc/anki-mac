@@ -13,6 +13,10 @@ struct FsrsSection: View {
     @State private var editingParams = false
     @State private var message: String?
     @State private var confirmingOptimizeAll = false
+    @State private var simulator: FsrsSimulator?
+    /// The simulator reads the saved parameters, so it waits for a save
+    /// after they change.
+    @State private var initialParams: [Float]?
 
     private var help: [(String, String)] {
         [
@@ -41,6 +45,10 @@ struct FsrsSection: View {
         .onChange(of: model.fsrs, initial: true) { _, enabled in
             if !enabled { newlyEnabled = true }
         }
+        .onAppear { if initialParams == nil { initialParams = model.config.fsrsParams } }
+        .sheet(item: $simulator) { simulator in
+            FsrsSimulatorView(simulator: simulator) { self.simulator = nil }
+        }
         .alert(
             message ?? "", isPresented: Binding { message != nil } set: { if !$0 { message = nil } }
         ) {
@@ -57,6 +65,10 @@ struct FsrsSection: View {
             model: model, limit: .retention, title: help[1].0, help: help[1].1,
             defaultValue: Double(model.defaults.desiredRetention), range: 0.7...0.99, step: 0.01, decimals: 0,
             percent: true)
+        HStack {
+            Button(Tr.deckConfigFsrsDesiredRetentionHelpMeDecideExperimental + "…") { openSimulator(workload: true) }
+            Spacer()
+        }
         let showNote = newlyEnabled || model.optimizedParams || abs(value - model.startingRetention) >= 0.005
         if showNote && !workloadNote.isEmpty {
             OptionWarning(text: workloadNote, level: .info)
@@ -176,6 +188,18 @@ struct FsrsSection: View {
             Button("Cancel", role: .cancel) {}
             Button(Tr.deckConfigSaveAndOptimize) { optimizeAll() }
         }
+        HStack {
+            Button(Tr.deckConfigFsrsSimulatorExperimental + "…") { openSimulator(workload: false) }
+            Spacer()
+        }
+    }
+
+    private func openSimulator(workload: Bool) {
+        guard model.config.fsrsParams == initialParams else {
+            message = Tr.deckConfigFsrsSimulateSavePreset
+            return
+        }
+        simulator = FsrsSimulator(options: model, workload: workload)
     }
 
     private func run(_ job: @escaping () async throws -> String?) {
