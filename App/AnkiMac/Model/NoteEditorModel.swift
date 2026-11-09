@@ -95,6 +95,9 @@ final class NoteEditorModel {
     var pasteKeepsFormatting = true
     /// The field to focus once it's on screen.
     var focusRequest: Int?
+    /// The field the format bar acts on: the last one focused, so the bar
+    /// works even while its window isn't key.
+    @ObservationIgnored weak var focusedView: NSView?
 
     init(backend: AnkiBackend, mediaFolder: URL?) {
         self.backend = backend

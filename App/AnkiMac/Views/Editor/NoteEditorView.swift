@@ -13,7 +13,7 @@ struct NoteEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            FormatBar()
+            FormatBar(editor: editor)
                 .padding(.horizontal, Theme.Spacing.medium)
                 .padding(.vertical, Theme.Spacing.small)
             Divider()
@@ -135,6 +135,8 @@ extension FieldTextView {
 /// Bold, italic and the rest for the focused field, as desktop's editor
 /// toolbar. The same commands are in the Format menu.
 struct FormatBar: View {
+    let editor: NoteEditorModel
+
     var body: some View {
         HStack(spacing: Theme.Spacing.small) {
             ControlGroup {
@@ -147,6 +149,8 @@ struct FormatBar: View {
                 formatButton(.superscript, "textformat.superscript", "Superscript", "\u{2318}\u{21E7}=")
                 formatButton(.subscript, "textformat.subscript", "Subscript", "\u{2318}=")
             }
+            colorControl(.text, "character", "Text Color", "F7")
+            colorControl(.highlight, "highlighter", "Highlight Color", nil)
             Button {
                 send(#selector(FieldTextView.removeFieldFormatting(_:)))
             } label: {
@@ -167,16 +171,50 @@ struct FormatBar: View {
 
     private func formatButton(_ format: InlineFormat, _ symbol: String, _ title: String, _ shortcut: String?) -> some View {
         Button {
-            NSApp.sendAction(#selector(FieldTextView.toggleFieldFormat(_:)), to: nil, from: FormatCommand(format))
+            send(#selector(FieldTextView.toggleFieldFormat(_:)), FormatCommand(format))
         } label: {
             Label(title, systemImage: symbol)
         }
         .help(shortcut.map { "\(title) (\($0))" } ?? title)
     }
 
-    private func send(_ action: Selector) {
-        NSApp.sendAction(action, to: nil, from: nil)
+    /// Desktop's colour button and its picker: the button applies the last
+    /// colour, picking one applies it too.
+    private func colorControl(_ kind: ColorKind, _ symbol: String, _ title: String, _ shortcut: String?) -> some View {
+        let colors = EditorColors.shared
+        return HStack(spacing: Theme.Spacing.xxSmall) {
+            Button {
+                send(#selector(FieldTextView.applyFieldColor(_:)), ColorCommand(kind))
+            } label: {
+                Label(title, systemImage: symbol)
+            }
+            .help(shortcut.map { "\(title) (\($0))" } ?? title)
+            ColorPicker(title, selection: Binding {
+                colors.color(kind)
+            } set: { color in
+                if kind == .text { colors.text = color } else { colors.highlight = color }
+                send(#selector(FieldTextView.applyFieldColor(_:)), ColorCommand(kind))
+            }, supportsOpacity: false)
+            .labelsHidden()
+            .controlSize(.mini)
+            .help("Change Color")
+        }
     }
+
+    /// Sends to this editor's last focused field, not the key window's.
+    private func send(_ action: Selector, _ sender: Any? = nil) {
+        guard let field = editor.focusedView else {
+            NSApp.sendAction(action, to: nil, from: sender)
+            return
+        }
+        field.window?.makeKeyAndOrderFront(nil)
+        field.window?.makeFirstResponder(field)
+        NSApp.sendAction(action, to: field, from: sender)
+    }
+}
+
+func applyColor(_ kind: ColorKind) {
+    NSApp.sendAction(#selector(FieldTextView.applyFieldColor(_:)), to: nil, from: ColorCommand(kind))
 }
 
 /// The Format menu: the editor's commands, for whichever field has focus.
@@ -189,6 +227,10 @@ struct FormatCommands: Commands {
             format(.strikethrough, "Strikethrough", nil)
             format(.superscript, "Superscript", "=", [.command, .shift])
             format(.subscript, "Subscript", "=")
+            Divider()
+            Button("Text Color") { applyColor(.text) }
+                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF7FunctionKey)!)), modifiers: [])
+            Button("Highlight Color") { applyColor(.highlight) }
             Divider()
             Button("Remove Formatting") { send(#selector(FieldTextView.removeFieldFormatting(_:))) }
                 .keyboardShortcut("r")

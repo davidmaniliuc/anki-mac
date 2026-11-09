@@ -142,6 +142,25 @@ func awkwardFieldRoundTrips(_ field: String) {
     #expect(result == "H<sup>2</sup>O")
 }
 
+@Test func colouringWrapsInASpanAsDesktopDoes() {
+    let result = edit("<div>Paris is in France</div>") { document, storage in
+        document.setColor(.text, red: 255, green: 0, blue: 0, in: storage, range: range(of: "France", in: storage))
+    }
+    #expect(result == "<div>Paris is in <span style=\"color: rgb(255, 0, 0);\">France</span></div>")
+}
+
+@Test func recolouringReplacesTheColour() {
+    let result = edit("a<font color=\"#00f\">b</font><span style=\"background-color: red; font-weight: bold\">c</span>") {
+        document, storage in
+        let all = NSRange(location: 0, length: storage.length)
+        document.setColor(.text, red: 0, green: 128, blue: 0, in: storage, range: all)
+        document.setColor(.text, red: 1, green: 2, blue: 3, in: storage, range: all)
+        document.setColor(.highlight, red: 255, green: 255, blue: 0, in: storage, range: range(of: "c", in: storage))
+    }
+    #expect(result == "<span style=\"color: rgb(1, 2, 3);\">ab</span><span style=\"font-weight: bold;\">"
+        + "<span style=\"color: rgb(1, 2, 3);\"><span style=\"background-color: rgb(255, 255, 0);\">c</span></span></span>")
+}
+
 @Test func isAppliedSeesTagsAndStyles() {
     let document = FieldDocument(html: "<i>a</i><span style=\"font-style: italic\">b</span>c", style: style)
     #expect(document.isApplied(.italic, in: document.text, range: NSRange(location: 0, length: 2)))

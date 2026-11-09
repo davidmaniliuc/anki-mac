@@ -41,6 +41,13 @@ public struct FieldStyle {
 }
 
 /// Formatting the toolbar toggles.
+/// The two colours desktop's toolbar sets.
+public enum ColorKind: Sendable {
+    case text, highlight
+
+    var property: String { self == .text ? "color" : "background-color" }
+}
+
 public enum InlineFormat: CaseIterable, Sendable {
     case bold, italic, underline, strikethrough, superscript, `subscript`
 
@@ -110,6 +117,7 @@ public final class FieldDocument {
     private var formatCache: [[Int]: Set<InlineFormat>] = [:]
     /// An element with one formatting property removed from its style.
     private var withoutFormat: [Int: [InlineFormat: Int?]] = [:]
+    private var withoutColor: [Int: [ColorKind: Int?]] = [:]
     private var pendingMerge: (range: NSRange, from: Int, to: Int?)?
 
     static let voidTags: Set<String> = [
@@ -523,14 +531,43 @@ public final class FieldDocument {
         storage.endEditing()
     }
 
-    /// Wraps the range in a new element, such as `<font color="#ff0000">`.
-    public func wrap(_ openTag: String, name: String, in storage: NSTextStorage, range: NSRange) {
+    /// Desktop's text and highlight colour buttons: the range gets
+    /// `<span style="color: rgb(…);">`, and any colour it had before goes,
+    /// so picking again replaces the colour instead of nesting spans.
+    public func setColor(_ kind: ColorKind, red: Int, green: Int, blue: Int, in storage: NSTextStorage, range: NSRange) {
         guard range.length > 0 else { return }
-        elements.append(Element(name: name, open: openTag, close: "</\(name)>"))
+        elements.append(Element(
+            name: "span", open: "<span style=\"\(kind.property): rgb(\(red), \(green), \(blue));\">", close: "</span>"))
         let id = elements.count - 1
         storage.beginEditing()
-        restack(storage, range) { $0 + [id] }
+        restack(storage, range) { stack in
+            stack.compactMap { self.element($0, without: kind) } + [id]
+        }
         storage.endEditing()
+    }
+
+    /// A copy of an element without its colour, nil when nothing would be
+    /// left of it; the element itself when it has no colour.
+    private func element(_ id: Int, without kind: ColorKind) -> Int? {
+        if let cached = withoutColor[id]?[kind] { return cached }
+        let element = elements[id]
+        let attributes = parseAttributes(element.open)
+        let declarations = styleDeclarations(id)
+        let fontColor = kind == .text && element.name == "font" && attributes.contains { $0.name == "color" }
+        guard fontColor || declarations.contains(where: { $0.property == kind.property }) else { return id }
+        let kept = declarations.filter { $0.property != kind.property }
+        let others = attributes.filter { $0.name != "style" && !(fontColor && $0.name == "color") }
+        var result: Int?
+        if !(kept.isEmpty && others.isEmpty && (element.name == "span" || element.name == "font")) {
+            var open = "<\(element.name)"
+            for attribute in others { open += " \(attribute.name)=\"\(attribute.value)\"" }
+            if !kept.isEmpty { open += " style=\"" + kept.map { "\($0.property): \($0.value);" }.joined(separator: " ") + "\"" }
+            open += ">"
+            elements.append(Element(name: element.name, open: open, close: "</\(element.name)>"))
+            result = elements.count - 1
+        }
+        withoutColor[id, default: [:]][kind] = .some(result)
+        return result
     }
 
     private func addElement(_ tag: String) -> Int {

@@ -47,6 +47,12 @@ final class FieldTextView: NSTextView {
                 : document.attributes([]))
     }
 
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { editor?.focusedView = self }
+        return became
+    }
+
     // MARK: Editing rules
 
     override func setSelectedRanges(
@@ -123,15 +129,14 @@ final class FieldTextView: NSTextView {
         didChangeText()
     }
 
-    /// Colours the selection as desktop's text colour button does.
-    func applyColor(_ color: NSColor) {
+    /// The format bar's colour buttons and F7: the selection takes the
+    /// last colour picked.
+    @objc func applyFieldColor(_ sender: Any?) {
+        guard let kind = (sender as? ColorCommand)?.kind else { return }
         let range = selectedRange()
-        guard range.length > 0, let storage = textStorage, shouldChangeText(in: range, replacementString: nil),
-            let rgb = color.usingColorSpace(.sRGB)
-        else { return }
-        let hex = String(
-            format: "#%02x%02x%02x", Int(rgb.redComponent * 255), Int(rgb.greenComponent * 255), Int(rgb.blueComponent * 255))
-        document.wrap("<font color=\"\(hex)\">", name: "font", in: storage, range: range)
+        guard range.length > 0, let storage = textStorage, shouldChangeText(in: range, replacementString: nil) else { return }
+        let (red, green, blue) = EditorColors.components(EditorColors.shared.color(kind))
+        document.setColor(kind, red: red, green: green, blue: blue, in: storage, range: range)
         didChangeText()
     }
 
