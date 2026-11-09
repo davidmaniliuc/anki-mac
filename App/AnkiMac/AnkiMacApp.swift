@@ -58,6 +58,15 @@ struct DeckOptionsCommands: Commands {
     let model: CollectionModel
 
     var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("Add Cards…") { AddCardsWindowController.show(collection: model) }
+                .keyboardShortcut("n")
+                .disabled(!model.isLoaded)
+            let adding = KeyAddCards.shared.controller
+            Button("Add Note") { adding?.add() }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(adding == nil)
+        }
         CommandGroup(replacing: .saveItem) {
             let options = KeyDeckOptions.shared.controller
             Button(Tr.deckConfigSaveButton) { options?.save() }

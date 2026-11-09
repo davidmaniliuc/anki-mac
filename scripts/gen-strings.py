@@ -20,8 +20,15 @@ ROOT = Path(__file__).resolve().parent.parent
 FTL = ROOT / "anki/ftl/core"
 OUT = ROOT / "App/AnkiMac/Generated/Tr.swift"
 
-WHOLE_FILES = ["deck-config.ftl"]
+WHOLE_FILES = ["deck-config.ftl", "adding.ftl"]
 EXTRA = [
+    "actions-add",
+    "decks-deck",
+    "editing-show-duplicates",
+    "editing-tags",
+    "editing-toggle-sticky",
+    "importing-cards-added",
+    "notetypes-type",
     "actions-auto-advance",
     "actions-options-for",
     "actions-processing",

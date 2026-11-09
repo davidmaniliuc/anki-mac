@@ -278,6 +278,12 @@ final class StudySession {
 
     nonisolated private static let markedTag = "marked"
 
+    /// The deck the current card belongs to, outside any filtered deck.
+    var homeDeckID: Int64? {
+        guard let card = card?.queued.card else { return nil }
+        return card.originalDeckID != 0 ? card.originalDeckID : card.deckID
+    }
+
     /// The options changed; the next card reads them again.
     func invalidateOptions() {
         configCache.removeAll()

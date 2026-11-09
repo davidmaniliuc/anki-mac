@@ -8,9 +8,7 @@ import UniformTypeIdentifiers
 final class FieldTextView: NSTextView {
     var field: EditorField!
     weak var editor: NoteEditorModel?
-    /// Whether pasting keeps formatting unless Shift is held, the
-    /// collection's "paste strips formatting" setting inverted.
-    var pasteKeepsFormatting = true
+    private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
 
     private var document: FieldDocument { field.document }
 

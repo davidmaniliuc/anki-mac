@@ -6,6 +6,10 @@ import SwiftUI
 /// shared by Add Cards and the browser.
 struct NoteEditorView: View {
     let editor: NoteEditorModel
+    /// Add mode's pins: which fields keep their content after adding.
+    var sticky: (isOn: (Int) -> Bool, toggle: (Int) -> Void)?
+    /// The field shown as a duplicate of an existing note's.
+    var duplicateField: Int?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +20,9 @@ struct NoteEditorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                     ForEach(editor.fields) { field in
-                        FieldRow(field: field, editor: editor)
+                        FieldRow(
+                            field: field, editor: editor, sticky: sticky,
+                            duplicate: duplicateField == field.index)
                     }
                 }
                 .padding(Theme.Spacing.medium)
@@ -28,12 +34,23 @@ struct NoteEditorView: View {
 private struct FieldRow: View {
     let field: EditorField
     let editor: NoteEditorModel
+    let sticky: (isOn: (Int) -> Bool, toggle: (Int) -> Void)?
+    let duplicate: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
             HStack {
                 Text(field.name).font(Theme.Editor.labelFont).foregroundStyle(.secondary)
                 Spacer()
+                if let sticky {
+                    Toggle(isOn: Binding { sticky.isOn(field.index) } set: { _ in sticky.toggle(field.index) }) {
+                        Image(systemName: sticky.isOn(field.index) ? "pin.fill" : "pin")
+                    }
+                    .toggleStyle(.button)
+                    .buttonStyle(.borderless)
+                    .help(Tr.editingToggleSticky)
+                    .accessibilityLabel("\(Tr.editingToggleSticky): \(field.name)")
+                }
                 if !field.plainText {
                     Toggle(isOn: Binding { field.showingSource } set: { _ in
                         field.toggleSource(mediaFolder: editor.mediaFolder)
@@ -63,7 +80,9 @@ private struct FieldRow: View {
                         .accessibilityLabel(field.name)
                 }
             }
-            .background(Theme.Editor.fieldBackground, in: RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius))
+            .background(
+                duplicate ? Theme.Editor.duplicateBackground : Theme.Editor.fieldBackground,
+                in: RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius)
                     .strokeBorder(Theme.Editor.fieldBorder))
@@ -86,6 +105,12 @@ private struct FieldTextEditor: NSViewRepresentable {
     func updateNSView(_ view: FieldTextView, context: Context) {
         view.editor = editor
         view.show(field)
+        if editor.focusRequest == field.index {
+            DispatchQueue.main.async {
+                view.window?.makeFirstResponder(view)
+                editor.focusRequest = nil
+            }
+        }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView view: FieldTextView, context: Context) -> CGSize? {
@@ -112,14 +137,14 @@ struct FormatBar: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.small) {
             ControlGroup {
-                formatButton(.bold, "bold", "Bold (\u{2318}B)")
-                formatButton(.italic, "italic", "Italic (\u{2318}I)")
-                formatButton(.underline, "underline", "Underline (\u{2318}U)")
-                formatButton(.strikethrough, "strikethrough", "Strikethrough")
+                formatButton(.bold, "bold", "Bold", "\u{2318}B")
+                formatButton(.italic, "italic", "Italic", "\u{2318}I")
+                formatButton(.underline, "underline", "Underline", "\u{2318}U")
+                formatButton(.strikethrough, "strikethrough", "Strikethrough", nil)
             }
             ControlGroup {
-                formatButton(.superscript, "textformat.superscript", "Superscript (\u{2318}\u{21E7}=)")
-                formatButton(.subscript, "textformat.subscript", "Subscript (\u{2318}=)")
+                formatButton(.superscript, "textformat.superscript", "Superscript", "\u{2318}\u{21E7}=")
+                formatButton(.subscript, "textformat.subscript", "Subscript", "\u{2318}=")
             }
             Button {
                 send(#selector(FieldTextView.removeFieldFormatting(_:)))
@@ -139,13 +164,13 @@ struct FormatBar: View {
         .controlSize(.small)
     }
 
-    private func formatButton(_ format: InlineFormat, _ symbol: String, _ help: String) -> some View {
+    private func formatButton(_ format: InlineFormat, _ symbol: String, _ title: String, _ shortcut: String?) -> some View {
         Button {
             NSApp.sendAction(#selector(FieldTextView.toggleFieldFormat(_:)), to: nil, from: FormatCommand(format))
         } label: {
-            Label(help, systemImage: symbol)
+            Label(title, systemImage: symbol)
         }
-        .help(help)
+        .help(shortcut.map { "\(title) (\($0))" } ?? title)
     }
 
     private func send(_ action: Selector) {

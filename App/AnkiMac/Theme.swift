@@ -116,6 +116,15 @@ enum Theme {
         static let progressInterval = Duration.milliseconds(100)
     }
 
+    enum AddCards {
+        static let defaultSize = CGSize(width: 560, height: 680)
+        static let minSize = CGSize(width: 400, height: 300)
+        static let checkDelay = Duration.milliseconds(300)
+        static let addedMessageDuration = Duration.seconds(1.5)
+        static let toastInset: CGFloat = 60
+        static let tagSuggestions = 8
+    }
+
     enum Editor {
         static let defaultFontSize: CGFloat = 20
         static let fieldInset = NSSize(width: 6, height: 6)
@@ -127,6 +136,8 @@ enum Theme {
         static let sourceFont = Font.body.monospaced()
         static let fieldBackground = Color(nsColor: .textBackgroundColor)
         static let fieldBorder = Color(nsColor: .separatorColor)
+        /// Desktop's red tint on a first field that duplicates another note.
+        static let duplicateBackground = Color.red.opacity(0.18)
 
         /// How text, chips and images look inside a field.
         static func fieldStyle(font: NSFont) -> FieldStyle {

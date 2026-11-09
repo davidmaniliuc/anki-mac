@@ -288,6 +288,31 @@ nonisolated enum Tr {
     static let deckConfigInvalidWeights = "Parameters must be either left blank to use the defaults, or must be 17 comma-separated numbers."
     static let deckConfigFsrsOnAllClients = "Please ensure all of your Anki clients are Anki(Mobile) 23.10+ or AnkiDroid 2.17+. FSRS will not work correctly if one of your clients is older."
     static let deckConfigOptimizeAllTip = "You can optimize all presets at once by using the dropdown button next to \"Save\"."
+    static let addingAddShortcutCtrlandenter = "Add (shortcut: ctrl+enter)"
+    static let addingAdded = "Added"
+    static let addingDiscardCurrentInput = "Discard current input?"
+    static let addingKeepEditing = "Keep Editing"
+    static func addingEdit(val: String) -> String {
+        ("Edit \"" + String(describing: val) + "\"")
+    }
+    static let addingHistory = "History"
+    static let addingNoteDeleted = "(Note deleted)"
+    static func addingShortcut(val: String) -> String {
+        ("Shortcut: " + String(describing: val))
+    }
+    static let addingTheFirstFieldIsEmpty = "The first field is empty."
+    static let addingYouHaveAClozeDeletionNote = "You have a cloze note type but have not made any cloze deletions. Proceed?"
+    static let addingClozeOutsideClozeNotetype = "Cloze deletion can only be used on cloze note types."
+    static let addingClozeOutsideClozeField = "Cloze deletion can only be used in fields which use the 'cloze:' filter. This is typically the first field."
+    static let actionsAdd = "Add"
+    static let decksDeck = "Deck"
+    static let editingShowDuplicates = "Show Duplicates"
+    static let editingTags = "Tags"
+    static let editingToggleSticky = "Toggle sticky"
+    static func importingCardsAdded(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " card added.") : (String(describing: count) + " cards added."))
+    }
+    static let notetypesType = "Type"
     static let actionsAutoAdvance = "Auto Advance"
     static func actionsOptionsFor(val: String) -> String {
         ("Options for " + String(describing: val))

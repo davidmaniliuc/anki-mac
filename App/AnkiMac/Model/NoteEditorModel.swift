@@ -91,6 +91,10 @@ final class NoteEditorModel {
     private let backend: AnkiBackend
     /// Called after every edit, so the owner can save or check the note.
     var onChange: (() -> Void)?
+    /// The collection's "paste strips formatting", inverted; Shift flips it.
+    var pasteKeepsFormatting = true
+    /// The field to focus once it's on screen.
+    var focusRequest: Int?
 
     init(backend: AnkiBackend, mediaFolder: URL?) {
         self.backend = backend
@@ -107,6 +111,7 @@ final class NoteEditorModel {
                 name: field.name, index: index, html: index < values.count ? values[index] : "", font: font,
                 plainText: config.plainText, rightToLeft: config.rtl, mediaFolder: mediaFolder)
         }
+        focusRequest = 0
     }
 
     var values: [String] { fields.map(\.html) }
