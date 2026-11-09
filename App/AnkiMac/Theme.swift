@@ -67,6 +67,10 @@ enum Theme {
         static let sheetWidth: CGFloat = 420
         static let deckListHeight: CGFloat = 260
         static let tagSuggestions = 8
+        static let editorMinWidth: CGFloat = 260
+        static let editorFraction: CGFloat = 0.4
+        /// Edits are saved once typing pauses this long, as desktop's.
+        static let editorSaveDelay = Duration.milliseconds(600)
 
         /// Whole-row tints for flagged, marked, suspended and buried cards, in
         /// desktop's colour scheme. Translucent, so the alternating row
@@ -129,7 +133,7 @@ enum Theme {
         static let defaultFontSize: CGFloat = 20
         static let fieldInset = NSSize(width: 6, height: 6)
         static let minFieldHeight: CGFloat = 32
-        static let minWidth: CGFloat = 300
+        static let minFieldWidth: CGFloat = 80
         static let sourceMinHeight: CGFloat = 80
         static let cornerRadius: CGFloat = 6
         static let labelFont = Font.callout

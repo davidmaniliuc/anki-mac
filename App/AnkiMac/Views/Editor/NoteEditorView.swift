@@ -114,7 +114,8 @@ private struct FieldTextEditor: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView view: FieldTextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? Theme.Editor.minWidth
+        // Asked for an ideal size, claim little width: the row decides.
+        let width = proposal.width ?? Theme.Editor.minFieldWidth
         return CGSize(width: width, height: view.height(forWidth: width))
     }
 }

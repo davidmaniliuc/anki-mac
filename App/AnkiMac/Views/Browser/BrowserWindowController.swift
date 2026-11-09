@@ -11,6 +11,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     let model: BrowserModel
     private let sidebar: BrowserSidebarController
     private let tableController: BrowserTableController
+    private let editor: BrowserEditorModel?
     private let searchItem = NSSearchToolbarItem(itemIdentifier: .search)
     private let modeControl = NSSegmentedControl(
         labels: BrowserMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
@@ -36,6 +37,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     private init(model: BrowserModel) {
         self.model = model
         sidebar = BrowserSidebarController(model: model)
+        editor = model.collection.backend.map {
+            BrowserEditorModel(browser: model, backend: $0, mediaFolder: model.collection.paths?.mediaFolder)
+        }
         tableController = BrowserTableController(model: model)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Theme.Browser.defaultSize),
@@ -76,8 +80,15 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
         sidebarItem.minimumThickness = Theme.Sidebar.minWidth
         split.addSplitViewItem(sidebarItem)
-        // A future editor pane becomes a third item, beside the table.
         split.addSplitViewItem(NSSplitViewItem(viewController: DetailController(errorBar: errorBar, table: tableController)))
+        if let editor {
+            // An inspector, so a narrow window can fold it away.
+            let item = NSSplitViewItem(inspectorWithViewController: NSHostingController(rootView: BrowserEditorView(model: editor)))
+            item.minimumThickness = Theme.Browser.editorMinWidth
+            item.preferredThicknessFraction = Theme.Browser.editorFraction
+            item.canCollapse = true
+            split.addSplitViewItem(item)
+        }
         split.splitView.autosaveName = "BrowserSplit"
         return split
     }
@@ -105,6 +116,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         track { [weak self] in
             guard let self else { return }
             showPrompt(model.prompt)
+        }
+        track { [weak self] in
+            guard let self else { return }
+            // The note follows the selection, and a new search's rows.
+            _ = model.idsVersion
+            let selection = model.selection
+            DispatchQueue.main.async { self.editor?.show(selection) }
         }
         track { [weak self] in
             guard let self else { return }
@@ -194,6 +212,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     func windowWillClose(_ notification: Notification) {
+        editor?.saveNow()
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }
         Self.current = nil
     }
@@ -201,7 +220,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .mode, .flexibleSpace, .search]
+        [.toggleSidebar, .sidebarTrackingSeparator, .mode, .flexibleSpace, .search, .inspectorTrackingSeparator,
+         .toggleInspector]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {

@@ -102,7 +102,7 @@ final class NoteEditorModel {
     }
 
     /// Shows a note type's fields with these values.
-    func load(notetype: Anki_Notetypes_Notetype, values: [String]) {
+    func load(notetype: Anki_Notetypes_Notetype, values: [String], focus: Bool = true) {
         fields = notetype.fields.enumerated().map { index, field in
             let config = field.config
             let size = config.fontSize > 0 ? CGFloat(config.fontSize) : Theme.Editor.defaultFontSize
@@ -111,7 +111,11 @@ final class NoteEditorModel {
                 name: field.name, index: index, html: index < values.count ? values[index] : "", font: font,
                 plainText: config.plainText, rightToLeft: config.rtl, mediaFolder: mediaFolder)
         }
-        focusRequest = 0
+        focusRequest = focus ? 0 : nil
+    }
+
+    func clear() {
+        fields = []
     }
 
     var values: [String] { fields.map(\.html) }
