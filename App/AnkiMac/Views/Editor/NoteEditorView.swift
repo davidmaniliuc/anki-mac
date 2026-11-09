@@ -40,7 +40,23 @@ private struct FieldRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
             HStack {
-                Text(field.name).font(Theme.Editor.labelFont).foregroundStyle(.secondary)
+                Button {
+                    editor.toggleCollapsed(field)
+                } label: {
+                    Label {
+                        Text(field.name)
+                    } icon: {
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(field.collapsed ? 0 : 90))
+                            .imageScale(.small)
+                    }
+                    .font(Theme.Editor.labelFont)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(field.collapsed ? Tr.editingExpandField : Tr.editingCollapseField)
+                .accessibilityLabel(field.name)
+                .accessibilityValue(field.collapsed ? Tr.editingExpand : Tr.editingCollapse)
                 Spacer()
                 if let sticky {
                     Toggle(isOn: Binding { sticky.isOn(field.index) } set: { _ in sticky.toggle(field.index) }) {
@@ -61,31 +77,37 @@ private struct FieldRow: View {
                     .buttonStyle(.borderless)
                     .help("Show HTML (\u{2318}\u{21E7}X)")
                     .accessibilityLabel("Show HTML for \(field.name)")
+                    // Hidden on a collapsed field, keeping its place so the pins line up.
+                    .opacity(field.collapsed ? 0 : 1)
+                    .disabled(field.collapsed)
+                    .accessibilityHidden(field.collapsed)
                 }
             }
-            Group {
-                if field.showingSource {
-                    TextEditor(text: Binding { field.source } set: {
-                        field.setSource($0)
-                        editor.edited()
-                    })
-                    .font(Theme.Editor.sourceFont)
-                    .autocorrectionDisabled()
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: Theme.Editor.sourceMinHeight)
-                    .padding(Theme.Spacing.xSmall)
-                } else {
-                    FieldTextEditor(field: field, editor: editor)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(field.name)
+            if !field.collapsed {
+                Group {
+                    if field.showingSource {
+                        TextEditor(text: Binding { field.source } set: {
+                            field.setSource($0)
+                            editor.edited()
+                        })
+                        .font(Theme.Editor.sourceFont)
+                        .autocorrectionDisabled()
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: Theme.Editor.sourceMinHeight)
+                        .padding(Theme.Spacing.xSmall)
+                    } else {
+                        FieldTextEditor(field: field, editor: editor)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel(field.name)
+                    }
                 }
+                .background(
+                    duplicate ? Theme.Editor.duplicateBackground : Theme.Editor.fieldBackground,
+                    in: RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius)
+                        .strokeBorder(Theme.Editor.fieldBorder))
             }
-            .background(
-                duplicate ? Theme.Editor.duplicateBackground : Theme.Editor.fieldBackground,
-                in: RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius)
-                    .strokeBorder(Theme.Editor.fieldBorder))
         }
     }
 }

@@ -23,6 +23,8 @@ final class EditorField: Identifiable {
     let font: NSFont
     let plainText: Bool
     let rightToLeft: Bool
+    /// Only the label shows, as desktop's collapsed field.
+    var collapsed = false
 
     init(name: String, index: Int, html: String, font: NSFont, plainText: Bool, rightToLeft: Bool, mediaFolder: URL?) {
         self.name = name
@@ -98,6 +100,10 @@ final class NoteEditorModel {
     /// The field the format bar acts on: the last one focused, so the bar
     /// works even while its window isn't key.
     @ObservationIgnored weak var focusedView: NSView?
+    /// Which fields the user collapsed, per note type, for as long as this
+    /// editor is open, as desktop's session options.
+    @ObservationIgnored private var collapsedByNotetype: [Int64: [Bool]] = [:]
+    @ObservationIgnored private var notetypeID: Int64 = 0
 
     init(backend: AnkiBackend, mediaFolder: URL?) {
         self.backend = backend
@@ -106,15 +112,26 @@ final class NoteEditorModel {
 
     /// Shows a note type's fields with these values.
     func load(notetype: Anki_Notetypes_Notetype, values: [String], focus: Bool = true) {
+        notetypeID = notetype.id
+        let collapsed = collapsedByNotetype[notetype.id] ?? notetype.fields.map(\.config.collapsed)
         fields = notetype.fields.enumerated().map { index, field in
             let config = field.config
             let size = config.fontSize > 0 ? CGFloat(config.fontSize) : Theme.Editor.defaultFontSize
             let font = NSFont(name: config.fontName, size: size) ?? .systemFont(ofSize: size)
-            return EditorField(
+            let editorField = EditorField(
                 name: field.name, index: index, html: index < values.count ? values[index] : "", font: font,
                 plainText: config.plainText, rightToLeft: config.rtl, mediaFolder: mediaFolder)
+            editorField.collapsed = index < collapsed.count && collapsed[index]
+            return editorField
         }
-        focusRequest = focus ? 0 : nil
+        focusRequest = focus ? fields.first { !$0.collapsed }?.index : nil
+    }
+
+    /// Collapses or expands a field; an expanded field takes focus.
+    func toggleCollapsed(_ field: EditorField) {
+        field.collapsed.toggle()
+        collapsedByNotetype[notetypeID] = fields.map(\.collapsed)
+        if !field.collapsed { focusRequest = field.index }
     }
 
     func clear() {

@@ -309,6 +309,10 @@ nonisolated enum Tr {
     static let editingShowDuplicates = "Show Duplicates"
     static let editingTags = "Tags"
     static let editingToggleSticky = "Toggle sticky"
+    static let editingCollapse = "Collapse"
+    static let editingCollapseField = "Collapse field"
+    static let editingExpand = "Expand"
+    static let editingExpandField = "Expand field"
     static func importingCardsAdded(count: Int) -> String {
         (count == 1 ? (String(describing: count) + " card added.") : (String(describing: count) + " cards added."))
     }
