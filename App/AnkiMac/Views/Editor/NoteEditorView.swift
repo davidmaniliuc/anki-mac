@@ -160,7 +160,8 @@ struct FormatBar: View {
     let editor: NoteEditorModel
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.small) {
+        // Wraps onto more lines in a narrow pane rather than clipping buttons.
+        FlowLayout(spacing: Theme.Spacing.small) {
             ControlGroup {
                 formatButton(.bold, "bold", "Bold", "\u{2318}B")
                 formatButton(.italic, "italic", "Italic", "\u{2318}I")
@@ -185,8 +186,8 @@ struct FormatBar: View {
                 Label("Cloze Deletion", systemImage: "ellipsis.curlybraces")
             }
             .help("Cloze Deletion (\u{2318}\u{21E7}C)")
-            Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .labelStyle(.iconOnly)
         .controlSize(.small)
     }
@@ -237,6 +238,48 @@ struct FormatBar: View {
 
 func applyColor(_ kind: ColorKind) {
     NSApp.sendAction(#selector(FieldTextView.applyFieldColor(_:)), to: nil, from: ColorCommand(kind))
+}
+
+/// Lays its views out in rows, starting a new row when the next one
+/// doesn't fit.
+private struct FlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(subviews, width: proposal.width ?? .infinity)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private func rows(_ subviews: Subviews, width: CGFloat) -> [(indices: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(indices: [Int], width: CGFloat, height: CGFloat)] = []
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if let last = rows.last, last.width + spacing + size.width <= width {
+                rows[rows.count - 1].indices.append(index)
+                rows[rows.count - 1].width += spacing + size.width
+                rows[rows.count - 1].height = max(last.height, size.height)
+            } else {
+                rows.append(([index], size.width, size.height))
+            }
+        }
+        return rows
+    }
 }
 
 /// The Format menu: the editor's commands, for whichever field has focus.

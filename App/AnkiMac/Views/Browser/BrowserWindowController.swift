@@ -89,6 +89,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
             host.sizingOptions = []
             let item = NSSplitViewItem(inspectorWithViewController: host)
             item.minimumThickness = Theme.Browser.editorMinWidth
+            // An inspector stops at a narrow width by default; the editor can take as much as the table spares.
+            item.maximumThickness = NSSplitViewItem.unspecifiedDimension
             item.preferredThicknessFraction = Theme.Browser.editorFraction
             item.canCollapse = true
             split.addSplitViewItem(item)
@@ -225,7 +227,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .sidebarTrackingSeparator, .mode, .flexibleSpace, .search, .inspectorTrackingSeparator,
-         .toggleInspector]
+         .flexibleSpace, .toggleInspector]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
