@@ -31,6 +31,9 @@ targets:
         buildPhase: resources
     dependencies:
       - package: AnkiKit
+        product: AnkiKit
+      - package: AnkiKit
+        product: FieldEditor
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.davidmaniliuc.AnkiMac

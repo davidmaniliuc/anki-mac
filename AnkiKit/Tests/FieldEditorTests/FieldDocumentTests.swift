@@ -187,3 +187,11 @@ func awkwardFieldRoundTrips(_ field: String) {
     #expect(FieldDocument.nextClozeNumber(in: ["{{c1::a}} {{c3::b}}", "{{c2::c}}"]) == 4)
     #expect(FieldDocument.nextClozeNumber(in: ["none"]) == 1)
 }
+
+@Test func pasteKeepsSimpleFormattingAndDropsTheRest() {
+    let html = "<p class=\"x\">Hi <b>there</b> <span style=\"color: red; font-size: 30px\">red</span>"
+        + "<script>alert(1)</script><o:p>office</o:p><img src=\"a.png\" width=\"9\"></p>"
+    #expect(PasteFilter.filter(html, keepFormatting: true)
+        == "<div>Hi <b>there</b> <span style=\"color: red;\">red</span>office<img src=\"a.png\"></div>")
+    #expect(PasteFilter.filter(html, keepFormatting: false) == "<div>Hi there redoffice<img src=\"a.png\"></div>")
+}

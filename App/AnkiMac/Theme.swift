@@ -1,5 +1,6 @@
 import AnkiKit
 import AppKit
+import FieldEditor
 import SwiftUI
 
 /// Every visual decision in the app lives here: colours, spacing, type and
@@ -113,6 +114,32 @@ enum Theme {
         static let chartHeight: CGFloat = 260
         /// How often a running FSRS job's progress is read.
         static let progressInterval = Duration.milliseconds(100)
+    }
+
+    enum Editor {
+        static let defaultFontSize: CGFloat = 20
+        static let fieldInset = NSSize(width: 6, height: 6)
+        static let minFieldHeight: CGFloat = 32
+        static let minWidth: CGFloat = 300
+        static let sourceMinHeight: CGFloat = 80
+        static let cornerRadius: CGFloat = 6
+        static let labelFont = Font.callout
+        static let sourceFont = Font.body.monospaced()
+        static let fieldBackground = Color(nsColor: .textBackgroundColor)
+        static let fieldBorder = Color(nsColor: .separatorColor)
+
+        /// How text, chips and images look inside a field.
+        static func fieldStyle(font: NSFont) -> FieldStyle {
+            FieldStyle(
+                font: font,
+                codeFont: .monospacedSystemFont(ofSize: font.pointSize * 0.9, weight: .regular),
+                textColor: .textColor,
+                unknownTagBackground: NSColor.systemYellow.withAlphaComponent(0.18),
+                chipFont: .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
+                chipFill: NSColor.secondaryLabelColor.withAlphaComponent(0.15),
+                chipText: .secondaryLabelColor,
+                imageMaxHeight: 160)
+        }
     }
 
     /// Flag colours in the sidebar and menus, matching the row tints.

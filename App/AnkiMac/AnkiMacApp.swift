@@ -30,6 +30,7 @@ struct AnkiMacApp: App {
             StudyCommands(model: model)
             CardCommands()
             DeckOptionsCommands(model: model)
+            FormatCommands()
             CommandGroup(before: .windowList) {
                 Button("Browse") { BrowserWindowController.show(collection: model) }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
