@@ -93,6 +93,11 @@ struct StudyView: View {
             BrowserWindowController.show(collection: model)
             return true
         }
+        // And "o" for the current deck's options, in the overview and while studying.
+        if modifiers.isEmpty, key == "o", let deck = model.selectedDeck, !deck.filtered {
+            DeckOptionsWindowController.show(deckID: deck.id, collection: model)
+            return true
+        }
         guard let session else { return false }
         if modifiers == .command, key == "z" {
             session.undo()
