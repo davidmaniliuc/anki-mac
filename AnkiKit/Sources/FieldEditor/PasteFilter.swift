@@ -35,7 +35,11 @@ public enum PasteFilter {
         "color", "background-color", "font-weight", "font-style", "text-decoration-line",
     ]
 
-    public static func filter(_ html: String, keepFormatting: Bool) -> String {
+    /// `imageSource` maps each image's `src`, as desktop saves remote and
+    /// inline images into the media folder.
+    public static func filter(
+        _ html: String, keepFormatting: Bool, imageSource: (String) -> String = { $0 }
+    ) -> String {
         let rules = keepFormatting ? extended : basic
         var out = ""
         /// For each open element: the tag that closes it, or nil when it was unwrapped.
@@ -66,7 +70,11 @@ public enum PasteFilter {
                     out += "<div>"
                     open.append((name, "</div>"))
                 case .attributes(let allowed)?:
-                    out += tag(name, parseAttributes(raw).filter { allowed.contains($0.name) })
+                    var attributes = parseAttributes(raw).filter { allowed.contains($0.name) }
+                    if name == "img", let index = attributes.firstIndex(where: { $0.name == "src" }) {
+                        attributes[index].value = imageSource(attributes[index].value)
+                    }
+                    out += tag(name, attributes)
                     if !isVoid { open.append((name, "</\(name)>")) }
                 case .span?:
                     let style = parseCSS(parseAttributes(raw).first { $0.name == "style" }?.value ?? "")

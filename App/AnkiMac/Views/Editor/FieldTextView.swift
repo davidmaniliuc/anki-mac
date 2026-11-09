@@ -200,13 +200,18 @@ final class FieldTextView: NSTextView {
             return !html.isEmpty
         }
         if let html = pasteboard.string(forType: .html) {
-            insertHTML(PasteFilter.filter(html, keepFormatting: keepFormatting))
+            pasteHTML(html, keepFormatting: keepFormatting)
             return true
         }
         if let image = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff),
             let (data, ext) = Self.encodeImage(image), let name = editor?.addPastedImage(data, ext: ext)
         {
             insertHTML("<img src=\"\(Self.escapeAttribute(name))\">")
+            return true
+        }
+        // A link to an image or sound is downloaded; any other link stays a link.
+        if let url = (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])?.first, Self.isRemote(url.absoluteString) {
+            pasteURL(url.absoluteString)
             return true
         }
         if let rtf = pasteboard.data(forType: .rtf),
@@ -220,6 +225,85 @@ final class FieldTextView: NSTextView {
             return true
         }
         return false
+    }
+
+    /// Pasted HTML through desktop's filter. Inline images are saved
+    /// straight away; remote ones are downloaded first, then the HTML is
+    /// inserted where the cursor is by then.
+    private func pasteHTML(_ html: String, keepFormatting: Bool) {
+        var remote: [String] = []
+        let filtered = PasteFilter.filter(html, keepFormatting: keepFormatting) { src in
+            if Self.isRemote(src) { remote.append(src) }
+            return localImage(src) ?? src
+        }
+        guard !remote.isEmpty, let editor else {
+            insertHTML(filtered)
+            return
+        }
+        Task {
+            var downloaded: [String: String] = [:]
+            for src in Set(remote) {
+                switch await editor.addMedia(fromURL: Self.decodeAttribute(src)) {
+                case .success(let name): downloaded[src] = name
+                case .failure(let error): showError(error.message)
+                }
+            }
+            insertHTML(PasteFilter.filter(html, keepFormatting: keepFormatting) { src in
+                downloaded[src].map(Self.escapeAttribute) ?? localImage(src) ?? src
+            })
+        }
+    }
+
+    /// A `data:image/…;base64,` source, saved as a pasted image.
+    private func localImage(_ src: String) -> String? {
+        guard src.hasPrefix("data:image/"), let comma = src.firstIndex(of: ","),
+            src[..<comma].hasSuffix(";base64"),
+            let data = Data(base64Encoded: String(src[src.index(after: comma)...]).trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        var ext = String(src.dropFirst("data:image/".count).prefix { $0 != ";" })
+        guard ["jpg", "jpeg", "png", "gif"].contains(ext) else { return nil }
+        if ext == "jpeg" { ext = "jpg" }
+        return editor?.addPastedImage(data, ext: ext).map(Self.escapeAttribute)
+    }
+
+    /// Desktop's `urlToLink`: media is downloaded, anything else becomes a link.
+    private func pasteURL(_ url: String) {
+        let link = "<a href=\"\(Self.escapeAttribute(url))\">\(escapeHTMLText(url.removingPercentEncoding ?? url))</a>"
+        guard let editor, Self.mediaSuffixes.contains(where: { url.lowercased().hasSuffix(".\($0)") }) else {
+            insertHTML(link)
+            return
+        }
+        Task {
+            switch await editor.addMedia(fromURL: url) {
+            case .success(let name):
+                let image = UTType(filenameExtension: (name as NSString).pathExtension)?.conforms(to: .image) ?? false
+                insertHTML(image ? "<img src=\"\(Self.escapeAttribute(name))\">" : "[sound:\(escapeHTMLText(name))]")
+            case .failure(let error):
+                showError(error.message)
+                insertHTML(link)
+            }
+        }
+    }
+
+    private func showError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = message
+        if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+    }
+
+    /// Desktop's image and audio suffixes for pasted links.
+    private static let mediaSuffixes = [
+        "jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif", "3gp", "aac", "avi", "flac", "flv", "m4a", "mkv",
+        "mov", "mp3", "mp4", "mpeg", "mpg", "oga", "ogg", "ogv", "ogx", "opus", "spx", "swf", "wav", "webm",
+    ]
+
+    private static func isRemote(_ src: String) -> Bool {
+        let lower = src.lowercased()
+        return ["http://", "https://", "ftp://"].contains { lower.hasPrefix($0) }
+    }
+
+    private static func decodeAttribute(_ value: String) -> String {
+        value.replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "&amp;", with: "&")
     }
 
     /// A dropped or pasted file, copied into the media folder.

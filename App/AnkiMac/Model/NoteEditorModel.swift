@@ -153,6 +153,21 @@ final class NoteEditorModel {
         return try? backend.addMediaFile(request).val
     }
 
+    /// Downloads a pasted image or sound into the media folder, as
+    /// desktop's paste does. Returns the file name, or the error to show.
+    func addMedia(fromURL url: String) async -> Result<String, MediaDownloadError> {
+        var request = Anki_Media_AddMediaFromUrlRequest()
+        request.url = url
+        let sent = request
+        do {
+            let response = try await backend.perform { try $0.addMediaFromUrl(sent) }
+            if response.hasFilename { return .success(response.filename) }
+            return .failure(MediaDownloadError(message: response.error))
+        } catch {
+            return .failure(MediaDownloadError(message: (error as? AnkiError)?.message ?? String(describing: error)))
+        }
+    }
+
     func addPastedImage(_ data: Data, ext: String) -> String? {
         let checksum = Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()
         return addMedia(data, preferredName: "paste-\(checksum).\(ext)")
@@ -166,4 +181,8 @@ final class NoteEditorModel {
     var currentClozeNumber: Int {
         max(1, nextClozeNumber - 1)
     }
+}
+
+struct MediaDownloadError: Error {
+    let message: String
 }

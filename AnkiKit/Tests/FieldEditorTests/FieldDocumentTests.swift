@@ -161,6 +161,13 @@ func awkwardFieldRoundTrips(_ field: String) {
         + "<span style=\"color: rgb(1, 2, 3);\"><span style=\"background-color: rgb(255, 255, 0);\">c</span></span></span>")
 }
 
+@Test func pastedImageSourcesAreMapped() {
+    let html = PasteFilter.filter(
+        "<p><img src=\"https://example.com/a.png\" class=\"x\"><img src=\"b.jpg\"></p>", keepFormatting: false
+    ) { $0.hasPrefix("https://") ? "a.png" : $0 }
+    #expect(html == "<div><img src=\"a.png\"><img src=\"b.jpg\"></div>")
+}
+
 @Test func isAppliedSeesTagsAndStyles() {
     let document = FieldDocument(html: "<i>a</i><span style=\"font-style: italic\">b</span>c", style: style)
     #expect(document.isApplied(.italic, in: document.text, range: NSRange(location: 0, length: 2)))
