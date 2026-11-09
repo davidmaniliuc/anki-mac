@@ -9,6 +9,7 @@ struct BrowserEditorView: View {
             ContentUnavailableView(
                 "No Note Selected", systemImage: "square.and.pencil",
                 description: Text("Select one card or note to edit it."))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(spacing: 0) {
                 NoteEditorView(editor: model.editor)

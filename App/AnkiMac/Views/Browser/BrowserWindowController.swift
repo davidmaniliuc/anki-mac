@@ -83,7 +83,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         split.addSplitViewItem(NSSplitViewItem(viewController: DetailController(errorBar: errorBar, table: tableController)))
         if let editor {
             // An inspector, so a narrow window can fold it away.
-            let item = NSSplitViewItem(inspectorWithViewController: NSHostingController(rootView: BrowserEditorView(model: editor)))
+            let host = NSHostingController(rootView: BrowserEditorView(model: editor))
+            // By default the pane's SwiftUI size would cap the window's:
+            // "No Note Selected" is short, and the window couldn't grow taller.
+            host.sizingOptions = []
+            let item = NSSplitViewItem(inspectorWithViewController: host)
             item.minimumThickness = Theme.Browser.editorMinWidth
             item.preferredThicknessFraction = Theme.Browser.editorFraction
             item.canCollapse = true
