@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "AnkiKit", targets: ["AnkiKit"]),
+        .library(name: "FieldEditor", targets: ["FieldEditor"]),
     ],
     dependencies: [
         // Keep in step with the protoc-gen-swift that generated Sources/AnkiKit/Generated.
@@ -29,5 +30,13 @@ let package = Package(
             ]
         ),
         .executableTarget(name: "ankikit-bench", dependencies: ["AnkiKit"]),
+        // The editor's lossless HTML <-> attributed text converter. AppKit
+        // only, so it builds and tests without the backend.
+        .target(name: "FieldEditor"),
+        .testTarget(
+            name: "FieldEditorTests",
+            dependencies: ["FieldEditor"],
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
     ]
 )
