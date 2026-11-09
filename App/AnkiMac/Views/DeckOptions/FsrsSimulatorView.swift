@@ -79,13 +79,13 @@ struct FsrsSimulatorView: View {
                     .fixedSize()
                 }
                 OptionRow(title: Tr.deckConfigNewCardsIgnoreReviewLimit) {
-                    Toggle("", isOn: $simulator.newCardsIgnoreReviewLimit).labelsHidden().toggleStyle(.switch)
+                    SwitchControl(title: Tr.deckConfigNewCardsIgnoreReviewLimit, isOn: $simulator.newCardsIgnoreReviewLimit)
                 }
                 OptionRow(title: Tr.deckConfigSmoothGraph) {
-                    Toggle("", isOn: $simulator.smooth).labelsHidden().toggleStyle(.switch)
+                    SwitchControl(title: Tr.deckConfigSmoothGraph, isOn: $simulator.smooth)
                 }
                 OptionRow(title: Tr.deckConfigSuspendLeeches) {
-                    Toggle("", isOn: $simulator.suspendLeeches).labelsHidden().toggleStyle(.switch)
+                    SwitchControl(title: Tr.deckConfigSuspendLeeches, isOn: $simulator.suspendLeeches)
                 }
                 if simulator.suspendLeeches {
                     OptionRow(title: Tr.schedulingLeechThreshold) {

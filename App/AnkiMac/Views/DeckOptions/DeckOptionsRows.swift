@@ -9,17 +9,35 @@ struct OptionRow<Control: View>: View {
     var isDefault = true
     var revert: (() -> Void)? = nil
     @ViewBuilder let control: Control
-    @Namespace private var pair
 
     var body: some View {
         LabeledContent {
             HStack(spacing: Theme.Spacing.xSmall) {
-                control.accessibilityLabeledPair(role: .content, id: 0, in: pair)
+                control.environment(\.optionTitle, title)
                 RevertMenu(hidden: isDefault, revert: revert)
             }
         } label: {
-            Text(title).help(help).accessibilityLabeledPair(role: .label, id: 0, in: pair)
+            Text(title).help(help)
         }
+    }
+}
+
+extension EnvironmentValues {
+    /// The row's title, for VoiceOver on fields whose label is hidden.
+    @Entry var optionTitle = ""
+}
+
+/// A switch whose title is shown by its row. Hiding the label also hides it
+/// from VoiceOver, so the accessible version keeps it.
+struct SwitchControl: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(title, isOn: $isOn)
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .accessibilityRepresentation { Toggle(title, isOn: $isOn) }
     }
 }
 
@@ -49,6 +67,7 @@ private struct RevertMenu: View {
 /// A number typed or stepped, clamped to its range. Percentages are stored
 /// as fractions and shown out of 100.
 struct NumberField: View {
+    @Environment(\.optionTitle) private var title
     @Binding var value: Double
     var range: ClosedRange<Double> = 0...9999
     var step: Double = 1
@@ -65,9 +84,10 @@ struct NumberField: View {
             .labelsHidden()
             .textFieldStyle(.roundedBorder)
             .multilineTextAlignment(.trailing)
+            .accessibilityLabel(title)
             .frame(width: Theme.DeckOptions.numberFieldWidth)
             if percent { Text("%").foregroundStyle(.secondary) }
-            Stepper("", value: Binding { value } set: { value = clamp(rounded($0)) }, in: range, step: step)
+            Stepper(title, value: Binding { value } set: { value = clamp(rounded($0)) }, in: range, step: step)
                 .labelsHidden()
         }
     }
@@ -86,6 +106,7 @@ struct NumberField: View {
 /// A text field that hands its text over when editing ends, for values
 /// parsed as a whole, such as learning steps.
 struct CommitField: View {
+    @Environment(\.optionTitle) private var title
     let text: String
     var prompt = ""
     let commit: (String) -> Void
@@ -93,7 +114,7 @@ struct CommitField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField("", text: $draft, prompt: Text(prompt))
+        TextField(title, text: $draft, prompt: Text(prompt))
             .labelsHidden()
             .textFieldStyle(.roundedBorder)
             .focused($focused)

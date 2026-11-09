@@ -65,11 +65,15 @@ struct FsrsSection: View {
             model: model, limit: .retention, title: help[1].0, help: help[1].1,
             defaultValue: Double(model.defaults.desiredRetention), range: 0.7...0.99, step: 0.01, decimals: 0,
             percent: true)
+        let showNote = newlyEnabled || model.optimizedParams || abs(value - model.startingRetention) >= 0.005
         HStack {
             Button(Tr.deckConfigFsrsDesiredRetentionHelpMeDecideExperimental + "…") { openSimulator(workload: true) }
             Spacer()
         }
-        let showNote = newlyEnabled || model.optimizedParams || abs(value - model.startingRetention) >= 0.005
+        .task(id: WorkloadKey(retention: percent, params: model.config.fsrsParams, shown: showNote)) {
+            guard showNote else { return }
+            workloadNote = await model.workloadNote(retention: percent)
+        }
         if showNote && !workloadNote.isEmpty {
             OptionWarning(text: workloadNote, level: .info)
         }
@@ -78,11 +82,6 @@ struct FsrsSection: View {
         } else if percent > 0.95 {
             OptionWarning(text: Tr.deckConfigDesiredRetentionTooHigh, level: percent > 0.97 ? .danger : .warning)
         }
-        Color.clear.frame(height: 0)
-            .task(id: WorkloadKey(retention: percent, params: model.config.fsrsParams, shown: showNote)) {
-                guard showNote else { return }
-                workloadNote = await model.workloadNote(retention: percent)
-            }
     }
 
     private struct WorkloadKey: Equatable {

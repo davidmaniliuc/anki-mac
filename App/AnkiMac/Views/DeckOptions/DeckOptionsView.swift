@@ -99,7 +99,7 @@ private struct ConfigToggleRow: View {
 
     var body: some View {
         OptionRow(title: title, help: help, isDefault: model.isDefault(path), revert: model.revert(path)) {
-            Toggle(title, isOn: model.binding(path)).labelsHidden().toggleStyle(.switch)
+            SwitchControl(title: title, isOn: model.binding(path))
         }
     }
 }
@@ -155,7 +155,7 @@ struct GlobalToggleRow: View {
                     .foregroundStyle(.secondary)
                     .help(Tr.deckConfigAffectsEntireCollection)
                     .accessibilityLabel(Tr.deckConfigAffectsEntireCollection)
-                Toggle(title, isOn: $isOn).labelsHidden().toggleStyle(.switch)
+                SwitchControl(title: title, isOn: $isOn)
             }
         }
     }
