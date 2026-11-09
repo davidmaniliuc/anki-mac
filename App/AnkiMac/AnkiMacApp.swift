@@ -78,9 +78,16 @@ struct DeckOptionsCommands: Commands {
         CommandMenu("Deck") {
             let deck = model.selectedDeck
             Button("Options…") {
-                if let deck { DeckOptionsWindowController.show(deckID: deck.id, collection: model) }
+                if let deck { model.showOptions(deck) }
             }
-            .disabled(deck == nil || deck?.filtered == true)
+            .disabled(deck == nil)
+            Divider()
+            Button("Create Filtered Deck…") { model.editFilteredDeck() }
+                .disabled(!model.isLoaded)
+            Button(Tr.actionsRebuild) { if let deck { model.rebuildFilteredDeck(deck.id) } }
+                .disabled(deck?.filtered != true)
+            Button(Tr.studyingEmpty) { if let deck { model.emptyFilteredDeck(deck.id) } }
+                .disabled(deck?.filtered != true)
         }
     }
 }

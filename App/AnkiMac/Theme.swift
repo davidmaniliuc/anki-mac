@@ -54,6 +54,12 @@ enum Theme {
         static let minHeight: CGFloat = 480
     }
 
+    enum FilteredDeck {
+        static let sheetWidth: CGFloat = 480
+        static let sheetHeight: CGFloat = 560
+        static let secondsWidth: CGFloat = 60
+    }
+
     enum Browser {
         static let defaultSize = CGSize(width: 1100, height: 700)
         static let minWidth: CGFloat = 640

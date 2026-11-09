@@ -94,8 +94,17 @@ struct StudyView: View {
             return true
         }
         // And "o" for the current deck's options, in the overview and while studying.
-        if modifiers.isEmpty, key == "o", let deck = model.selectedDeck, !deck.filtered {
-            DeckOptionsWindowController.show(deckID: deck.id, collection: model)
+        if modifiers.isEmpty, key == "o", let deck = model.selectedDeck {
+            model.showOptions(deck)
+            return true
+        }
+        // "f" creates a filtered deck; in a filtered deck's overview, "r" rebuilds and "e" empties it.
+        if modifiers.isEmpty, key == "f" {
+            model.editFilteredDeck()
+            return true
+        }
+        if modifiers.isEmpty, session == nil, let deck = model.selectedDeck, deck.filtered, key == "r" || key == "e" {
+            if key == "r" { model.rebuildFilteredDeck(deck.id) } else { model.emptyFilteredDeck(deck.id) }
             return true
         }
         guard let session else { return false }

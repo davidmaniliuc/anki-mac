@@ -13,8 +13,12 @@ struct DeckSidebar: View {
             }
         }
         .contextMenu(forSelectionType: Int64.self) { ids in
-            if let id = ids.first, ids.count == 1, model.deck(id)?.filtered == false {
-                Button("Options…") { DeckOptionsWindowController.show(deckID: id, collection: model) }
+            if let id = ids.first, ids.count == 1, let deck = model.deck(id) {
+                Button("Options…") { model.showOptions(deck) }
+                if deck.filtered {
+                    Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(id) }
+                    Button(Tr.studyingEmpty) { model.emptyFilteredDeck(id) }
+                }
             }
         }
         .navigationSplitViewColumnWidth(min: Theme.Sidebar.minWidth, ideal: Theme.Sidebar.idealWidth)

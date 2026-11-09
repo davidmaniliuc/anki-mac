@@ -27,8 +27,14 @@ struct DeckOverview: View {
                     .foregroundStyle(.secondary)
             }
 
-            if !deck.filtered {
-                Button("Options…") { DeckOptionsWindowController.show(deckID: deck.id, collection: model) }
+            HStack {
+                Button("Options…") { model.showOptions(deck) }
+                if deck.filtered {
+                    Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(deck.id) }
+                        .help("\(Tr.actionsRebuild) (R)")
+                    Button(Tr.studyingEmpty) { model.emptyFilteredDeck(deck.id) }
+                        .help("\(Tr.studyingEmpty) (E)")
+                }
             }
         }
         .padding(Theme.Spacing.xLarge)

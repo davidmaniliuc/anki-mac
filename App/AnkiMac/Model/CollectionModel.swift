@@ -74,6 +74,8 @@ final class CollectionModel {
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
     var errorMessage: String?
+    /// The filtered deck dialog, while it's open.
+    var filteredDeck: FilteredDeckModel?
 
     /// Started at launch, off the main thread, while SwiftUI builds the window.
     private let backendStartup = Task.detached(priority: .userInitiated) { try AnkiBackend() }
@@ -213,6 +215,69 @@ final class CollectionModel {
     func deckOptionsChanged() {
         session?.invalidateOptions()
         Task { await refreshDecks() }
+    }
+
+    // MARK: Filtered decks
+
+    /// A filtered deck's options are its dialog; a normal deck's are the
+    /// Deck Options window.
+    func showOptions(_ deck: DeckNode) {
+        if deck.filtered {
+            editFilteredDeck(deck.id)
+        } else {
+            DeckOptionsWindowController.show(deckID: deck.id, collection: self)
+        }
+    }
+
+    /// Opens the dialog for a filtered deck, or with id 0 for a new one
+    /// built from the selected deck.
+    func editFilteredDeck(_ deckID: Int64 = 0) {
+        guard let backend, filteredDeck == nil else { return }
+        do {
+            filteredDeck = try FilteredDeckModel(deckID: deckID, currentDeck: selectedDeckID, backend: backend)
+        } catch {
+            errorMessage = FilteredDeckModel.message(error)
+        }
+    }
+
+    /// After Build: the new deck is shown, ready to study.
+    func filteredDeckBuilt(_ deckID: Int64) {
+        filteredDeck = nil
+        if session != nil { stopStudying() }
+        Task {
+            await refreshDecks()
+            selectedDeckID = deckID
+        }
+    }
+
+    func rebuildFilteredDeck(_ deckID: Int64) {
+        filteredDeckOp { backend in
+            var request = Anki_Decks_DeckId()
+            request.did = deckID
+            _ = try backend.rebuildFilteredDeck(request)
+        }
+    }
+
+    /// Returns the deck's cards to their home decks.
+    func emptyFilteredDeck(_ deckID: Int64) {
+        filteredDeckOp { backend in
+            var request = Anki_Decks_DeckId()
+            request.did = deckID
+            _ = try backend.emptyFilteredDeck(request)
+        }
+    }
+
+    private func filteredDeckOp(_ op: @escaping @Sendable (AnkiBackend) throws -> Void) {
+        guard let backend else { return }
+        if session != nil { stopStudying() }
+        Task {
+            do {
+                try await backend.perform(op)
+            } catch {
+                errorMessage = FilteredDeckModel.message(error)
+            }
+            await refreshDecks()
+        }
     }
 
     private static func find(_ id: Int64, in nodes: [DeckNode]) -> DeckNode? {

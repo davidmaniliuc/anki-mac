@@ -29,6 +29,16 @@ struct ContentView: View {
                 model.stopStudying()
             }
         }
+        .sheet(item: Binding { model.filteredDeck } set: { model.filteredDeck = $0 }) { deck in
+            FilteredDeckSheet(
+                deck: deck,
+                cancel: { model.filteredDeck = nil },
+                built: { model.filteredDeckBuilt($0) },
+                showInBrowser: { search in
+                    BrowserWindowController.show(collection: model)
+                    BrowserWindowController.current?.model.search(text: search)
+                })
+        }
         .alert(
             "Something went wrong",
             isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
