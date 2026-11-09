@@ -128,7 +128,6 @@ final class BrowserModel {
         guard !opened, let backend = collection.backend else { return }
         opened = true
         BenchDriver.browserOpened(self)
-        PERF("open called")
         let loading = Task.detached(priority: .userInitiated) { try Self.load(backend) }
         Task {
             do {
@@ -162,14 +161,11 @@ final class BrowserModel {
     }
 
     private nonisolated static func load(_ backend: AnkiBackend) throws -> Opening {
-        PERF("load start")
         var notesMode = Anki_Config_GetConfigBoolRequest()
         notesMode.key = .browserTableShowNotesMode
         let mode: BrowserMode = try backend.getConfigBool(notesMode).val ? .notes : .cards
         let allColumns = try backend.allBrowserColumns().columns
-        PERF("load columns")
         let settings = try settings(for: mode, allColumns: allColumns, backend: backend)
-        PERF("load settings")
 
         var defaultKey = Anki_Config_GetConfigStringRequest()
         defaultKey.key = .defaultSearchText
@@ -185,9 +181,7 @@ final class BrowserModel {
             search = saved
             prompt = saved
         }
-        PERF("load search built")
         let ids = try find(search, mode: mode, sort: settings.sort, backend: backend)
-        PERF("load searched")
         return Opening(
             allColumns: allColumns, settings: settings, search: search, prompt: prompt, ids: ids,
             undoLabel: try backend.getUndoStatus().undo)
@@ -249,29 +243,22 @@ final class BrowserModel {
         let generation = searchGeneration
         let mode = mode
         let sort = sort
-        PERF("run start")
         Task {
             do {
-                PERF("task start")
                 let (search, ids) = try await backend.perform { backend in
-                    PERF("bg start")
                     let search = try backend.buildSearchString(node).val
-                    let r = (search, try Self.find(search, mode: mode, sort: sort, backend: backend))
-                    PERF("bg end")
-                    return r
+                    return (search, try Self.find(search, mode: mode, sort: sort, backend: backend))
                 }
-                PERF("main resumed")
                 guard generation == searchGeneration else { return }
                 appliedSearch = search
                 // Observation notifies on every set, equal or not, and each
                 // notification re-renders the toolbar.
-                if showInField && !UserDefaults.standard.bool(forKey: "XNoField") && searchText != search {
+                if showInField && searchText != search {
                     searchText = search
                 }
                 if searchError != nil { searchError = nil }
                 // The direction was flipped in memory while this search ran.
                 show(sort.reverse == self.sort.reverse ? ids : ids.reversed())
-                PERF("shown")
             } catch {
                 guard generation == searchGeneration else { return }
                 searchError = (error as? AnkiError)?.message ?? String(describing: error)
@@ -279,8 +266,7 @@ final class BrowserModel {
         }
     }
 
-    private func show(_ newIDs: [Int64], caller: String = #function, line: Int = #line) {
-        PERF("show from \(caller):\(line) v\(idsVersion + 1) n\(newIDs.count)")
+    private func show(_ newIDs: [Int64]) {
         selectionToRestore = Set(selectedIDs)
         rowCache.removeAll(keepingCapacity: true)
         ids = newIDs
@@ -566,10 +552,3 @@ final class BrowserModel {
     }
 }
 
-nonisolated func PERF(_ s: String) {
-    let line = Data(String(format: "PERF %.3f %@\n", Date().timeIntervalSince1970 * 1000, s).utf8)
-    if let handle = perfHandle { handle.write(line) } else { FileHandle.standardError.write(line) }
-}
-nonisolated(unsafe) let perfHandle: FileHandle? = UserDefaults.standard.string(forKey: "PerfLog").flatMap {
-    FileManager.default.createFile(atPath: $0, contents: nil); return FileHandle(forWritingAtPath: $0)
-}

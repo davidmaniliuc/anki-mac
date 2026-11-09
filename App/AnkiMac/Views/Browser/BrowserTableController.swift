@@ -27,7 +27,9 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
 
     override func loadView() {
         table.style = .inset
-        table.usesAlternatingRowBackgroundColors = true
+        // Striped by the row views (see `didAdd`): the table's own
+        // alternating colours are drawn on the CPU across the whole clip
+        // view, about 120 ms of the browser's first paint.
         table.allowsMultipleSelection = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
@@ -57,7 +59,6 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
     }
 
     private func update(idsVersion: Int, rowsVersion: Int, mode: BrowserMode, columns: [String], sort: BrowserSort) {
-        PERF("update ids v\(idsVersion) shown v\(shownIDs) rows v\(rowsVersion)")
         if mode != shownMode || columns != shownColumns {
             rebuildColumns(table, mode: mode, keys: columns)
             table.reloadData()
@@ -68,7 +69,6 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             shownRows = rowsVersion
             let keep = model.takeSelectionToRestore()
             refreshRows(table)
-            PERF("reloaded")
             table.selectRowIndexes(keep, byExtendingSelection: false)
             table.scrollRowToVisible(keep.first ?? 0)
             reportPaint(table, idsVersion: idsVersion)
@@ -147,11 +147,8 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         guard model.onRowsPainted != nil else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = table.window else { return }
-            PERF("async paint start")
             window.displayIfNeeded()
-            PERF("displayed")
             CATransaction.flush()
-            PERF("flushed")
             let visible = table.rows(in: table.visibleRect)
             let laidOut = (visible.lowerBound..<visible.upperBound).filter {
                 table.view(atColumn: 0, row: $0, makeIfNecessary: false) != nil
@@ -178,6 +175,11 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             ?? BrowserRowView()
         view.color = model.row(at: row)?.color ?? .default
         return view
+    }
+
+    func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        let stripes = NSColor.alternatingContentBackgroundColors
+        rowView.backgroundColor = stripes[row % stripes.count]
     }
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {

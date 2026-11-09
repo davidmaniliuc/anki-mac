@@ -163,12 +163,8 @@ final class BenchDriver {
             return
         }
         pendingSearch = (next, Date().timeIntervalSince1970, browser.idsVersion)
-        if UserDefaults.standard.bool(forKey: "XNoField") {
-            browser.search(text: next)
-        } else {
-            browser.searchText = next
-            browser.search()
-        }
+        browser.searchText = next
+        browser.search()
     }
 
     private func quit() {

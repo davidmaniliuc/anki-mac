@@ -50,13 +50,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         window.setFrameAutosaveName("Browser")
         if !window.setFrameUsingName("Browser") { window.center() }
 
-        if !UserDefaults.standard.bool(forKey: "XNoToolbar") {
         let toolbar = NSToolbar(identifier: "Browser")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
         window.toolbarStyle = .unified
-        }
 
         searchItem.searchField.placeholderString = "Search"
         searchItem.searchField.sendsWholeSearchString = true
@@ -73,11 +71,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     private func makeSplit() -> NSSplitViewController {
         let split = NSSplitViewController()
-        if !UserDefaults.standard.bool(forKey: "XNoSidebar") {
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
         sidebarItem.minimumThickness = Theme.Sidebar.minWidth
         split.addSplitViewItem(sidebarItem)
-        }
         // A future editor pane becomes a third item, beside the table.
         split.addSplitViewItem(NSSplitViewItem(viewController: DetailController(errorBar: errorBar, table: tableController)))
         split.splitView.autosaveName = "BrowserSplit"

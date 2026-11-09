@@ -133,7 +133,7 @@ sort.column = configJSON("sortType", as: String.self) ?? "noteFld"
 sort.reverse = configJSON("sortBackwards", as: Bool.self) ?? false
 var searchMs: [String: Double] = [:]
 var lastIds: [Int64] = []
-for query in (ProcessInfo.processInfo.environment["QUERIES"]?.components(separatedBy: "|") ?? ["deck:*", "is:due", "front:*a*"]) {
+for query in ["deck:*", "is:due", "front:*a*"] {
     var request = Anki_Search_SearchRequest()
     request.search = query
     request.order.builtin = sort
