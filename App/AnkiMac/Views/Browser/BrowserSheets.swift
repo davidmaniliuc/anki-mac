@@ -64,6 +64,7 @@ private struct SetDueDateSheet: View {
     let model: BrowserModel
     let cards: Int
     @State var days: String
+    @FocusState private var focused: Bool
 
     init(model: BrowserModel, cards: Int, days: String) {
         self.model = model
@@ -79,6 +80,8 @@ private struct SetDueDateSheet: View {
         ) {
             TextField("Days", text: $days, prompt: Text("0"))
                 .labelsHidden()
+                .focused($focused)
+                .onAppear { focused = true }
             // Desktop's hint, word for word.
             Text("0 = today\n1! = tomorrow + change interval to 1\n3-7 = random choice of 3-7 days")
                 .font(.callout)
@@ -117,6 +120,7 @@ private struct RepositionSheet: View {
     let queueTop: Int
     let queueBottom: Int
     @State var start = 0
+    @FocusState private var focused: Bool
     @State var step = 1
     @State var randomize: Bool
     @State var shift: Bool
@@ -141,6 +145,8 @@ private struct RepositionSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             Form {
                 TextField("Start position:", value: $start, format: .number)
+                    .focused($focused)
+                    .onAppear { focused = true }
                 TextField("Step:", value: $step, format: .number)
                 Toggle("Randomize order", isOn: $randomize)
                 Toggle("Shift position of existing cards", isOn: $shift)
@@ -156,6 +162,13 @@ private struct ChangeDeckSheet: View {
     let decks: [DeckChoice]
     @State var selection: Int64?
     @State private var filter = ""
+    @FocusState private var focused: Bool
+
+    /// The chosen deck, while the filter still shows it: Move never acts on
+    /// a deck the user can't see.
+    private var chosen: Int64? {
+        shown.contains { $0.id == selection } ? selection : nil
+    }
 
     private var shown: [DeckChoice] {
         filter.isEmpty ? decks : decks.filter { $0.name.localizedStandardContains(filter) }
@@ -163,23 +176,32 @@ private struct ChangeDeckSheet: View {
 
     var body: some View {
         PromptLayout(
-            title: "Move \(cardCount(cards)) to:", action: "Move", canSubmit: selection != nil,
+            title: "Move \(cardCount(cards)) to:", action: "Move", canSubmit: chosen != nil,
             cancel: model.cancelPrompt, submit: submit
         ) {
             TextField("Filter", text: $filter, prompt: Text("Filter Decks"))
                 .labelsHidden()
+                .focused($focused)
                 .onSubmit { if shown.count == 1 { selection = shown[0].id } }
-            List(shown, selection: $selection) { deck in
-                Text(deck.name).tag(deck.id)
+            ScrollViewReader { scroller in
+                List(shown, selection: $selection) { deck in
+                    Text(deck.name).tag(deck.id)
+                }
+                .listStyle(.bordered(alternatesRowBackgrounds: true))
+                .contextMenu(forSelectionType: Int64.self) { _ in } primaryAction: { _ in submit() }
+                .frame(height: Theme.Browser.deckListHeight)
+                .onAppear {
+                    focused = true
+                    // The cards' current deck, in view.
+                    if let selection { scroller.scrollTo(selection, anchor: .center) }
+                }
             }
-            .contextMenu(forSelectionType: Int64.self) { _ in } primaryAction: { _ in submit() }
-            .frame(height: Theme.Browser.deckListHeight)
         }
     }
 
     private func submit() {
-        guard let selection else { return }
-        model.changeDeck(to: selection)
+        guard let chosen else { return }
+        model.changeDeck(to: chosen)
     }
 }
 
@@ -189,6 +211,7 @@ private struct TagsSheet: View {
     let notes: Int
     let known: [String]
     @State private var tags = ""
+    @FocusState private var focused: Bool
 
     /// Completes the word being typed from the collection's tags.
     private var suggestions: [String] {
@@ -206,6 +229,8 @@ private struct TagsSheet: View {
         ) {
             TextField("Tags", text: $tags, prompt: Text("Separate tags with spaces"))
                 .labelsHidden()
+                .focused($focused)
+                .onAppear { focused = true }
                 .textInputSuggestions {
                     ForEach(suggestions, id: \.self) { tag in
                         Text(tag).textInputCompletion(completed(with: tag))
@@ -229,6 +254,7 @@ private struct FindAndReplaceSheet: View {
     @State private var replacement = ""
     @State private var target = ReplaceTarget.allFields
     @State private var selectedOnly = true
+    @FocusState private var focused: Bool
     @AppStorage("FindAndReplace.regex") private var regex = false
     @AppStorage("FindAndReplace.ignoreCase") private var ignoreCase = true
 
@@ -243,6 +269,8 @@ private struct FindAndReplaceSheet: View {
         ) {
             Form {
                 TextField("Find:", text: $find)
+                    .focused($focused)
+                    .onAppear { focused = true }
                 TextField("Replace with:", text: $replacement)
                 Picker("In:", selection: $target) {
                     Text("All Fields").tag(ReplaceTarget.allFields)

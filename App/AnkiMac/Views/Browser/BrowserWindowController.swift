@@ -259,7 +259,18 @@ private final class DetailController: NSViewController {
         stack.spacing = 0
         stack.alignment = .width
         stack.setHuggingPriority(.defaultLow, for: .vertical)
-        view = stack
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        // Below the toolbar, as Finder's list view: the window's content runs
+        // under the toolbar, and the error bar would otherwise sit behind it.
+        let container = NSView()
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        view = container
     }
 }
 
