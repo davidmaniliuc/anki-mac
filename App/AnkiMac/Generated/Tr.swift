@@ -309,6 +309,12 @@ nonisolated enum Tr {
     static let editingShowDuplicates = "Show Duplicates"
     static let editingTags = "Tags"
     static let editingToggleSticky = "Toggle sticky"
+    static let editingMathjaxInline = "MathJax inline"
+    static let editingMathjaxBlock = "MathJax block"
+    static let editingMathjaxChemistry = "MathJax chemistry"
+    static func editingMathjaxPlaceholder(accept: String, newline: String) -> String {
+        ("Press " + String(describing: accept) + " to accept, " + String(describing: newline) + " for new line.")
+    }
     static let actionsRebuild = "Rebuild"
     static let actionsName = "Name:"
     static let actionsFilter = "Filter"

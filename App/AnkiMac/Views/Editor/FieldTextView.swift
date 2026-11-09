@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 final class FieldTextView: NSTextView {
     var field: EditorField!
     weak var editor: NoteEditorModel?
+    var mathPopover: NSPopover?
+    var mathPendingCommit: (() -> Void)?
     private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
 
     private var document: FieldDocument { field.document }
@@ -82,8 +84,15 @@ final class FieldTextView: NSTextView {
         editor?.edited()
     }
 
-    /// Double-clicking a table or other chip opens the field's HTML.
+    /// Clicking MathJax opens its editor; double-clicking a table or other
+    /// chip opens the field's HTML.
     override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 1, let index = characterIndex(at: convert(event.locationInWindow, from: nil)),
+            textStorage?.attribute(.fieldMath, at: index, effectiveRange: nil) != nil
+        {
+            editMath(at: index)
+            return
+        }
         if event.clickCount == 2, let index = characterIndex(at: convert(event.locationInWindow, from: nil)),
             let storage = textStorage, storage.attribute(.fieldAtom, at: index, effectiveRange: nil) != nil,
             let attachment = storage.attribute(.attachment, at: index, effectiveRange: nil) as? NSTextAttachment,

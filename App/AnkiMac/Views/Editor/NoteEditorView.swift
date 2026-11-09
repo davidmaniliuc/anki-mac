@@ -236,6 +236,12 @@ struct FormatBar: View {
     }
 }
 
+/// "MathJax inline" as a menu item's title: "Inline".
+private func sentenceCase(_ title: String) -> String {
+    let word = title.split(separator: " ").last.map(String.init) ?? title
+    return word.prefix(1).uppercased() + word.dropFirst()
+}
+
 func applyColor(_ kind: ColorKind) {
     NSApp.sendAction(#selector(FieldTextView.applyFieldColor(_:)), to: nil, from: ColorCommand(kind))
 }
@@ -304,6 +310,12 @@ struct FormatCommands: Commands {
                 .keyboardShortcut("c", modifiers: [.command, .shift])
             Button("Cloze Deletion, Same Number") { send(#selector(FieldTextView.insertClozeSameNumber(_:))) }
                 .keyboardShortcut("c", modifiers: [.command, .option, .shift])
+            Divider()
+            Menu("MathJax") {
+                Button(sentenceCase(Tr.editingMathjaxInline)) { send(#selector(FieldTextView.insertMathInline(_:))) }
+                Button(sentenceCase(Tr.editingMathjaxBlock)) { send(#selector(FieldTextView.insertMathBlock(_:))) }
+                Button(sentenceCase(Tr.editingMathjaxChemistry)) { send(#selector(FieldTextView.insertMathChemistry(_:))) }
+            }
             Divider()
             Button("Show HTML") { send(#selector(FieldTextView.toggleHTMLSource(_:))) }
                 .keyboardShortcut("x", modifiers: [.command, .shift])

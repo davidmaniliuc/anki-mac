@@ -168,6 +168,29 @@ func awkwardFieldRoundTrips(_ field: String) {
     #expect(html == "<div><img src=\"a.png\"><img src=\"b.jpg\"></div>")
 }
 
+@Test func mathJaxBecomesOneAtomKeptAsWritten() {
+    let html = "x \\(a &lt; b\\) and \\[y^2\\] \\(open"
+    let document = FieldDocument(html: html, style: style)
+    var found: [FieldMath] = []
+    document.text.enumerateAttribute(.fieldMath, in: NSRange(location: 0, length: document.text.length)) { value, _, _ in
+        if let math = value as? FieldMath { found.append(math) }
+    }
+    #expect(found == [FieldMath(tex: "a < b", display: false), FieldMath(tex: "y^2", display: true)])
+    #expect(document.text.string == "x \u{FFFC} and \u{FFFC} \\(open")
+    #expect(document.html(from: document.text) == html)
+    #expect(FieldMath(tex: "a < b", display: true).html == "\\[a &lt; b\\]")
+}
+
+@Test func editedMathJaxIsWrittenEscaped() {
+    let result = edit("<b>x \\(a\\) y</b>") { document, storage in
+        let atom = range(of: "\u{FFFC}", in: storage)
+        let stack = storage.attribute(.fieldStack, at: atom.location, effectiveRange: nil) as! [Int]
+        storage.replaceCharacters(
+            in: atom, with: document.fragment(html: FieldMath(tex: "b<c", display: false).html, base: stack))
+    }
+    #expect(result == "<b>x \\(b&lt;c\\) y</b>")
+}
+
 @Test func isAppliedSeesTagsAndStyles() {
     let document = FieldDocument(html: "<i>a</i><span style=\"font-style: italic\">b</span>c", style: style)
     #expect(document.isApplied(.italic, in: document.text, range: NSRange(location: 0, length: 2)))

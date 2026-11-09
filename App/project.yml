@@ -29,6 +29,10 @@ targets:
         name: web
         type: folder
         buildPhase: resources
+      # MathJax's SVG build, for the editor's rendered maths (the reviewer
+      # uses the CommonHTML build in web/).
+      - path: ../anki/node_modules/mathjax/es5/tex-svg-full.js
+        buildPhase: resources
     dependencies:
       - package: AnkiKit
         product: AnkiKit

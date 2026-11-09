@@ -11,6 +11,28 @@ extension NSAttributedString.Key {
     /// Characters the editor added for display (block breaks, list bullets),
     /// which export leaves out.
     public static let fieldSynthetic = NSAttributedString.Key("AnkiFieldSynthetic")
+    /// A MathJax atom's TeX, as a `FieldMath`.
+    public static let fieldMath = NSAttributedString.Key("AnkiFieldMath")
+}
+
+/// MathJax in a field: `\(…\)` inline or `\[…\]` as a block, shown
+/// rendered and kept as written.
+public struct FieldMath: Hashable, Sendable {
+    public let tex: String
+    public let display: Bool
+
+    public init(tex: String, display: Bool) {
+        self.tex = tex
+        self.display = display
+    }
+
+    /// The field HTML for this TeX, escaping only what would confuse HTML,
+    /// as desktop's `escapeSomeEntities`.
+    public var html: String {
+        let escaped = tex.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        return display ? "\\[\(escaped)\\]" : "\\(\(escaped)\\)"
+    }
 }
 
 /// How a field looks in the editor. The app fills it from its theme.
@@ -24,11 +46,16 @@ public struct FieldStyle {
     public var chipFill: NSColor
     public var chipText: NSColor
     public var imageMaxHeight: CGFloat
+    /// Rendered MathJax and how far below the baseline it reaches, or nil
+    /// while it isn't ready; MathJax shows as its TeX until then.
+    public var mathImage: ((FieldMath) -> (image: NSImage, descent: CGFloat)?)?
 
     public init(
         font: NSFont, codeFont: NSFont, textColor: NSColor, unknownTagBackground: NSColor, chipFont: NSFont,
-        chipFill: NSColor, chipText: NSColor, imageMaxHeight: CGFloat
+        chipFill: NSColor, chipText: NSColor, imageMaxHeight: CGFloat,
+        mathImage: ((FieldMath) -> (image: NSImage, descent: CGFloat)?)? = nil
     ) {
+        self.mathImage = mathImage
         self.font = font
         self.codeFont = codeFont
         self.textColor = textColor
@@ -168,7 +195,9 @@ public final class FieldDocument {
             attributes[.fieldSynthetic] = true
             out.append(NSAttributedString(string: string, attributes: attributes))
         }
-        func appendAtom(_ raw: String, lineBreak: Bool = false, label: String, image: NSImage? = nil) {
+        func appendAtom(
+            _ raw: String, lineBreak: Bool = false, label: String, image: NSImage? = nil, math: FieldMath? = nil
+        ) {
             var attributes = self.attributes(stack)
             attributes[.fieldAtom] = raw
             if lineBreak {
@@ -176,7 +205,10 @@ public final class FieldDocument {
                 return
             }
             let attachment = NSTextAttachment()
-            if let image {
+            if let math {
+                attributes[.fieldMath] = math
+                showMath(math, in: attachment)
+            } else if let image {
                 attachment.image = image
                 let height = min(style.imageMaxHeight, image.size.height)
                 attachment.bounds = NSRect(
@@ -197,16 +229,22 @@ public final class FieldDocument {
         var index = 0
         while index < tokens.count {
             switch tokens[index] {
-            case .text(let raw):
-                let decoded = decodeHTMLText(raw)
-                var attributes = self.attributes(stack)
-                if trackSources {
-                    texts[nextSource] = decoded
-                    attributes[.fieldSource] = nextSource
-                    nextSource += 1
+            case .text(let whole):
+                for (raw, math) in Self.splitMath(whole) {
+                    if let math {
+                        appendAtom(raw, label: math.tex, math: math)
+                        continue
+                    }
+                    let decoded = decodeHTMLText(raw)
+                    var attributes = self.attributes(stack)
+                    if trackSources {
+                        texts[nextSource] = decoded
+                        attributes[.fieldSource] = nextSource
+                        nextSource += 1
+                    }
+                    out.append(NSAttributedString(
+                        string: String(utf16CodeUnits: decoded.units, count: decoded.units.count), attributes: attributes))
                 }
-                out.append(NSAttributedString(
-                    string: String(utf16CodeUnits: decoded.units, count: decoded.units.count), attributes: attributes))
             case .comment(let raw):
                 appendAtom(raw, label: "<!--…-->")
             case .open(let name, let raw, let selfClosing):
@@ -273,6 +311,57 @@ public final class FieldDocument {
             openedAt.removeLast()
         }
         return out
+    }
+
+    // MARK: MathJax
+
+    /// Raw text cut into plain runs and MathJax, each MathJax run with its
+    /// TeX. Delimiters split across tags stay text.
+    static func splitMath(_ raw: String) -> [(raw: String, math: FieldMath?)] {
+        guard raw.contains("\\(") || raw.contains("\\[") else { return [(raw, nil)] }
+        var parts: [(String, FieldMath?)] = []
+        var rest = raw[...]
+        while let open = [rest.firstRange(of: "\\("), rest.firstRange(of: "\\[")].compactMap({ $0 })
+            .min(by: { $0.lowerBound < $1.lowerBound })
+        {
+            let display = rest[open] == "\\["
+            guard let close = rest[open.upperBound...].firstRange(of: display ? "\\]" : "\\)") else { break }
+            if open.lowerBound > rest.startIndex { parts.append((String(rest[..<open.lowerBound]), nil)) }
+            let inner = decodeHTMLText(String(rest[open.upperBound..<close.lowerBound]))
+            parts.append((
+                String(rest[open.lowerBound..<close.upperBound]),
+                FieldMath(tex: String(utf16CodeUnits: inner.units, count: inner.units.count), display: display)))
+            rest = rest[close.upperBound...]
+        }
+        if !rest.isEmpty { parts.append((String(rest), nil)) }
+        return parts
+    }
+
+    private func showMath(_ math: FieldMath, in attachment: NSTextAttachment) {
+        if let (image, descent) = style.mathImage?(math) {
+            attachment.image = image
+            attachment.bounds = NSRect(x: 0, y: -descent, width: image.size.width, height: image.size.height)
+        } else {
+            let chip = chipImage(math.tex.isEmpty ? "MathJax" : math.tex)
+            attachment.image = chip
+            attachment.bounds = NSRect(x: 0, y: -3, width: chip.size.width, height: chip.size.height)
+        }
+    }
+
+    /// Swaps in rendered MathJax that has become ready since the text was built.
+    public func refreshMath(in storage: NSTextStorage) {
+        var changed: [(NSRange, FieldMath)] = []
+        storage.enumerateAttribute(.fieldMath, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            if let math = value as? FieldMath { changed.append((range, math)) }
+        }
+        guard !changed.isEmpty else { return }
+        storage.beginEditing()
+        for (range, math) in changed {
+            let attachment = NSTextAttachment()
+            showMath(math, in: attachment)
+            storage.addAttribute(.attachment, value: attachment, range: range)
+        }
+        storage.endEditing()
     }
 
     // MARK: Export
@@ -614,7 +703,7 @@ public final class FieldDocument {
         storage.enumerateAttributes(in: range) { attributes, run, _ in runs.append((run, attributes)) }
         for (run, old) in runs {
             var attributes = self.attributes(change((old[.fieldStack] as? [Int]) ?? []))
-            for key in [NSAttributedString.Key.fieldSource, .fieldAtom, .fieldSynthetic, .attachment] {
+            for key in [NSAttributedString.Key.fieldSource, .fieldAtom, .fieldSynthetic, .attachment, .fieldMath] {
                 if let value = old[key] { attributes[key] = value }
             }
             storage.setAttributes(attributes, range: run)
@@ -632,6 +721,7 @@ public final class FieldDocument {
         attributes[.fieldAtom] = nil
         attributes[.fieldSynthetic] = nil
         attributes[.attachment] = nil
+        attributes[.fieldMath] = nil
         return attributes
     }
 

@@ -21,6 +21,8 @@ final class EditorField: Identifiable {
     private(set) var showingSource = false
     var source = ""
     let font: NSFont
+    /// Swaps in rendered MathJax as it arrives.
+    @ObservationIgnored private var mathTask: Task<Void, Never>?
     let plainText: Bool
     let rightToLeft: Bool
     /// Only the label shows, as desktop's collapsed field.
@@ -37,6 +39,16 @@ final class EditorField: Identifiable {
         storage = NSTextStorage(attributedString: document.text)
         showingSource = plainText
         if plainText { source = html }
+        mathTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: MathRenderer.didRender) {
+                guard let self else { return }
+                document.refreshMath(in: storage)
+            }
+        }
+    }
+
+    deinit {
+        mathTask?.cancel()
     }
 
     /// The field's HTML now.

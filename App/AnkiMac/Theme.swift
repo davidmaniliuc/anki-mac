@@ -142,6 +142,8 @@ enum Theme {
         static let minFieldHeight: CGFloat = 32
         static let minFieldWidth: CGFloat = 80
         static let sourceMinHeight: CGFloat = 80
+        static let mathEditorWidth: CGFloat = 320
+        static let mathEditorMinHeight: CGFloat = 60
         static let cornerRadius: CGFloat = 6
         static let labelFont = Font.callout
         static let sourceFont = Font.body.monospaced()
@@ -160,7 +162,10 @@ enum Theme {
                 chipFont: .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
                 chipFill: NSColor.secondaryLabelColor.withAlphaComponent(0.15),
                 chipText: .secondaryLabelColor,
-                imageMaxHeight: 160)
+                imageMaxHeight: 160,
+                mathImage: { math in
+                    MainActor.assumeIsolated { MathRenderer.shared.image(math, fontSize: font.pointSize) }
+                })
         }
     }
 
