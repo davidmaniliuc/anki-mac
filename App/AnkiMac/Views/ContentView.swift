@@ -53,7 +53,7 @@ struct ContentView: View {
     }
 }
 
-/// Custom Study, the Create Deck and Rename prompt, the Unbury question,
+/// Custom Study, the Unbury question,
 /// and keeping the deck list current when the window comes back to the front.
 private struct DeckPrompts: ViewModifier {
     @Environment(CollectionModel.self) private var model
@@ -65,24 +65,6 @@ private struct DeckPrompts: ViewModifier {
                     study: study,
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
-            }
-            .alert(
-                model.deckNamePrompt?.title ?? "",
-                isPresented: Binding { model.deckNamePrompt != nil } set: { if !$0 { model.deckNamePrompt = nil } },
-                presenting: model.deckNamePrompt
-            ) { prompt in
-                TextField(Tr.decksNewDeckName, text: Binding {
-                    model.deckNamePrompt?.name ?? ""
-                } set: {
-                    model.deckNamePrompt?.name = $0
-                })
-                Button("Cancel", role: .cancel) {}
-                Button(prompt.confirmTitle) {
-                    if let prompt = model.deckNamePrompt { model.commitDeckName(prompt) }
-                }
-                .keyboardShortcut(.defaultAction)
-            } message: { _ in
-                Text("Use “::” to put it inside another deck, as in “Languages::Spanish”.")
             }
             .confirmationDialog(
                 Tr.studyingWhatWouldYouLikeToUnbury,

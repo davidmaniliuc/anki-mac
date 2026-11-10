@@ -1,31 +1,6 @@
 import AnkiKit
 import Foundation
 
-/// The name prompt behind Create Deck and Rename.
-struct DeckNamePrompt {
-    enum Kind {
-        case create
-        case rename(Int64)
-    }
-
-    let kind: Kind
-    var name: String
-
-    var title: String {
-        switch kind {
-        case .create: Tr.decksCreateDeck
-        case .rename: Tr.actionsRenameDeck
-        }
-    }
-
-    var confirmTitle: String {
-        switch kind {
-        case .create: "Create"
-        case .rename: Tr.actionsRename
-        }
-    }
-}
-
 /// Which buried cards a deck holds, for Unbury.
 struct BuriedCards: Equatable {
     var manually = false
@@ -39,37 +14,44 @@ struct BuriedCards: Equatable {
 extension CollectionModel {
     // MARK: Create and rename
 
-    func askCreateDeck() {
+    /// Things' New List: adds "New Deck" at the top level, selected and
+    /// with its name ready to type over.
+    func createDeck() {
         guard isLoaded else { return }
-        deckNamePrompt = DeckNamePrompt(kind: .create, name: "")
+        let taken = Set(decks.map(\.name))
+        let name = sequence(first: 1) { $0 + 1 }
+            .lazy.map { $0 == 1 ? "New Deck" : "New Deck \($0)" }
+            .first { !taken.contains($0) }!
+        deckOp { backend in
+            var deck = try backend.newDeck()
+            deck.name = name
+            return try backend.addDeck(deck).id
+        } then: { id in
+            self.selectedDeckID = id
+            self.renamingDeckID = id
+        }
     }
 
-    func askRenameDeck(_ deckID: Int64) {
-        guard let deck = deck(deckID) else { return }
-        deckNamePrompt = DeckNamePrompt(kind: .rename(deckID), name: deck.fullName)
+    /// Starts editing the deck's name in the sidebar, as a double-click does.
+    func beginRenaming(_ deckID: Int64) {
+        guard deck(deckID) != nil else { return }
+        selectedDeckID = deckID
+        renamingDeckID = deckID
     }
 
-    /// Runs the prompt's action. "::" in the name nests the deck, as on desktop.
-    func commitDeckName(_ prompt: DeckNamePrompt) {
-        let name = prompt.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        switch prompt.kind {
-        case .create:
-            deckOp { backend in
-                var deck = try backend.newDeck()
-                deck.name = name
-                return try backend.addDeck(deck).id
-            } then: { id in
-                self.selectedDeckID = id
-            }
-        case .rename(let deckID):
-            guard name != deck(deckID)?.fullName else { return }
-            deckOp { backend in
-                var request = Anki_Decks_RenameDeckRequest()
-                request.deckID = deckID
-                request.newName = name
-                _ = try backend.renameDeck(request)
-            }
+    /// Ends the sidebar edit. The name replaces the last part of the deck's
+    /// full name; "::" in it nests the deck further, as on desktop.
+    func finishRenaming(_ deckID: Int64, to newName: String?) {
+        guard renamingDeckID == deckID else { return }
+        renamingDeckID = nil
+        let name = newName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let deck = deck(deckID), !name.isEmpty, name != deck.name else { return }
+        let fullName = String(deck.fullName.dropLast(deck.name.count)) + name
+        deckOp { backend in
+            var request = Anki_Decks_RenameDeckRequest()
+            request.deckID = deckID
+            request.newName = fullName
+            _ = try backend.renameDeck(request)
         }
     }
 

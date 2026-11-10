@@ -80,8 +80,8 @@ final class CollectionModel {
     var errorMessage: String?
     /// What Undo would undo in the main window, while not studying.
     private(set) var undoLabel = ""
-    /// The Create Deck or Rename prompt, while it's open.
-    var deckNamePrompt: DeckNamePrompt?
+    /// The deck whose name is being edited in the sidebar.
+    var renamingDeckID: Int64?
     /// The Custom Study dialog, while it's open.
     var customStudy: CustomStudyModel?
     /// The selected deck's buried cards, which the overview loads.

@@ -77,10 +77,10 @@ struct DeckOptionsCommands: Commands {
         }
         CommandMenu("Deck") {
             let deck = model.selectedDeck
-            Button("New Deck…") { model.askCreateDeck() }
+            Button("New Deck") { model.createDeck() }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(!model.isLoaded)
-            Button("\(Tr.actionsRename)…") { if let deck { model.askRenameDeck(deck.id) } }
+            Button(Tr.actionsRename) { if let deck { model.beginRenaming(deck.id) } }
                 .disabled(deck == nil)
             Button(Tr.actionsDelete) { if let deck { model.deleteDeck(deck.id) } }
                 .disabled(deck == nil)

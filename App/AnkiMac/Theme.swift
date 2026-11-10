@@ -38,6 +38,8 @@ enum Theme {
     enum Sidebar {
         static let minWidth: CGFloat = 200
         static let idealWidth: CGFloat = 260
+        /// Around the New Deck button at the bottom, lined up with the rows.
+        static let footerPadding = EdgeInsets(top: 8, leading: 18, bottom: 12, trailing: 18)
     }
 
     enum Study {
