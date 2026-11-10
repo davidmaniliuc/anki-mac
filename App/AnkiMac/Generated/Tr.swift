@@ -304,6 +304,54 @@ nonisolated enum Tr {
     static let addingYouHaveAClozeDeletionNote = "You have a cloze note type but have not made any cloze deletions. Proceed?"
     static let addingClozeOutsideClozeNotetype = "Cloze deletion can only be used on cloze note types."
     static let addingClozeOutsideClozeField = "Cloze deletion can only be used in fields which use the 'cloze:' filter. This is typically the first field."
+    static let customStudyIncreaseTodaysNewCardLimit = "Increase today's new card limit"
+    static let customStudyIncreaseTodaysNewCardLimitBy = "Increase today's new card limit by"
+    static func customStudyCards(count: Int) -> String {
+        (count == 1 ? "card" : "cards")
+    }
+    static func customStudyAvailableNewCards2(countString: String) -> String {
+        ("Available new cards: " + String(describing: countString))
+    }
+    static let customStudyIncreaseTodaysReviewCardLimit = "Increase today's review card limit"
+    static let customStudyIncreaseTodaysReviewLimitBy = "Increase today's review limit by"
+    static func customStudyAvailableReviewCards2(countString: String) -> String {
+        ("Available review cards: " + String(describing: countString))
+    }
+    static let customStudyReviewForgottenCards = "Review forgotten cards"
+    static let customStudyReviewCardsForgottenInLast = "Review cards forgotten in the last"
+    static func customStudyDays(count: Int) -> String {
+        (count == 1 ? "day" : "days")
+    }
+    static let customStudyReviewAhead = "Review ahead"
+    static let customStudyReviewAheadBy = "Review ahead by"
+    static let customStudyPreviewNewCards = "Preview new cards"
+    static let customStudyPreviewNewCardsAddedInThe = "Preview new cards added in the last"
+    static let customStudyStudyByCardStateOrTag = "Study by card state or tag"
+    static let customStudySelect = "Select"
+    static func customStudyCardsFromTheDeck(count: Int) -> String {
+        (count == 1 ? "card from the deck" : "cards from the deck")
+    }
+    static let customStudyNewCardsOnly = "New cards only"
+    static let customStudyDueCardsOnly = "Due cards only"
+    static let customStudyAllReviewCardsInRandomOrder = "All review cards in random order"
+    static let customStudyAllCardsInRandomOrderDont = "All cards in random order (don't reschedule)"
+    static let customStudyChooseTags = "Choose Tags"
+    static let customStudyOk = "OK"
+    static let customStudyNoCardsMatchedTheCriteriaYou = "No cards matched the criteria you provided."
+    static let customStudyMustRenameDeck = "Please rename the existing Custom Study deck first."
+    static let customStudyCustomStudySession = "Custom Study Session"
+    static func customStudyAvailableChildCount(count: String) -> String {
+        ("(" + String(describing: count) + " in subdecks)")
+    }
+    static let customStudySelectiveStudy = "Selective Study"
+    static let customStudyRequireOneOrMoreOfThese = "Require one or more of these tags:"
+    static let customStudySelectTagsToExclude = "Select tags to exclude:"
+    static func customStudyAvailableNewCards(count: String) -> String {
+        ("Available new cards: " + String(describing: count))
+    }
+    static func customStudyAvailableReviewCards(count: String) -> String {
+        ("Available review cards: " + String(describing: count))
+    }
     static let actionsAdd = "Add"
     static let decksDeck = "Deck"
     static let editingShowDuplicates = "Show Duplicates"
@@ -387,4 +435,17 @@ nonisolated enum Tr {
     }
     static let statisticsReviewsTimeCheckbox = "Time"
     static let studyingBuryCard = "Bury Card"
+    static let actionsRename = "Rename"
+    static let actionsRenameDeck = "Rename Deck"
+    static let actionsDelete = "Delete"
+    static let actionsCustomStudy = "Custom Study"
+    static let decksCreateDeck = "Create Deck"
+    static let decksDeleteDeck = "Delete Deck"
+    static let decksNewDeckName = "New deck name:"
+    static let studyingUnbury = "Unbury"
+    static let studyingWhatWouldYouLikeToUnbury = "What would you like to unbury?"
+    static let studyingManuallyBuriedCards = "Manually Buried Cards"
+    static let studyingBuriedSiblings = "Buried Siblings"
+    static let studyingAllBuriedCards = "All Buried Cards"
+    static let errors100TagsMax = "A maximum of 100 tags can be selected. Listing the tags you want instead of the ones you don't want is usually simpler, and there is no need to select child tags if you have selected a parent tag."
 }

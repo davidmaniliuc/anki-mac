@@ -34,11 +34,24 @@ struct DeckOverview: View {
                         .help("\(Tr.actionsRebuild) (R)")
                     Button(Tr.studyingEmpty) { model.emptyFilteredDeck(deck.id) }
                         .help("\(Tr.studyingEmpty) (E)")
+                } else {
+                    Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(deck.id) }
+                        .help("\(Tr.actionsCustomStudy) (C)")
+                }
+                if model.selectedBuried.any {
+                    Button(model.selectedBuried.manually && model.selectedBuried.siblings
+                        ? "\(Tr.studyingUnbury)…" : Tr.studyingUnbury
+                    ) { model.askUnbury(deck.id) }
+                        .help("\(Tr.studyingUnbury) (U)")
                 }
             }
         }
         .padding(Theme.Spacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The counts change with every refresh, so this follows unburying too.
+        .task(id: deck) {
+            model.selectedBuried = await model.buriedCards(in: deck)
+        }
     }
 
     private func count(_ value: Int, _ label: String, _ color: Color) -> some View {

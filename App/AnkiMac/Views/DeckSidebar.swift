@@ -8,8 +8,16 @@ struct DeckSidebar: View {
     var body: some View {
         @Bindable var model = model
         List(selection: $model.selectedDeckID) {
-            Section("Decks") {
+            Section {
                 DeckRows(nodes: model.decks, expanded: $expanded)
+            } header: {
+                // Dropping a deck on the header moves it to the top level.
+                Text("Decks")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                    .dropDestination(for: String.self) { items, _ in
+                        model.dropDecks(items, on: 0)
+                    }
             }
         }
         .contextMenu(forSelectionType: Int64.self) { ids in
@@ -18,13 +26,42 @@ struct DeckSidebar: View {
                 if deck.filtered {
                     Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(id) }
                     Button(Tr.studyingEmpty) { model.emptyFilteredDeck(id) }
+                } else {
+                    Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(id) }
                 }
+                Divider()
+                Button("\(Tr.actionsRename)…") { model.askRenameDeck(id) }
+                Divider()
+                Button(Tr.actionsDelete, role: .destructive) { model.deleteDeck(id) }
+            } else if ids.isEmpty {
+                Button("New Deck…") { model.askCreateDeck() }
             }
         }
         .navigationSplitViewColumnWidth(min: Theme.Sidebar.minWidth, ideal: Theme.Sidebar.idealWidth)
         .onChange(of: model.decks, initial: true) { _, decks in
             seedExpansion(decks)
+            if let deckID = model.selectedDeckID { reveal(deckID, in: decks) }
         }
+        .onChange(of: model.selectedDeckID) { _, deckID in
+            if let deckID { reveal(deckID, in: model.decks) }
+        }
+    }
+
+    /// Expands the parents of a deck selected from elsewhere, such as one
+    /// just created inside a collapsed deck. Returns whether it was found.
+    @discardableResult
+    private func reveal(_ deckID: Int64, in nodes: [DeckNode]) -> Bool {
+        for node in nodes {
+            if node.id == deckID { return true }
+            if reveal(deckID, in: node.children ?? []) {
+                if expanded[node.id] != true {
+                    expanded[node.id] = true
+                    model.setCollapsed(node.id, false)
+                }
+                return true
+            }
+        }
+        return false
     }
 
     /// Starts from the collapsed state stored in the collection.
@@ -47,13 +84,22 @@ private struct DeckRows: View {
                 DisclosureGroup(isExpanded: expansion(node)) {
                     DeckRows(nodes: children, expanded: $expanded)
                 } label: {
-                    DeckRow(node: node)
+                    draggableRow(node)
                 }
                 .tag(node.id)
             } else {
-                DeckRow(node: node).tag(node.id)
+                draggableRow(node).tag(node.id)
             }
         }
+    }
+
+    /// Dragging a deck onto another nests it there, as on desktop.
+    private func draggableRow(_ node: DeckNode) -> some View {
+        DeckRow(node: node)
+            .draggable(DeckDrag.text(node.id))
+            .dropDestination(for: String.self) { items, _ in
+                model.dropDecks(items, on: node.id)
+            }
     }
 
     private func expansion(_ node: DeckNode) -> Binding<Bool> {
@@ -63,6 +109,25 @@ private struct DeckRows: View {
             expanded[node.id] = isExpanded
             model.setCollapsed(node.id, !isExpanded)
         }
+    }
+}
+
+/// A dragged deck travels as text, so no custom type needs declaring.
+enum DeckDrag {
+    private static let prefix = "anki-mac-deck:"
+
+    static func text(_ deckID: Int64) -> String { prefix + String(deckID) }
+
+    static func deckID(_ text: String) -> Int64? {
+        text.hasPrefix(prefix) ? Int64(text.dropFirst(prefix.count)) : nil
+    }
+}
+
+extension CollectionModel {
+    /// Moves the dragged decks under `parentID`, 0 for the top level.
+    func dropDecks(_ items: [String], on parentID: Int64) {
+        let ids = items.compactMap(DeckDrag.deckID)
+        if !ids.isEmpty { moveDecks(ids, to: parentID) }
     }
 }
 

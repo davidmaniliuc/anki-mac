@@ -7,6 +7,8 @@ import Observation
 nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
     let id: Int64
     let name: String
+    /// With its parents ("Spanish::Verbs"), as rename and search need it.
+    let fullName: String
     let newCount: Int
     let learnCount: Int
     let reviewCount: Int
@@ -17,15 +19,17 @@ nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
 
     var dueCount: Int { newCount + learnCount + reviewCount }
 
-    init(_ node: Anki_Decks_DeckTreeNode) {
+    init(_ node: Anki_Decks_DeckTreeNode, parent: String? = nil) {
         id = node.deckID
         name = node.name
+        fullName = parent.map { "\($0)::\(node.name)" } ?? node.name
         newCount = Int(node.newCount)
         learnCount = Int(node.learnCount)
         reviewCount = Int(node.reviewCount)
         collapsed = node.collapsed
         filtered = node.filtered
-        children = node.children.isEmpty ? nil : node.children.map(DeckNode.init)
+        let fullName = fullName
+        children = node.children.isEmpty ? nil : node.children.map { DeckNode($0, parent: fullName) }
     }
 }
 
@@ -74,6 +78,16 @@ final class CollectionModel {
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
     var errorMessage: String?
+    /// What Undo would undo in the main window, while not studying.
+    private(set) var undoLabel = ""
+    /// The Create Deck or Rename prompt, while it's open.
+    var deckNamePrompt: DeckNamePrompt?
+    /// The Custom Study dialog, while it's open.
+    var customStudy: CustomStudyModel?
+    /// The selected deck's buried cards, which the overview loads.
+    var selectedBuried = BuriedCards()
+    /// The deck whose Unbury asks which kind, while it asks.
+    var unburyPrompt: Int64?
     /// The filtered deck dialog, while it's open.
     var filteredDeck: FilteredDeckModel?
 
@@ -144,12 +158,18 @@ final class CollectionModel {
     func refreshDecks() async {
         guard let backend else { return }
         do {
-            let (tree, nextDayAt) = try await backend.perform { backend in
+            let (tree, nextDayAt, undo) = try await backend.perform { backend in
                 var request = Anki_Decks_DeckTreeRequest()
                 request.now = Int64(Date().timeIntervalSince1970)
-                return (try backend.deckTree(request), try backend.schedTimingToday().nextDayAt)
+                return (
+                    try backend.deckTree(request), try backend.schedTimingToday().nextDayAt,
+                    try backend.getUndoStatus().undo)
             }
-            decks = tree.children.map(DeckNode.init)
+            decks = tree.children.map { DeckNode($0) }
+            undoLabel = undo
+            if let id = selectedDeckID, deck(id) == nil {
+                selectedDeckID = nil
+            }
             lastRefresh = Date()
             scheduleRollover(at: nextDayAt)
             BenchDriver.trace("deck_tree")
