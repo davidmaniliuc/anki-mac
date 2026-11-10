@@ -30,12 +30,23 @@ struct DeckSidebar: View {
                     Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(id) }
                 }
                 Divider()
-                Button("\(Tr.actionsRename)…") { model.askRenameDeck(id) }
+                Button(Tr.actionsRename) { model.beginRenaming(id) }
                 Divider()
                 Button(Tr.actionsDelete, role: .destructive) { model.deleteDeck(id) }
             } else if ids.isEmpty {
-                Button("New Deck…") { model.askCreateDeck() }
+                Button("New Deck") { model.createDeck() }
             }
+        } primaryAction: { ids in
+            // A double-click on a deck edits its name, as in Things and Finder.
+            if let id = ids.first, ids.count == 1 { model.beginRenaming(id) }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button("New Deck", systemImage: "plus") { model.createDeck() }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(Theme.Sidebar.footerPadding)
+                .disabled(!model.isLoaded)
         }
         .navigationSplitViewColumnWidth(min: Theme.Sidebar.minWidth, ideal: Theme.Sidebar.idealWidth)
         .onChange(of: model.decks, initial: true) { _, decks in
@@ -132,12 +143,17 @@ extension CollectionModel {
 }
 
 private struct DeckRow: View {
+    @Environment(CollectionModel.self) private var model
     let node: DeckNode
 
     var body: some View {
         Label {
             HStack(spacing: Theme.Spacing.small) {
-                Text(node.name).lineLimit(1)
+                if model.renamingDeckID == node.id {
+                    DeckNameField(node: node)
+                } else {
+                    Text(node.name).lineLimit(1)
+                }
                 Spacer(minLength: Theme.Spacing.small)
                 DueCounts(new: node.newCount, learn: node.learnCount, review: node.reviewCount)
                     .font(Theme.Fonts.sidebarCount)
@@ -145,7 +161,32 @@ private struct DeckRow: View {
         } icon: {
             Image(systemName: node.filtered ? "line.3.horizontal.decrease.circle" : "rectangle.stack")
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: model.renamingDeckID == node.id ? .contain : .combine)
+    }
+}
+
+/// The deck's name, editable in place. Return or clicking away keeps the
+/// new name; Escape puts the old one back.
+private struct DeckNameField: View {
+    @Environment(CollectionModel.self) private var model
+    let node: DeckNode
+    @State private var name = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(Tr.actionsRename, text: $name)
+            .textFieldStyle(.plain)
+            .labelsHidden()
+            .focused($focused)
+            .onSubmit { model.finishRenaming(node.id, to: name) }
+            .onExitCommand { model.finishRenaming(node.id, to: nil) }
+            .onChange(of: focused) { _, focused in
+                if !focused { model.finishRenaming(node.id, to: name) }
+            }
+            .onAppear {
+                name = node.name
+                focused = true
+            }
     }
 }
 
