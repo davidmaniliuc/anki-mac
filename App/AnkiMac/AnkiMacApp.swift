@@ -77,10 +77,24 @@ struct DeckOptionsCommands: Commands {
         }
         CommandMenu("Deck") {
             let deck = model.selectedDeck
+            Button("New Deck…") { model.askCreateDeck() }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .disabled(!model.isLoaded)
+            Button("\(Tr.actionsRename)…") { if let deck { model.askRenameDeck(deck.id) } }
+                .disabled(deck == nil)
+            Button(Tr.actionsDelete) { if let deck { model.deleteDeck(deck.id) } }
+                .disabled(deck == nil)
+            Divider()
             Button("Options…") {
                 if let deck { model.showOptions(deck) }
             }
             .disabled(deck == nil)
+            Button("\(Tr.actionsCustomStudy)…") { if let deck { model.showCustomStudy(deck.id) } }
+                .disabled(deck == nil || deck?.filtered == true)
+            Button(model.selectedBuried.manually && model.selectedBuried.siblings
+                ? "\(Tr.studyingUnbury)…" : Tr.studyingUnbury
+            ) { if let deck { model.askUnbury(deck.id) } }
+                .disabled(deck == nil || !model.selectedBuried.any)
             Divider()
             Button("Create Filtered Deck…") { model.editFilteredDeck() }
                 .disabled(!model.isLoaded)

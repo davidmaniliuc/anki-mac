@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FTL = ROOT / "anki/ftl/core"
 OUT = ROOT / "App/AnkiMac/Generated/Tr.swift"
 
-WHOLE_FILES = ["deck-config.ftl", "adding.ftl"]
+WHOLE_FILES = ["deck-config.ftl", "adding.ftl", "custom-study.ftl"]
 EXTRA = [
     "actions-add",
     "decks-deck",
@@ -89,6 +89,19 @@ EXTRA = [
     "statistics-reviews-per-day",
     "statistics-reviews-time-checkbox",
     "studying-bury-card",
+    "actions-rename",
+    "actions-rename-deck",
+    "actions-delete",
+    "actions-custom-study",
+    "decks-create-deck",
+    "decks-delete-deck",
+    "decks-new-deck-name",
+    "studying-unbury",
+    "studying-what-would-you-like-to-unbury",
+    "studying-manually-buried-cards",
+    "studying-buried-siblings",
+    "studying-all-buried-cards",
+    "errors-100-tags-max",
 ]
 
 

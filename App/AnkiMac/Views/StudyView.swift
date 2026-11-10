@@ -46,8 +46,13 @@ struct StudyView: View {
         // which used to land on the first card.
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Undo", systemImage: "arrow.uturn.backward") { session?.undo() }
-                    .disabled(!(session?.canUndo ?? false))
+                // The card's last answer while studying, otherwise the last deck change.
+                let undoLabel = session?.undoLabel ?? model.undoLabel
+                Button("Undo", systemImage: "arrow.uturn.backward") {
+                    if let session { session.undo() } else { model.undoLast() }
+                }
+                .help(undoLabel.isEmpty ? "Undo" : "Undo \(undoLabel)")
+                .disabled(undoLabel.isEmpty)
                 Button("End Session", systemImage: "xmark") { model.stopStudying() }
                     .disabled(session == nil)
             }
@@ -101,6 +106,11 @@ struct StudyView: View {
         // "f" creates a filtered deck; in a filtered deck's overview, "r" rebuilds and "e" empties it.
         if modifiers.isEmpty, key == "f" {
             model.editFilteredDeck()
+            return true
+        }
+        // In the overview, "c" opens Custom Study and "u" unburies, as desktop.
+        if modifiers.isEmpty, session == nil, let deck = model.selectedDeck, key == "c" || key == "u" {
+            if key == "c" { model.showCustomStudy(deck.id) } else { model.askUnbury(deck.id) }
             return true
         }
         if modifiers.isEmpty, session == nil, let deck = model.selectedDeck, deck.filtered, key == "r" || key == "e" {

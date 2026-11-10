@@ -54,6 +54,12 @@ enum Theme {
         static let minHeight: CGFloat = 480
     }
 
+    enum CustomStudy {
+        static let sheetWidth: CGFloat = 480
+        static let sheetHeight: CGFloat = 520
+        static let valueWidth: CGFloat = 64
+    }
+
     enum FilteredDeck {
         static let sheetWidth: CGFloat = 480
         static let sheetHeight: CGFloat = 560
