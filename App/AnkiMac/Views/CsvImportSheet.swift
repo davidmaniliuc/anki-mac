@@ -68,6 +68,8 @@ struct CsvImportSheet: View {
                 }
             }
             .formStyle(.grouped)
+            // A re-query replaces the mapping, so an edit made meanwhile would be lost.
+            .disabled(draft.isRefreshing)
             HStack {
                 if draft.isRefreshing || model.packageOperationInProgress {
                     ProgressView().controlSize(.small)
