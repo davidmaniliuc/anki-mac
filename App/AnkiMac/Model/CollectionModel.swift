@@ -419,6 +419,12 @@ final class CollectionModel {
 
     // MARK: Studying
 
+    /// Answers a trusted upstream page's backend call (see `PageBackendRPC`).
+    func pageRequest(_ method: String, _ body: Data) throws -> Data {
+        guard let backend else { throw PageRPCError(message: "Collection is not open") }
+        return try PageBackendRPC.run(method, body: body, backend: backend)
+    }
+
     func startStudying() {
         guard let deckID = selectedDeckID, let backend else { return }
         session?.stop()

@@ -29,7 +29,7 @@ struct AnkiMacApp: App {
         .commands {
             SidebarCommands()
             StudyCommands(model: model)
-            CardCommands()
+            CardCommands(model: model)
             DeckOptionsCommands(model: model)
             SyncCommands(model: model)
             ToolsCommands(model: model)
@@ -194,6 +194,10 @@ struct StudyCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Study") {
+            Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
+                .keyboardShortcut("t", modifiers: [])
+                .disabled(!model.isLoaded)
+            Divider()
             let session = model.session
             Button("Study Now") { model.startStudying() }
                 .disabled(session != nil || (model.selectedDeck?.dueCount ?? 0) == 0)
@@ -226,8 +230,7 @@ struct StudyCommands: Commands {
             }
             .disabled(session?.card == nil)
             Divider()
-            // Card Info lands with the stats-cardinfo branch; this is the call site to wire.
-            Button("Card Info…") { session?.showCardInfo() }
+            Button("Card Info…") { session?.showCardInfo(in: model) }
                 .keyboardShortcut("i", modifiers: [])
                 .disabled(session?.card == nil)
             Button("\(Tr.actionsOptions)…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
@@ -245,6 +248,7 @@ struct StudyCommands: Commands {
 /// in front. Shortcuts follow desktop, with Command for its Ctrl, except the
 /// flags, which keep Control+1 to 7 as in the study screen.
 struct CardCommands: Commands {
+    let model: CollectionModel
     @FocusedValue(\.cardTarget) private var focused
 
     /// The browser, when its (AppKit) window is key; otherwise the SwiftUI
@@ -278,6 +282,13 @@ struct CardCommands: Commands {
             Toggle("Mark Note", isOn: Binding { card?.isMarked ?? false } set: { _ in target?.toggleMark() })
                 .keyboardShortcut("k")
                 .disabled(card == nil)
+            Divider()
+            Button(Tr.actionsCardInfo) { showCardInfo() }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .disabled(infoCardID == nil)
+            Button(Tr.actionsPreviousCardInfo) { showPreviousCardInfo() }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(previousInfoCardID == nil)
             Divider()
             Button("Change Deck…") { browser?.askChangeDeck() }
                 .keyboardShortcut("d")
@@ -315,6 +326,25 @@ struct CardCommands: Commands {
     }
 
     private var browser: BrowserModel? { KeyBrowser.shared.model }
+
+    /// The card Card Info would show: the browser's current row, or the card being studied.
+    private var infoCardID: Int64? {
+        browser != nil ? browser?.currentCardID : (target as? StudySession)?.card?.queued.card.id
+    }
+
+    private var previousInfoCardID: Int64? {
+        browser == nil ? (target as? StudySession)?.previousCardID : nil
+    }
+
+    private func showCardInfo() {
+        guard let id = infoCardID else { return }
+        CardInfoWindowController.show(cardID: id, kind: browser != nil ? .browser : .reviewer, collection: model)
+    }
+
+    private func showPreviousCardInfo() {
+        guard let id = previousInfoCardID else { return }
+        CardInfoWindowController.show(cardID: id, kind: .previousReviewer, collection: model)
+    }
 
     private var hasBrowserSelection: Bool {
         !(browser?.selectedRows.isEmpty ?? true)

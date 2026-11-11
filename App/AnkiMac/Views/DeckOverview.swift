@@ -29,6 +29,8 @@ struct DeckOverview: View {
 
             HStack {
                 Button("Options…") { model.showOptions(deck) }
+                Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
+                    .help("\(Tr.statisticsTitle) (T)")
                 if deck.filtered {
                     Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(deck.id) }
                         .help("\(Tr.actionsRebuild) (R)")

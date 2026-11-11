@@ -721,6 +721,18 @@ nonisolated enum Tr {
     static let studyingBuriedSiblings = "Buried Siblings"
     static let studyingAllBuriedCards = "All Buried Cards"
     static let errors100TagsMax = "A maximum of 100 tags can be selected. Listing the tags you want instead of the ones you don't want is usually simpler, and there is no need to select child tags if you have selected a parent tag."
+    static let actionsCardInfo = "Card Info"
+    static let actionsPreviousCardInfo = "Previous Card Info"
+    static func cardStatsCurrentCard(context: String) -> String {
+        ("Current Card (" + String(describing: context) + ")")
+    }
+    static func cardStatsPreviousCard(context: String) -> String {
+        ("Previous Card (" + String(describing: context) + ")")
+    }
+    static let statisticsTitle = "Statistics"
+    static let statisticsSavePdf = "Save PDF"
+    static let statisticsStats = "stats"
+    static let decksStudy = "Study"
     static let exportingAllDecks = "All Decks"
     static let exportingAnkiCollectionPackage = "Anki Collection Package"
     static let exportingAnkiDeckPackage = "Anki Deck Package"

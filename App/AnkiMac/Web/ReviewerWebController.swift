@@ -199,7 +199,7 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
 }
 
 /// WKUserContentController retains its handlers; this breaks the cycle.
-private final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
+final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
     weak var target: (any WKScriptMessageHandler)?
 
     init(_ target: any WKScriptMessageHandler) {

@@ -57,6 +57,15 @@ public final class AnkiBackend: @unchecked Sendable {
         }
     }
 
+    /// Runs an allowlisted page RPC using its serialized protobuf request.
+    /// Method identifiers are generated from the same proto service table as
+    /// the typed bindings; callers must validate the method name first.
+    public func runRaw(service: UInt32, method: UInt32, input: Data) throws -> Data {
+        try call(input: input) { bytes, out in
+            anki_run_method(handle, service, method, bytes.baseAddress, bytes.count, out)
+        }
+    }
+
     private func call(
         input: Data,
         _ body: (UnsafeBufferPointer<UInt8>, UnsafeMutablePointer<AnkiBuffer>) -> Bool
