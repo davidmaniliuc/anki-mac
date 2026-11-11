@@ -153,6 +153,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         let controller = findDuplicates ?? FindDuplicatesWindowController(
             model: FindDuplicatesModel(browser: model) { [weak self] text in
                 self?.sidebar.clearSelection()
+                self?.model.setMode(.notes)
                 self?.model.search(text: text)
             })
         findDuplicates = controller
