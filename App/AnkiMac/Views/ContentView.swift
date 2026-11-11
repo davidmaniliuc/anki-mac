@@ -45,6 +45,7 @@ struct ContentView: View {
             MaintenanceToolView(model: model, tool: tool)
         }
         .modifier(DeckPrompts())
+        .modifier(ImportExportPrompts())
         .modifier(SyncPrompts())
         .alert(
             "Something went wrong",
@@ -53,6 +54,33 @@ struct ContentView: View {
             Button("OK") {}
         } message: {
             Text(model.errorMessage ?? "")
+        }
+    }
+}
+
+/// File › Import and Export, and packages opened from Finder.
+private struct ImportExportPrompts: ViewModifier {
+    @Environment(CollectionModel.self) private var model
+
+    func body(content: Content) -> some View {
+        content
+        .sheet(isPresented: Binding { model.exportSheetPresented } set: { model.exportSheetPresented = $0 }) {
+            ImportExportSheet(selectedNoteIDs: model.selectedExportNoteIDs, initialDeckID: model.exportDeckID)
+                .environment(model)
+        }
+        .sheet(isPresented: Binding { model.packageImportPresented } set: { model.packageImportPresented = $0 }) {
+            if let url = model.packageImportURL { ImportOptionsSheet(url: url).environment(model) }
+        }
+        .sheet(item: Binding { model.importResult } set: { model.importResult = $0 }) { result in
+            ImportLogSheet(result: result)
+        }
+        .alert(
+            Tr.importingImportingComplete,
+            isPresented: Binding { model.importMessage != nil } set: { if !$0 { model.importMessage = nil } }
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(model.importMessage ?? "")
         }
     }
 }
