@@ -103,6 +103,8 @@ final class BrowserModel {
     /// The rows `prompt` was asked about.
     @ObservationIgnored var promptSelection: Selection?
     var errorMessage: String?
+    /// A short result ("3 notes updated.") that the window shows for a few seconds.
+    private(set) var toast: String?
 
     /// Rows by id, for the current search only. nil marks an id whose card or
     /// note no longer exists.
@@ -236,6 +238,20 @@ final class BrowserModel {
 
     func search(_ item: SidebarItem) {
         run(item.searchNode, showInField: true)
+    }
+
+    /// Several sidebar rows at once: all of them, or any of them.
+    func search(_ items: [SidebarItem], joiner: Anki_Search_SearchNode.Group.Joiner) {
+        guard items.count > 1 else {
+            if let item = items.first { search(item) }
+            return
+        }
+        var group = Anki_Search_SearchNode.Group()
+        group.nodes = items.map(\.searchNode)
+        group.joiner = joiner
+        var node = Anki_Search_SearchNode()
+        node.group = group
+        run(node, showInField: true)
     }
 
     /// Searches the last search again, in the current mode and order.
@@ -518,14 +534,21 @@ final class BrowserModel {
 
     /// Runs an undoable change, then redraws the rows (or searches again when
     /// rows may have appeared or gone) and refreshes the main window's decks.
-    func change(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    /// `then` gets what `work` returned, once the change has succeeded.
+    func change<Result: Sendable>(
+        searchAgain: Bool = false, reloadSidebar: Bool = false,
+        _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: @escaping (Result) -> Void = { _ in }
+    ) {
         guard let backend = collection.backend else { return }
         Task {
+            var result: Result?
             do {
-                undoLabel = try await backend.perform { backend in
-                    try work(backend)
-                    return try backend.getUndoStatus().undo
+                let (label, value) = try await backend.perform { backend in
+                    let value = try work(backend)
+                    return (try backend.getUndoStatus().undo, value)
                 }
+                undoLabel = label
+                result = value
             } catch {
                 errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
             }
@@ -536,7 +559,17 @@ final class BrowserModel {
                 rowsVersion += 1
             }
             refreshCommandCard()
+            if let result { then(result) }
+            if reloadSidebar { await loadSidebar() }
             await collection.refreshDecks()
+        }
+    }
+
+    func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            if toast == text { toast = nil }
         }
     }
 

@@ -13,9 +13,10 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
     private var closing = false
 
     /// Opens the window, or brings it forward. The deck of the card being
-    /// studied, if any, picks the defaults.
-    static func show(collection: CollectionModel) {
+    /// studied, if any, picks the defaults, unless `deckID` names one.
+    static func show(collection: CollectionModel, deckID: Int64? = nil) {
         if let current {
+            if let deckID { current.model.deckID = deckID }
             current.window?.makeKeyAndOrderFront(nil)
             return
         }
@@ -25,6 +26,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
         Task {
             do {
                 try await model.start(homeDeckID: homeDeck)
+                if let deckID { model.deckID = deckID }
                 model.editor.pasteKeepsFormatting = model.pasteKeepsFormatting
                 guard current == nil else { return }
                 let controller = AddCardsWindowController(model: model, collection: collection)

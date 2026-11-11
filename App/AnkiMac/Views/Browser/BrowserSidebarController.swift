@@ -3,10 +3,16 @@ import AppKit
 /// The browser's sidebar: a source-list NSOutlineView. A SwiftUI `List` took
 /// about 70 ms of main thread to insert a 70-row sidebar; this takes a few.
 final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    private let model: BrowserModel
-    private let outline = NSOutlineView()
+    let model: BrowserModel
+    let outline = SidebarOutlineView()
     private var roots: [Row] = []
-    private var shownCount = -1
+    private var shown: [SidebarSection]?
+    /// Set while the sidebar restores its selection after a reload, which is
+    /// not a new search.
+    private var restoringSelection = false
+    /// The row whose name is being edited in place.
+    var editing: Row?
+    var cancelledEdit = false
 
     init(model: BrowserModel) {
         self.model = model
@@ -19,6 +25,12 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.style = .sourceList
         outline.headerView = nil
         outline.floatsGroupRows = false
+        outline.allowsMultipleSelection = true
+        outline.onDelete = { [weak self] in self?.deleteSelection() }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        outline.menu = menu
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("sidebar"))
         outline.addTableColumn(column)
         outline.outlineTableColumn = column
@@ -39,12 +51,48 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.deselectAll(nil)
     }
 
+    /// Shows the sections again after a change, keeping what was expanded and
+    /// selected.
     private func show(_ sections: [SidebarSection]?) {
-        guard let sections, sections.count != shownCount else { return }
-        shownCount = sections.count
+        guard let sections, sections != shown else { return }
+        let expanded = shown == nil ? nil : expandedRows(roots)
+        let selected = Set(selectedRows.map(\.id))
+        shown = sections
         roots = sections.map(Row.init(section:))
         outline.reloadData()
-        roots.forEach { outline.expandItem($0) }
+        if let expanded {
+            restoreExpansion(roots, expanded)
+        } else {
+            roots.forEach { outline.expandItem($0) }
+        }
+        restoringSelection = true
+        defer { restoringSelection = false }
+        let rows = IndexSet(allRows(roots).filter { selected.contains($0.id) }.map(outline.row(forItem:)).filter { $0 >= 0 })
+        outline.selectRowIndexes(rows, byExtendingSelection: false)
+    }
+
+    private func expandedRows(_ rows: [Row]) -> Set<AnyHashable> {
+        var ids = Set<AnyHashable>()
+        for row in rows where outline.isItemExpanded(row) {
+            ids.insert(row.id)
+            ids.formUnion(expandedRows(row.children))
+        }
+        return ids
+    }
+
+    private func restoreExpansion(_ rows: [Row], _ expanded: Set<AnyHashable>) {
+        for row in rows where expanded.contains(row.id) {
+            outline.expandItem(row)
+            restoreExpansion(row.children, expanded)
+        }
+    }
+
+    private func allRows(_ rows: [Row]) -> [Row] {
+        rows.flatMap { [$0] + allRows($0.children) }
+    }
+
+    var selectedRows: [Row] {
+        outline.selectedRowIndexes.compactMap { outline.item(atRow: $0) as? Row }
     }
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -81,8 +129,12 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         return cell
     }
 
+    /// Clicking one row searches it; a selection of several is for the
+    /// context menu, which searches them all or any.
     func outlineViewSelectionDidChange(_ notification: Notification) {
-        guard let row = outline.item(atRow: outline.selectedRow) as? Row, let item = row.item else { return }
+        guard !restoringSelection, outline.selectedRowIndexes.count == 1,
+            let row = outline.item(atRow: outline.selectedRow) as? Row, let item = row.item
+        else { return }
         model.search(item)
     }
 
@@ -90,17 +142,23 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     /// wrapped in objects once per load.
     final class Row {
         let title: String
+        let kind: SidebarKind
         let item: SidebarItem?
         let children: [Row]
 
+        /// Stable across reloads, unlike the object.
+        var id: AnyHashable { item.map(AnyHashable.init) ?? AnyHashable(title) }
+
         init(section: SidebarSection) {
             title = section.title
+            kind = section.kind
             item = nil
             children = section.nodes.map(Row.init(node:))
         }
 
         init(node: SidebarNode) {
             title = node.title
+            kind = node.item.kind
             item = node.item
             children = (node.children ?? []).map(Row.init(node:))
         }
@@ -130,7 +188,21 @@ private final class SidebarHeaderCell: NSTableCellView {
     }
 }
 
-private final class SidebarCell: NSTableCellView {
+/// Delete removes the selected rows, when their kind allows it.
+final class SidebarOutlineView: NSOutlineView {
+    var onDelete: () -> Void = {}
+
+    override func keyDown(with event: NSEvent) {
+        // Delete and Forward Delete.
+        if event.keyCode == 51 || event.keyCode == 117 {
+            onDelete()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+}
+
+final class SidebarCell: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("SidebarCell")
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
@@ -146,6 +218,20 @@ private final class SidebarCell: NSTableCellView {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    func beginEditing(delegate: NSTextFieldDelegate) {
+        label.isEditable = true
+        label.drawsBackground = true
+        label.delegate = delegate
+        label.selectText(nil)
+    }
+
+    func endEditing(title: String) {
+        label.isEditable = false
+        label.drawsBackground = false
+        label.delegate = nil
+        label.stringValue = title
+    }
 
     func show(_ title: String, item: SidebarItem) {
         label.stringValue = title
