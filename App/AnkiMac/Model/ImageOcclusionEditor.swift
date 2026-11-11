@@ -213,14 +213,11 @@ final class ImageOcclusionEditor {
         selection = Set(occlusions.map(\.id))
     }
 
-    /// One mask of the selected ones, revealed together; it keeps the
-    /// lowest number among them, as desktop's Group.
+    /// One mask of the selected ones, revealed together, as desktop's Group.
     func groupSelection() {
         let grouped = occlusions.filter { selection.contains($0.id) }
         guard grouped.count > 1, let first = occlusions.firstIndex(where: { selection.contains($0.id) }) else { return }
-        let ordinals = grouped.map(\.ordinal)
-        let group = Occlusion(
-            shapes: grouped.flatMap(\.shapes), ordinal: ordinals.contains(nil) ? nil : ordinals.compactMap(\.self).min())
+        let group = Occlusion(grouping: grouped)
         var new = occlusions.filter { !selection.contains($0.id) }
         new.insert(group, at: min(first, new.count))
         commit(new)

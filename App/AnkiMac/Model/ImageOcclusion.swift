@@ -57,6 +57,17 @@ struct Occlusion: Identifiable, Hashable {
     var isText: Bool { shapes.count == 1 && shapes[0].isText }
 }
 
+extension Occlusion {
+    /// Several masks as one group, as desktop's Group: it keeps the lowest
+    /// number among them, or is numbered afresh when one has none yet. A
+    /// label's 0 doesn't count, since a group is a mask with a card of its own.
+    init(grouping members: [Occlusion]) {
+        let ordinals = members.map(\.ordinal).filter { $0 != 0 }
+        self.init(
+            shapes: members.flatMap(\.shapes), ordinal: ordinals.contains(nil) ? nil : ordinals.compactMap(\.self).min())
+    }
+}
+
 // MARK: Cloze text
 
 /// The occlusion field's text, ported from upstream's shapes/to-cloze.ts
