@@ -1,13 +1,14 @@
 import AnkiKit
 import AppKit
+import SwiftUI
 
-/// The Statistics window: upstream's graphs page for the current deck. The
-/// page's own Deck / Collection / Custom Search toggle takes it from there.
-final class StatisticsWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
+/// The Statistics window: desktop's graphs for the current deck, drawn
+/// natively. Its toolbar switches between the deck, the collection and a
+/// search, and between a year and all of the review history.
+final class StatisticsWindowController: NSWindowController, NSWindowDelegate {
     private static var current: StatisticsWindowController?
 
-    private let page: UpstreamPage
-    private let collection: CollectionModel
+    private let model: StatisticsModel
 
     /// Shows the statistics of the selected deck, reloading an open window
     /// since the deck may have changed.
@@ -18,80 +19,67 @@ final class StatisticsWindowController: NSWindowController, NSWindowDelegate, NS
             request.did = deckID
             _ = try? backend.setCurrentDeck(request)
         }
-        let controller = current ?? StatisticsWindowController(collection: collection)
+        let controller = current ?? StatisticsWindowController(collection: collection, backend: backend)
         current = controller
-        controller.page.load("graphs")
+        controller.model.load()
         controller.window?.makeKeyAndOrderFront(nil)
     }
 
-    private init(collection: CollectionModel) {
-        self.collection = collection
-        page = UpstreamPage { [unowned collection] method, body in try collection.pageRequest(method, body) }
+    private init(collection: CollectionModel, backend: AnkiBackend) {
+        model = StatisticsModel(backend: backend)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Theme.Statistics.defaultSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         super.init(window: window)
+        let view = StatisticsView(model: model, savePDF: { [weak self] in self?.savePDF() }) { [unowned collection] search in
+            BrowserWindowController.show(collection: collection)
+            BrowserWindowController.current?.model.search(text: search)
+        }
+        let host = NSHostingController(rootView: view)
+        host.sceneBridgingOptions = [.toolbars]
+        // The window keeps its saved size rather than fitting the graphs.
+        host.sizingOptions = []
+        window.contentViewController = host
+        window.setContentSize(Theme.Statistics.defaultSize)
         window.title = Tr.statisticsTitle
-        window.contentView = page.webView
         window.minSize = Theme.Statistics.minSize
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.setFrameAutosaveName("Statistics")
         if !window.setFrameUsingName("Statistics") { window.center() }
-
-        let toolbar = NSToolbar(identifier: "Statistics")
-        toolbar.delegate = self
-        window.toolbar = toolbar
-
-        page.onBridgeCommand = { [weak self] command in
-            // A click on a graph bar: "browserSearch: <search>".
-            guard let self, command.hasPrefix("browserSearch:") else { return }
-            let search = command.dropFirst("browserSearch:".count).trimmingCharacters(in: .whitespaces)
-            BrowserWindowController.show(collection: self.collection)
-            BrowserWindowController.current?.model.search(text: search)
-        }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
-
-    @objc private func savePDF(_ sender: Any?) {
-        let format = DateFormatter()
-        format.dateFormat = "yyyy-MM-dd@HH-mm-ss"
-        let stamp = format.string(from: .now)
-        page.savePDF(named: "anki-\(Tr.statisticsStats)-\(stamp).pdf", in: window)
-    }
 
     func windowWillClose(_ notification: Notification) {
         Self.current = nil
     }
 
-    // MARK: Toolbar
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, .savePDF]
+    /// Saves every graph, one per row, on a single tall page, as desktop's
+    /// Save PDF button.
+    private func savePDF() {
+        guard let window, let data = model.data else { return }
+        let format = DateFormatter()
+        format.dateFormat = "yyyy-MM-dd@HH-mm-ss"
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = "anki-\(Tr.statisticsStats)-\(format.string(from: .now)).pdf"
+        let content = StatisticsPrintView(model: model, data: data)
+            .environment(\.colorScheme, .light)
+            .background(Color.white)
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            let renderer = ImageRenderer(content: content)
+            renderer.render { size, draw in
+                var box = CGRect(origin: .zero, size: size)
+                guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
+                context.beginPDFPage(nil)
+                draw(context)
+                context.endPDFPage()
+                context.closePDF()
+            }
+        }
     }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar)
-    }
-
-    func toolbar(
-        _ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        guard identifier == .savePDF else { return nil }
-        let item = NSToolbarItem(itemIdentifier: identifier)
-        item.label = Tr.statisticsSavePdf
-        item.toolTip = Tr.statisticsSavePdf
-        item.image = NSImage(systemSymbolName: "square.and.arrow.down", accessibilityDescription: Tr.statisticsSavePdf)
-        item.target = self
-        item.action = #selector(savePDF)
-        return item
-    }
-}
-
-private extension NSToolbarItem.Identifier {
-    static let savePDF = Self("savePDF")
 }
