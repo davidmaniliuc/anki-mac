@@ -34,8 +34,13 @@ def osa(script: str) -> str:
     return result.stdout.strip()
 
 
+# The launched instance's pid, so another AnkiMac that's running (the user's
+# own, or another checkout's) never receives these clicks and keystrokes.
+pid = 0
+
+
 def system_events(command: str) -> str:
-    return osa(f'tell application "System Events" to tell process "AnkiMac"\n{command}\nend tell')
+    return osa(f'tell application "System Events" to tell (first process whose unix id is {pid})\n{command}\nend tell')
 
 
 def modifiers(spec: str | None) -> str:
@@ -88,6 +93,8 @@ def main() -> None:
     proc = subprocess.Popen(
         [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO"],
         stdout=log, stderr=subprocess.STDOUT)
+    global pid
+    pid = proc.pid
     try:
         for _ in range(100):
             time.sleep(0.2)
