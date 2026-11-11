@@ -98,6 +98,19 @@ EXTRA = [
     "studying-buried-siblings",
     "studying-all-buried-cards",
     "errors-100-tags-max",
+    "studying-card-suspended",
+    "studying-note-suspended",
+    "studying-cards-buried",
+    "studying-delete-note",
+    "studying-pause-audio",
+    "browsing-cards-deleted",
+    "undo-action-undone",
+    "scheduling-set-due-date-done",
+    "scheduling-forgot-cards",
+    "actions-set-due-date",
+    "actions-forget-card",
+    "actions-reposition",
+    "actions-options",
 ]
 
 

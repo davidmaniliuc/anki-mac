@@ -444,4 +444,27 @@ nonisolated enum Tr {
     static let studyingBuriedSiblings = "Buried Siblings"
     static let studyingAllBuriedCards = "All Buried Cards"
     static let errors100TagsMax = "A maximum of 100 tags can be selected. Listing the tags you want instead of the ones you don't want is usually simpler, and there is no need to select child tags if you have selected a parent tag."
+    static let studyingCardSuspended = "Card suspended."
+    static let studyingNoteSuspended = "Note suspended."
+    static func studyingCardsBuried(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " card buried.") : (String(describing: count) + " cards buried."))
+    }
+    static let studyingDeleteNote = "Delete Note"
+    static let studyingPauseAudio = "Pause Audio"
+    static func browsingCardsDeleted(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " card deleted.") : (String(describing: count) + " cards deleted."))
+    }
+    static func undoActionUndone(action: String) -> String {
+        (String(describing: action) + " undone")
+    }
+    static func schedulingSetDueDateDone(cards: Int) -> String {
+        (cards == 1 ? ("Set due date of " + String(describing: cards) + " card.") : ("Set due date of " + String(describing: cards) + " cards."))
+    }
+    static func schedulingForgotCards(cards: Int) -> String {
+        (cards == 1 ? ("Reset " + String(describing: cards) + " card.") : ("Reset " + String(describing: cards) + " cards."))
+    }
+    static let actionsSetDueDate = "Set Due Date"
+    static let actionsForgetCard = "Reset Card"
+    static let actionsReposition = "Reposition"
+    static let actionsOptions = "Options"
 }

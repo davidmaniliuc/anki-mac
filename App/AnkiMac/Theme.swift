@@ -49,6 +49,12 @@ enum Theme {
         static let answerButtonMinWidth: CGFloat = 52
         static let barPadding: CGFloat = 12
         static let cardMinHeight: CGFloat = 200
+        /// How long the message after a card action stays over the card.
+        static let feedbackDuration: Duration = .seconds(2.5)
+        /// Keeps the message above the answer bar.
+        static let feedbackBottomInset: CGFloat = 90
+        static let editorWidth: CGFloat = 560
+        static let editorHeight: CGFloat = 420
     }
 
     enum Window {

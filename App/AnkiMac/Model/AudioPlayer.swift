@@ -48,6 +48,10 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    func pause() { player?.pause(); synthesizer.pauseSpeaking(at: .immediate) }
+
+    func resume() { player?.play(); synthesizer.continueSpeaking() }
+
     private func playFile(_ url: URL) async {
         log.notice("play file \(url.lastPathComponent, privacy: .public)")
         let item = AVPlayerItem(url: url)

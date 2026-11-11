@@ -26,7 +26,7 @@ struct BrowserPromptSheet: View {
 }
 
 /// Title, form and the button row every prompt shares.
-private struct PromptLayout<Content: View>: View {
+struct PromptLayout<Content: View>: View {
     let title: String
     let action: String
     var canSubmit = true
@@ -52,7 +52,7 @@ private struct PromptLayout<Content: View>: View {
     }
 }
 
-private func cardCount(_ count: Int) -> String {
+func cardCount(_ count: Int) -> String {
     count == 1 ? "1 card" : "\(count.formatted()) cards"
 }
 
