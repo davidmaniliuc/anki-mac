@@ -62,6 +62,11 @@ enum Theme {
         static let minHeight: CGFloat = 480
     }
 
+    enum Profiles {
+        static let width: CGFloat = 420
+        static let listHeight: CGFloat = 220
+    }
+
     enum Overview {
         static let descriptionWidth: CGFloat = 520
         static let descriptionMaxHeight: CGFloat = 220
