@@ -300,6 +300,12 @@ EXTRA = [
     "statistics-elapsed-time-days",
     "statistics-elapsed-time-months",
     "statistics-elapsed-time-years",
+    "scheduling-description",
+    "decks-study-deck",
+    "decks-new-deck-name",
+    "studying-this-is-a-special-deck-for",
+    "studying-cards-will-be-automatically-returned-to",
+    "studying-deleting-this-deck-from-the-deck",
 ]
 
 

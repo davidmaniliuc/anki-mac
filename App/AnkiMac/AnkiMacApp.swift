@@ -156,6 +156,8 @@ struct DeckOptionsCommands: Commands {
                 if let deck { model.showOptions(deck) }
             }
             .disabled(deck == nil)
+            Button(Tr.schedulingDescription) { if let deck { model.editDescription(deck.id) } }
+                .disabled(deck == nil || deck?.filtered == true)
             Button("\(Tr.actionsCustomStudy)…") { if let deck { model.showCustomStudy(deck.id) } }
                 .disabled(deck == nil || deck?.filtered == true)
             Button(model.selectedBuried.manually && model.selectedBuried.siblings
@@ -204,6 +206,9 @@ struct StudyCommands: Commands {
         CommandMenu("Study") {
             Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
                 .keyboardShortcut("t", modifiers: [])
+                .disabled(!model.isLoaded)
+            // Desktop's "/" is a key of the main window, not a menu shortcut, which would take it while typing.
+            Button("\(Tr.decksStudyDeck)…") { model.studyDeckPresented = true }
                 .disabled(!model.isLoaded)
             Divider()
             let session = model.session

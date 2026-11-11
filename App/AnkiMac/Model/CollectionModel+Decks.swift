@@ -80,6 +80,98 @@ extension CollectionModel {
         }
     }
 
+    // MARK: Study Deck
+
+    /// Every deck, filtered ones included, by full name, for the Study Deck picker.
+    func studyDeckChoices() async -> [DeckChoice] {
+        guard let backend else { return [] }
+        return (try? await backend.perform { backend in
+            var request = Anki_Decks_GetDeckNamesRequest()
+            request.skipEmptyDefault = true
+            request.includeFiltered = true
+            return try backend.getDeckNames(request).entries.map { DeckChoice(id: $0.id, name: $0.name) }
+        }) ?? []
+    }
+
+    /// Desktop's Study Deck choice: leaves any session and shows the deck's overview.
+    func showOverview(of deckID: Int64) {
+        studyDeckPresented = false
+        if session != nil { stopStudying() }
+        selectedDeckID = deckID
+    }
+
+    /// The picker's Add: creates the deck and shows its overview.
+    func addDeckAndShow(named name: String) {
+        deckOp { backend in
+            var deck = try backend.newDeck()
+            deck.name = name
+            return try backend.addDeck(deck).id
+        } then: { id in
+            self.showOverview(of: id)
+        }
+    }
+
+    // MARK: Description
+
+    /// The deck's description, rendered from Markdown by the backend when the
+    /// deck's flag says so, as desktop's overview does.
+    func description(of deckID: Int64) async -> DeckDescription? {
+        guard let backend else { return nil }
+        do {
+            let (text, markdown, html) = try await backend.perform { backend in
+                var request = Anki_Decks_DeckId()
+                request.did = deckID
+                let normal = try backend.getDeck(request).normal
+                guard normal.markdownDescription, !normal.description_p.isEmpty else {
+                    return (normal.description_p, false, normal.description_p)
+                }
+                var render = Anki_CardRendering_RenderMarkdownRequest()
+                render.markdown = normal.description_p
+                render.sanitize = true
+                return (normal.description_p, true, try backend.renderMarkdown(render).val)
+            }
+            return DeckDescription(
+                id: deckID, text: text, markdown: markdown, body: DeckDescription.attributed(html: html))
+        } catch {
+            errorMessage = FilteredDeckModel.message(error)
+            return nil
+        }
+    }
+
+    /// Opens the Description sheet on the deck's stored text. Filtered decks
+    /// have none.
+    func editDescription(_ deckID: Int64) {
+        guard deck(deckID)?.filtered == false, let backend else { return }
+        Task {
+            do {
+                descriptionEdit = try await backend.perform { backend in
+                    var request = Anki_Decks_DeckId()
+                    request.did = deckID
+                    let normal = try backend.getDeck(request).normal
+                    return DeckDescription(
+                        id: deckID, text: normal.description_p, markdown: normal.markdownDescription,
+                        body: AttributedString())
+                }
+            } catch {
+                errorMessage = FilteredDeckModel.message(error)
+            }
+        }
+    }
+
+    func saveDescription(_ edit: DeckDescription) {
+        descriptionEdit = nil
+        deckOp { backend in
+            var request = Anki_Decks_DeckId()
+            request.did = edit.id
+            var deck = try backend.getDeck(request)
+            guard case .normal(var normal)? = deck.kind else { return }
+            normal.description_p = edit.text
+            normal.markdownDescription = edit.markdown
+            deck.kind = .normal(normal)
+            _ = try backend.updateDeck(deck)
+        }
+    }
+
     // MARK: Unbury and Custom Study
 
     func buriedCards(in deck: DeckNode) async -> BuriedCards {

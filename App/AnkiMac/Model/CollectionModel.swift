@@ -77,7 +77,7 @@ final class CollectionModel {
     private(set) var paths: CollectionPaths?
     private(set) var decks: [DeckNode] = []
     private(set) var isLoaded = false
-    private var lastRefresh = Date.distantPast
+    private(set) var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
     private var activationTask: Task<Void, Never>?
     var backupTask: Task<Void, Never>?
@@ -92,6 +92,12 @@ final class CollectionModel {
     var customStudy: CustomStudyModel?
     /// The selected deck's buried cards, which the overview loads.
     var selectedBuried = BuriedCards()
+    /// The selected deck's description, which the overview loads.
+    var selectedDescription: DeckDescription?
+    /// Whether the Study Deck picker is open.
+    var studyDeckPresented = false
+    /// The Description sheet's text, while it's open.
+    var descriptionEdit: DeckDescription?
     /// The deck whose Unbury asks which kind, while it asks.
     var unburyPrompt: Int64?
     /// The filtered deck dialog, while it's open.

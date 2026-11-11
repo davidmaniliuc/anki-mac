@@ -1340,4 +1340,10 @@ nonisolated enum Tr {
         ("Replace your collection with an earlier backup from " + val + "?")
     }
     static let qtMiscAutomaticSyncingAndBackupsHaveBeen = "Backup successfully restored. Automatic syncing and backups have been disabled for now. To enable them again, close the profile or restart Anki."
+    static let schedulingDescription = "Description"
+    static let decksStudyDeck = "Study Deck"
+    static let decksNewDeckName = "New deck name:"
+    static let studyingThisIsASpecialDeckFor = "This is a special deck for studying outside of the normal schedule."
+    static let studyingCardsWillBeAutomaticallyReturnedTo = "Cards will be automatically returned to their original decks after you review them."
+    static let studyingDeletingThisDeckFromTheDeck = "Deleting this deck from the deck list will return all remaining cards to their original deck."
 }
