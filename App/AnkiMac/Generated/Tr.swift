@@ -629,6 +629,106 @@ nonisolated enum Tr {
     static let syncLogInButton = "Log In"
     static let syncLogOutButton = "Log Out"
     static let syncCollectionComplete = "Collection sync complete."
+    static let fieldsAddField = "Add Field"
+    static func fieldsDeleteFieldFrom(val: String) -> String {
+        ("Delete field from " + String(describing: val) + "?")
+    }
+    static let fieldsEditingFont = "Editing Font"
+    static let fieldsField = "Field:"
+    static let fieldsFieldName = "Field name:"
+    static let fieldsDescription = "Description"
+    static let fieldsDescriptionPlaceholder = "Text to show inside the field when it's empty"
+    static func fieldsFieldsFor(val: String) -> String {
+        ("Fields for " + String(describing: val))
+    }
+    static let fieldsFont = "Font:"
+    static func fieldsNewPosition1(val: String) -> String {
+        ("New position (1..." + String(describing: val) + "):")
+    }
+    static let fieldsNotesRequireAtLeastOneField = "Notes require at least one field."
+    static let fieldsReverseTextDirectionRtl = "Reverse text direction (RTL)"
+    static let fieldsCollapseByDefault = "Collapse by default"
+    static let fieldsHtmlByDefault = "Use HTML editor by default"
+    static let fieldsSize = "Size:"
+    static let fieldsSortByThisFieldInThe = "Sort by this field in the browser"
+    static let fieldsThatFieldNameIsAlreadyUsed = "That field name is already used."
+    static let fieldsNameFirstLetterNotValid = "The field name should not start with #, ^ or /."
+    static let fieldsNameInvalidLetter = ("The field name should not contain :, \", " + "{\" } or { \"}" + ".")
+    static let fieldsExcludeFromSearch = "Exclude from unqualified searches (slower)"
+    static let fieldsFieldIsRequired = "This is a required field, and can not be deleted."
+    static let cardTemplatesBlank = "blank"
+    static func cardTemplatesChangesWillAffectNotes(count: Int) -> String {
+        (count == 1 ? ("Changes below will affect the " + String(describing: count) + " note that uses this card type.") : ("Changes below will affect the " + String(describing: count) + " notes that use this card type."))
+    }
+    static let cardTemplatesCardType = "Card Type:"
+    static let cardTemplatesFrontTemplate = "Front Template"
+    static let cardTemplatesBackTemplate = "Back Template"
+    static let cardTemplatesTemplateStyling = "Styling"
+    static let cardTemplatesFrontPreview = "Front Preview"
+    static let cardTemplatesBackPreview = "Back Preview"
+    static let cardTemplatesPreviewBox = "Preview"
+    static let cardTemplatesTemplateBox = "Template"
+    static let cardTemplatesSampleCloze = ("This is a " + "{{c1::\" }sample{ \"}}" + " cloze deletion.")
+    static let cardTemplatesFillEmpty = "Fill Empty Fields"
+    static let cardTemplatesNightMode = "Night Mode"
+    static let cardTemplatesAddMobileClass = "Add Mobile Class"
+    static let cardTemplatesPreviewSettings = "Options"
+    static func cardTemplatesInvalidTemplateNumber(number: String, notetype: String) -> String {
+        ("Card template " + String(describing: number) + " in note type '" + String(describing: notetype) + "' has a problem.")
+    }
+    static func cardTemplatesIdenticalFront(number: String) -> String {
+        ("The front side is identical to card template " + String(describing: number) + ".")
+    }
+    static let cardTemplatesNoFrontField = "Expected to find a field replacement on the front of the card template."
+    static let cardTemplatesMissingCloze = ("Expected to find '" + "{{\" }cloze:Text{ \"}}" + "' or similar on the front and back of the card template.")
+    static let cardTemplatesExtraneousCloze = "'cloze:' can only be used on cloze note types."
+    static let cardTemplatesSeePreview = "See the preview for more information."
+    static func cardTemplatesFieldNotFound(field: String) -> String {
+        ("Field '" + String(describing: field) + "' not found.")
+    }
+    static let cardTemplatesChangesSaved = "Changes saved."
+    static let cardTemplatesDiscardChanges = "Discard changes?"
+    static let cardTemplatesAddCardType = "Add Card Type..."
+    static let cardTemplatesAnkiCouldntFindTheLineBetween = "Anki couldn't find the line between the question and answer. Please adjust the template manually to switch the question and answer."
+    static let cardTemplatesAtLeastOneCardTypeIs = "At least one card type is required."
+    static let cardTemplatesBrowserAppearance = "Browser Appearance..."
+    static func cardTemplatesCard(val: String) -> String {
+        ("Card " + String(describing: val))
+    }
+    static func cardTemplatesCardTypesFor(val: String) -> String {
+        ("Card Types for " + String(describing: val))
+    }
+    static func cardTemplatesCloze(val: String) -> String {
+        ("Cloze " + String(describing: val))
+    }
+    static let cardTemplatesDeckOverride = "Deck Override..."
+    static let cardTemplatesCopyInfo = "Copy Info to Clipboard"
+    static func cardTemplatesDeleteTheAsCardTypeAnd(template: String, cards: String) -> String {
+        ("Delete the '" + String(describing: template) + "' card type, and its " + String(describing: cards) + "?")
+    }
+    static func cardTemplatesEnterDeckToPlaceNew(val: String) -> String {
+        ("Enter deck to place new " + String(describing: val) + " cards in, or leave blank:")
+    }
+    static func cardTemplatesEnterNewCardPosition1(val: String) -> String {
+        ("Enter new card position (1..." + String(describing: val) + "):")
+    }
+    static let cardTemplatesFlip = "Flip"
+    static let cardTemplatesForm = "Form"
+    static let cardTemplatesOff = "(off)"
+    static let cardTemplatesOn = "(on)"
+    static let cardTemplatesRemoveCardType = "Remove Card Type..."
+    static let cardTemplatesRenameCardType = "Rename Card Type..."
+    static let cardTemplatesRepositionCardType = "Reposition Card Type..."
+    static func cardTemplatesCardCount(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " card") : (String(describing: count) + " cards"))
+    }
+    static func cardTemplatesThisWillCreateCardProceed(count: Int) -> String {
+        (count == 1 ? ("This will create " + String(describing: count) + " card. Proceed?") : ("This will create " + String(describing: count) + " cards. Proceed?"))
+    }
+    static let cardTemplatesTypeBoxesWarning = "Only one typing box per card template is supported."
+    static let cardTemplatesRestoreToDefault = "Restore to Default"
+    static let cardTemplatesRestoreToDefaultConfirmation = "This will reset all fields and templates in this note type to their default values, removing any extra fields/templates and their content, and any custom styling. Do you wish to proceed?"
+    static let cardTemplatesRestoredToDefault = "Note type has been restored to its original state."
     static let actionsAdd = "Add"
     static let decksDeck = "Deck"
     static let editingShowDuplicates = "Show Duplicates"
@@ -676,7 +776,6 @@ nonisolated enum Tr {
     static let actionsCancel = "Cancel"
     static let actionsClose = "Close"
     static let actionsSuspendCard = "Suspend Card"
-    static let cardTemplatesDiscardChanges = "Discard changes?"
     static let decksLatestAddedFirst = "Latest added first"
     static let decksOrderAdded = "Order added"
     static let decksRelativeOverdueness = "Relative overdueness"
@@ -721,6 +820,37 @@ nonisolated enum Tr {
     static let studyingBuriedSiblings = "Buried Siblings"
     static let studyingAllBuriedCards = "All Buried Cards"
     static let errors100TagsMax = "A maximum of 100 tags can be selected. Listing the tags you want instead of the ones you don't want is usually simpler, and there is no need to select child tags if you have selected a parent tag."
+    static func notetypesAdd(val: String) -> String {
+        ("Add: " + String(describing: val))
+    }
+    static let notetypesAddNoteType = "Add Note Type"
+    static let notetypesCards = "Cards"
+    static func notetypesClone(val: String) -> String {
+        ("Clone: " + String(describing: val))
+    }
+    static func notetypesCopy(val: String) -> String {
+        (String(describing: val) + " copy")
+    }
+    static let notetypesCreateScalableImagesWithDvisvgm = "Create scalable images with dvisvgm"
+    static let notetypesDeleteThisNoteTypeAndAll = "Delete this note type and all its cards?"
+    static let notetypesDeleteThisUnusedNoteType = "Delete this unused note type?"
+    static let notetypesFields = "Fields"
+    static let notetypesFooter = "Footer"
+    static let notetypesHeader = "Header"
+    static let notetypesNoteTypes = "Note Types"
+    static let notetypesOptions = "Options"
+    static let notetypesPleaseAddAnotherNoteTypeFirst = "Please add another note type first."
+    static let notetypesBasicName = "Basic"
+    static let notetypesBasicReversedName = "Basic (and reversed card)"
+    static let notetypesBasicOptionalReversedName = "Basic (optional reversed card)"
+    static let notetypesBasicTypeAnswerName = "Basic (type in the answer)"
+    static let notetypesClozeName = "Cloze"
+    static let notetypesImageOcclusionName = "Image Occlusion"
+    static func browsingNoteCount(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note") : (String(describing: count) + " notes"))
+    }
+    static let actionsNewName = "New name:"
+    static let actionsReposition = "Reposition"
     static let actionsCardInfo = "Card Info"
     static let actionsPreviousCardInfo = "Previous Card Info"
     static func cardStatsCurrentCard(context: String) -> String {
@@ -820,6 +950,5 @@ nonisolated enum Tr {
     }
     static let actionsSetDueDate = "Set Due Date"
     static let actionsForgetCard = "Reset Card"
-    static let actionsReposition = "Reposition"
     static let actionsOptions = "Options"
 }

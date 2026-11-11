@@ -183,6 +183,9 @@ struct ToolsCommands: Commands {
             Button("Check Database") { model.maintenanceTool = .database }.disabled(!model.isLoaded)
             Button("Check Media") { model.maintenanceTool = .media }.disabled(!model.isLoaded)
             Button("Empty Cards") { model.maintenanceTool = .emptyCards }.disabled(!model.isLoaded)
+            Divider()
+            Button("Manage Note Types…") { NotetypeManagerWindowController.show(collection: model) }
+                .disabled(!model.isLoaded)
         }
     }
 }
