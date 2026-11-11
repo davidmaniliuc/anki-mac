@@ -14,6 +14,19 @@ struct ImportResult: Identifiable, Equatable {
     let conflicting: Int
     let failed: Int
     let mergedNotetypes: Bool
+
+    init(log: Anki_ImportExport_ImportResponse.Log, mergedNotetypes: Bool) {
+        // Text files log a first-field match apart. Desktop counts it with the notes the resolution
+        // adds, updates or skips.
+        let matched = log.firstFieldMatch.count
+        found = Int(log.foundNotes)
+        new = log.new.count + (log.dupeResolution == .duplicate ? matched : 0)
+        updated = log.updated.count + (log.dupeResolution == .update ? matched : 0)
+        duplicate = log.duplicate.count + (log.dupeResolution == .preserve ? matched : 0)
+        conflicting = log.conflicting.count
+        failed = log.missingNotetype.count + log.missingDeck.count + log.emptyFirstField.count
+        self.mergedNotetypes = mergedNotetypes
+    }
 }
 
 enum ExportFormat: String, CaseIterable, Identifiable {
@@ -41,7 +54,7 @@ extension CollectionModel {
     func promptForImport() {
         let panel = NSOpenPanel()
         panel.title = Tr.actionsImport
-        panel.allowedContentTypes = ["apkg", "colpkg", "zip"].compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = ["apkg", "colpkg", "zip", "csv", "tsv", "txt"].compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = false
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
@@ -66,7 +79,7 @@ extension CollectionModel {
             packageImportURL = url
             packageImportPresented = true
         case "csv", "txt", "tsv":
-            errorMessage = "Importing text and CSV files is not available yet."
+            presentCsvImport(url)
         default:
             errorMessage = "Unsupported file type. Choose an .apkg or .colpkg file."
         }
@@ -112,14 +125,41 @@ extension CollectionModel {
                 let importRequest = request
                 let log = try await backend.perform { try $0.importAnkiPackage(importRequest) }.log
                 packageImportPresented = false
-                importResult = ImportResult(
-                    found: Int(log.foundNotes), new: log.new.count, updated: log.updated.count,
-                    duplicate: log.duplicate.count, conflicting: log.conflicting.count,
-                    failed: log.missingNotetype.count + log.missingDeck.count + log.emptyFirstField.count,
-                    mergedNotetypes: options.mergeNotetypes)
+                importResult = ImportResult(log: log, mergedNotetypes: options.mergeNotetypes)
                 await refreshDecks()
             } catch {
                 packageImportPresented = false
+                errorMessage = FilteredDeckModel.message(error)
+            }
+        }
+    }
+
+    /// Reads the file first, so the dialog opens with the backend's guesses, and an unreadable file
+    /// is an error instead.
+    private func presentCsvImport(_ url: URL) {
+        guard let backend, isLoaded, !packageOperationInProgress else { return }
+        Task {
+            do {
+                csvImport = try await CsvImportModel.load(url: url, backend: backend)
+            } catch {
+                errorMessage = FilteredDeckModel.message(error)
+            }
+        }
+    }
+
+    func importCsv(_ draft: CsvImportModel) {
+        guard let backend, isLoaded, !packageOperationInProgress else { return }
+        packageOperationInProgress = true
+        let request = draft.importRequest
+        Task {
+            defer { packageOperationInProgress = false }
+            do {
+                let log = try await backend.perform { try $0.importCsv(request) }.log
+                csvImport = nil
+                importResult = ImportResult(log: log, mergedNotetypes: false)
+                await refreshDecks()
+            } catch {
+                csvImport = nil
                 errorMessage = FilteredDeckModel.message(error)
             }
         }

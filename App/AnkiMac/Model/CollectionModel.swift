@@ -96,6 +96,7 @@ final class CollectionModel {
     var importMessage: String?
     var packageImportURL: URL?
     var packageImportPresented = false
+    var csvImport: CsvImportModel?
     var exportSheetPresented = false
     var selectedExportNoteIDs: [Int64]?
     var exportDeckID: Int64?
