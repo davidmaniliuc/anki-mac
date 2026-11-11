@@ -1072,6 +1072,11 @@ nonisolated enum Tr {
     }
     static let notetypesType = "Type"
     static let actionsAutoAdvance = "Auto Advance"
+    static let actionsPreview = "Preview"
+    static let actionsReplayAudio = "Replay Audio"
+    static func actionsShortcutKey(val: String) -> String {
+        ("Shortcut key: " + String(describing: val))
+    }
     static func actionsOptionsFor(val: String) -> String {
         ("Options for " + val)
     }

@@ -547,7 +547,7 @@ final class StudySession {
         }
     }
 
-    nonisolated private static let markedTag = "marked"
+    nonisolated static let markedTag = "marked"
 
     /// The deck the current card belongs to, outside any filtered deck.
     var homeDeckID: Int64? {
@@ -563,7 +563,7 @@ final class StudySession {
     private let configCache = DeckOptionsCache()
 
     /// Options come from the card's home deck, as desktop's `current_deck_id`.
-    nonisolated private static func options(
+    nonisolated static func options(
         for card: Anki_Cards_Card, cache: DeckOptionsCache, backend: AnkiBackend
     ) throws -> DeckOptions {
         let homeDeck = card.originalDeckID != 0 ? card.originalDeckID : card.deckID

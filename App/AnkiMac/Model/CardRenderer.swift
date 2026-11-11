@@ -30,7 +30,11 @@ nonisolated struct TypeAnswer: Sendable {
 /// Does what pylib's `TemplateRenderContext.render` and aqt's
 /// `prepare_card_text_for_display` do for an existing card.
 nonisolated enum CardRenderer {
-    static func render(_ card: Anki_Cards_Card, hidePlayButtons: Bool, backend: AnkiBackend) throws -> RenderedCard {
+    /// `stripTypeBoxes` is the previewer's: a `[[type:Field]]` marker is
+    /// dropped instead of becoming a box nobody can answer.
+    static func render(
+        _ card: Anki_Cards_Card, hidePlayButtons: Bool, stripTypeBoxes: Bool = false, backend: AnkiBackend
+    ) throws -> RenderedCard {
         var request = Anki_CardRendering_RenderExistingCardRequest()
         request.cardID = card.id
         // Full render: there are no Python filter hooks to hand off to.
@@ -53,7 +57,7 @@ nonisolated enum CardRenderer {
 
         let questionSide = try side(output.questionNodes)
         let answerSide = try side(output.answerNodes)
-        let box = try typeBox(in: questionSide.text, card: card, backend: backend)
+        let box = stripTypeBoxes ? TypeBox.absent : try typeBox(in: questionSide.text, card: card, backend: backend)
         let typeAnswer: TypeAnswer?
         var questionText = questionSide.text
         var answerText = answerSide.text

@@ -117,6 +117,8 @@ final class BrowserModel {
     @ObservationIgnored private var opened = false
     /// Called after the rows for an `idsVersion` are on screen, with how many
     /// visible rows were laid out. Used by the bench driver.
+    /// Selects and scrolls to a row; the table sets it.
+    @ObservationIgnored var selectRow: ((Int) -> Void)?
     @ObservationIgnored var onRowsPainted: ((_ idsVersion: Int, _ laidOut: Int) -> Void)?
 
     init(collection: CollectionModel) {
@@ -125,6 +127,25 @@ final class BrowserModel {
 
     var selectedIDs: [Int64] {
         selectedRows.compactMap { ids.indices.contains($0) ? ids[$0] : nil }
+    }
+
+    /// The row of the card the previewer follows: none unless exactly one is selected, as desktop's `singleCard`.
+    var singleSelectedRow: Int? {
+        selectedRows.count == 1 ? selectedRows.first : nil
+    }
+
+    var hasPreviousRow: Bool {
+        singleSelectedRow.map { $0 > 0 } ?? false
+    }
+
+    var hasNextRow: Bool {
+        singleSelectedRow.map { $0 < ids.count - 1 } ?? false
+    }
+
+    /// Selects the row above or below, as desktop's previous and next card.
+    func moveSelection(by offset: Int) {
+        guard let row = singleSelectedRow, ids.indices.contains(row + offset) else { return }
+        selectRow?(row + offset)
     }
 
     // MARK: Opening
