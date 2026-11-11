@@ -59,9 +59,9 @@ final class BrowserEditorModel {
                 }
                 // A newer selection won while this one loaded.
                 guard generation == loadGeneration else { return }
+                cardOrd = ord
                 guard note.id != noteID else { return }
                 self.note = note
-                cardOrd = ord
                 noteID = note.id
                 editor.load(notetype: notetype, values: note.fields, focus: false)
                 tags = note.tags
