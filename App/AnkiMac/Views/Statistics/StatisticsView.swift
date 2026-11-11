@@ -121,8 +121,11 @@ struct StatisticsView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
         }
-        ToolbarItem(placement: .primaryAction) {
-            ProgressView().controlSize(.small).opacity(model.loading ? 1 : 0)
+        // Only while loading: a hidden one still widens the Save PDF capsule.
+        if model.loading {
+            ToolbarItem(placement: .primaryAction) {
+                ProgressView().controlSize(.small)
+            }
         }
         ToolbarItem(placement: .primaryAction) {
             Button(action: savePDF) {
@@ -159,7 +162,21 @@ struct StatisticsPrintView: View {
         }
         .padding(Theme.Spacing.large)
         .frame(width: Theme.Statistics.pdfWidth)
+        .groupBoxStyle(PrintedCard())
         .environment(\.statisticsPrinting, true)
+    }
+}
+
+/// A card ImageRenderer can draw: the system GroupBox is an AppKit box, which
+/// it leaves out, keeping only the titles.
+private struct PrintedCard: GroupBoxStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            configuration.label
+            configuration.content
+        }
+        .padding(Theme.Spacing.medium)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: Theme.Statistics.printedCardRadius))
     }
 }
 

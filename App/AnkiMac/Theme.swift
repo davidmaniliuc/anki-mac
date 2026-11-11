@@ -132,6 +132,7 @@ enum Theme {
         static let graphMinWidth: CGFloat = 520
         static let chartHeight: CGFloat = 220
         static let pdfWidth: CGFloat = 760
+        static let printedCardRadius: CGFloat = 8
         static let searchWidth: CGFloat = 220
         /// Desktop asks d3 for about 7 ticks along x and 5 up y.
         static let xTickCount: Double = 7
