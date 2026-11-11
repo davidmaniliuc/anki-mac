@@ -73,7 +73,7 @@ final class CollectionModel {
     private(set) var paths: CollectionPaths?
     private(set) var decks: [DeckNode] = []
     private(set) var isLoaded = false
-    private var lastRefresh = Date.distantPast
+    private(set) var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
     private var activationTask: Task<Void, Never>?
     var selectedDeckID: Int64?

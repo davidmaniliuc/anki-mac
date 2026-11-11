@@ -5,6 +5,11 @@ struct DeckOverview: View {
     @Environment(CollectionModel.self) private var model
     let deck: DeckNode
 
+    private struct DescriptionLoad: Hashable {
+        let deckID: Int64
+        let refreshed: Date
+    }
+
     var body: some View {
         VStack(spacing: Theme.Spacing.xLarge) {
             Text(deck.name)
@@ -57,8 +62,12 @@ struct DeckOverview: View {
         .task(id: deck) {
             model.selectedBuried = await model.buriedCards(in: deck)
         }
-        .task(id: deck.id) {
-            model.selectedDescription = deck.filtered ? nil : await model.description(of: deck.id)
+        // Reloaded with every refresh too, which follows Undo, Redo, sync and saving the Description sheet.
+        .task(id: DescriptionLoad(deckID: deck.id, refreshed: model.lastRefresh)) {
+            let description = deck.filtered ? nil : await model.description(of: deck.id)
+            // A slower load for the deck shown before this one must not replace this deck's.
+            guard !Task.isCancelled else { return }
+            model.selectedDescription = description
         }
     }
 

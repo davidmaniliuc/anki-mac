@@ -169,10 +169,6 @@ extension CollectionModel {
             normal.markdownDescription = edit.markdown
             deck.kind = .normal(normal)
             _ = try backend.updateDeck(deck)
-        } then: {
-            if self.selectedDeckID == edit.id {
-                Task { self.selectedDescription = await self.description(of: edit.id) }
-            }
         }
     }
 
