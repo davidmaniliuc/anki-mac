@@ -90,11 +90,8 @@ def main() -> None:
 
     original_dark = osa('tell application "System Events" to get dark mode of appearance preferences')
     log = (out / "app.log").open("w")
-    # The app finds the login Keychain's AnkiWeb account, so without autoSync
-    # off a fixture would sync with (and could overwrite) the real account.
     proc = subprocess.Popen(
-        [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO",
-         "-autoSync", "<false/>"],
+        [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO"],
         stdout=log, stderr=subprocess.STDOUT)
     global pid
     pid = proc.pid

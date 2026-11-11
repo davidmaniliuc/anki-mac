@@ -3,9 +3,12 @@ import Foundation
 import Security
 
 /// Stores the complete backend auth value so redirected endpoints survive relaunch.
+/// The login belongs to one collection: one opened with `-CollectionPath`
+/// (a test fixture, a copy) starts logged out, so it can never sync, and
+/// perhaps overwrite, the app profile's AnkiWeb account.
 enum SyncKeychain {
     private static let service = "net.ankiweb.sync"
-    private static let account = "default"
+    private static let account = UserDefaults.standard.string(forKey: "CollectionPath") ?? "default"
 
     static func load() -> Anki_Sync_SyncAuth? {
         var query = baseQuery
