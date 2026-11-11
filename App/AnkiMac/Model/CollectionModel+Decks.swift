@@ -60,7 +60,7 @@ extension CollectionModel {
     /// Deletes the deck, its subdecks and their cards without asking, as
     /// desktop does; Undo brings them back.
     func deleteDeck(_ deckID: Int64) {
-        if session?.deckID == deckID { stopStudying() }
+        stopStudying(deleting: [deckID])
         deckOp { backend in
             var request = Anki_Decks_DeckIds()
             request.dids = [deckID]
@@ -261,6 +261,7 @@ extension CollectionModel {
                 errorMessage = FilteredDeckModel.message(error)
             }
             await refreshDecks()
+            BrowserWindowController.current?.model.refreshAfterExternalChange()
         }
     }
 

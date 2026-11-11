@@ -127,7 +127,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         }
         track { [weak self] in
             guard let self else { return }
-            window?.subtitle = subtitle
+            window?.subtitle = model.toast ?? subtitle
         }
         track { [weak self] in
             guard let self else { return }

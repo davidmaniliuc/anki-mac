@@ -20,6 +20,9 @@ nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
 
     var dueCount: Int { newCount + learnCount + reviewCount }
 
+    /// This deck's id and its subdecks'.
+    var subtreeIDs: Set<Int64> { (children ?? []).reduce([id]) { $0.union($1.subtreeIDs) } }
+
     init(_ node: Anki_Decks_DeckTreeNode, parent: String? = nil) {
         id = node.deckID
         name = node.name
@@ -314,7 +317,7 @@ final class CollectionModel {
                 session?.stop()
                 session = nil
                 await refreshDecks()
-                BrowserWindowController.current?.model.refreshAfterSync()
+                BrowserWindowController.current?.model.refreshAfterExternalChange()
                 if !output.serverMessage.isEmpty { syncAlert = output.serverMessage }
                 if syncMediaEnabled { await monitorMediaSync(backend) }
             case .fullUpload, .fullDownload, .fullSync:
@@ -348,7 +351,7 @@ final class CollectionModel {
             session?.stop()
             session = nil
             await refreshDecks()
-            BrowserWindowController.current?.model.refreshAfterSync()
+            BrowserWindowController.current?.model.refreshAfterExternalChange()
             if syncMediaEnabled { await monitorMediaSync(backend) }
             await updateSyncStatus()
         } catch {
@@ -453,6 +456,14 @@ final class CollectionModel {
         // The sidebar stays on screen while studying, so its counts follow each answer.
         session.onCountsChanged = { [weak self] in Task { await self?.refreshDecks() } }
         Task { await session.start() }
+    }
+
+    /// Stops the study session when it is on one of these decks or inside one,
+    /// since the session cannot go on once its deck is deleted. Call before
+    /// the delete, while the tree still has the decks.
+    func stopStudying(deleting deckIDs: [Int64]) {
+        guard let studying = session?.deckID else { return }
+        if deckIDs.contains(where: { deck($0)?.subtreeIDs.contains(studying) == true }) { stopStudying() }
     }
 
     func stopStudying() {

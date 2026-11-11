@@ -91,6 +91,8 @@ final class BrowserModel {
     private(set) var columns: [BrowserColumn] = []
     private(set) var sort = BrowserSort(column: "noteFld", reverse: false)
     private(set) var sidebar: [SidebarSection] = []
+    /// What the reload that produced `sidebar` was for; nil for a plain one.
+    private(set) var sidebarChange: SidebarChange?
     private(set) var selectedRows = IndexSet()
     private(set) var commandCard: CommandCard?
     /// The card of the current row (the note's first card in Notes mode), which Card Info shows.
@@ -103,6 +105,8 @@ final class BrowserModel {
     /// The rows `prompt` was asked about.
     @ObservationIgnored var promptSelection: Selection?
     var errorMessage: String?
+    /// A short result ("3 notes updated.") that the window shows for a few seconds.
+    private(set) var toast: String?
 
     /// Rows by id, for the current search only. nil marks an id whose card or
     /// note no longer exists.
@@ -259,6 +263,20 @@ final class BrowserModel {
         run(item.searchNode, showInField: true)
     }
 
+    /// Several sidebar rows at once: all of them, or any of them.
+    func search(_ items: [SidebarItem], joiner: Anki_Search_SearchNode.Group.Joiner) {
+        guard items.count > 1 else {
+            if let item = items.first { search(item) }
+            return
+        }
+        var group = Anki_Search_SearchNode.Group()
+        group.nodes = items.map(\.searchNode)
+        group.joiner = joiner
+        var node = Anki_Search_SearchNode()
+        node.group = group
+        run(node, showInField: true)
+    }
+
     /// Searches the last search again, in the current mode and order.
     private func searchAgain() {
         var node = Anki_Search_SearchNode()
@@ -410,9 +428,10 @@ final class BrowserModel {
 
     // MARK: Sidebar
 
-    func loadSidebar() async {
+    func loadSidebar(_ change: SidebarChange? = nil) async {
         guard let backend = collection.backend else { return }
         if let sections = try? await backend.perform({ backend in try SidebarSection.load(backend) }) {
+            sidebarChange = change
             sidebar = sections
         }
     }
@@ -534,32 +553,42 @@ final class BrowserModel {
 
     func undo() {
         guard undoState.canUndo else { return }
-        change(searchAgain: true) { backend in _ = try backend.undo() }
+        change(searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.undo() }
     }
 
     func redo() {
         guard undoState.canRedo else { return }
-        change(searchAgain: true) { backend in _ = try backend.redo() }
+        change(searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.redo() }
     }
 
     /// Runs an undoable change, then redraws the rows (or searches again when
     /// rows may have appeared or gone) and refreshes the main window's decks.
-    func change(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) {
-        Task { await perform(searchAgain: searchAgain, work) }
+    /// `then` gets what `work` returned, once the change has succeeded. A
+    /// non-nil `sidebar` loads the sidebar again, as desktop does for any op
+    /// whose changes touch it.
+    func change<Result: Sendable>(
+        searchAgain: Bool = false, sidebar: SidebarChange? = nil,
+        _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: @escaping (Result) -> Void = { _ in }
+    ) {
+        Task { await perform(searchAgain: searchAgain, sidebar: sidebar, work, then: then) }
     }
 
     /// `change`, saying whether the work succeeded.
     @discardableResult
-    func perform(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) async -> Bool {
+    func perform<Result: Sendable>(
+        searchAgain: Bool = false, sidebar change: SidebarChange? = nil,
+        _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: (Result) -> Void = { _ in }
+    ) async -> Bool {
         guard let backend = collection.backend else { return false }
-        var succeeded = true
+        var result: Result?
         do {
-            undoState = try await backend.perform { backend in
-                try work(backend)
-                return try backend.undoState()
+            let (state, value) = try await backend.perform { backend in
+                let value = try work(backend)
+                return (try backend.undoState(), value)
             }
+            undoState = state
+            result = value
         } catch {
-            succeeded = false
             errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
         }
         if searchAgain {
@@ -569,8 +598,18 @@ final class BrowserModel {
             rowsVersion += 1
         }
         refreshCommandCard()
+        if let result { then(result) }
+        if let change { await loadSidebar(change) }
         await collection.refreshDecks()
-        return succeeded
+        return result != nil
+    }
+
+    func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            if toast == text { toast = nil }
+        }
     }
 
     /// Called when the window comes to the front: the main window may have
@@ -584,9 +623,11 @@ final class BrowserModel {
         }
     }
 
-    func refreshAfterSync() {
+    /// After the main window synced or undid something.
+    func refreshAfterExternalChange() {
         searchAgain()
         refreshUndo()
+        Task { await loadSidebar() }
     }
 
     // MARK: Backend helpers

@@ -3,10 +3,17 @@ import AppKit
 /// The browser's sidebar: a source-list NSOutlineView. A SwiftUI `List` took
 /// about 70 ms of main thread to insert a 70-row sidebar; this takes a few.
 final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    private let model: BrowserModel
-    private let outline = NSOutlineView()
+    let model: BrowserModel
+    let outline = SidebarOutlineView()
     private var roots: [Row] = []
-    private var shownCount = -1
+    private var shown: [SidebarSection]?
+    /// Set while the sidebar restores its selection after a reload, which is
+    /// not a new search.
+    private var restoringSelection = false
+    private var selectionCount = 0
+    /// The row whose name is being edited in place.
+    var editing: Row?
+    var cancelledEdit = false
 
     init(model: BrowserModel) {
         self.model = model
@@ -19,6 +26,12 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.style = .sourceList
         outline.headerView = nil
         outline.floatsGroupRows = false
+        outline.allowsMultipleSelection = true
+        outline.onDelete = { [weak self] in self?.deleteSelection() }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        outline.menu = menu
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("sidebar"))
         outline.addTableColumn(column)
         outline.outlineTableColumn = column
@@ -39,12 +52,90 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.deselectAll(nil)
     }
 
+    /// Shows the sections again after a change, keeping what was expanded and
+    /// selected. A header or parent that gained its first children opens, and
+    /// the row the change made or renamed is revealed and selected.
     private func show(_ sections: [SidebarSection]?) {
-        guard let sections, sections.count != shownCount else { return }
-        shownCount = sections.count
+        guard let sections, sections != shown else { return }
+        cancelEdit()
+        let change = model.sidebarChange
+        var kept = shown == nil ? nil : snapshot(roots)
+        if let rename = change?.tagRename { kept?.renameTags(rename) }
+        shown = sections
         roots = sections.map(Row.init(section:))
         outline.reloadData()
-        roots.forEach { outline.expandItem($0) }
+        if let kept {
+            restoreExpansion(roots, kept)
+        } else {
+            roots.forEach { outline.expandItem($0) }
+        }
+        var selected = kept?.selected ?? []
+        if let reveal = change?.reveal, let path = path(to: .item(reveal), in: roots), let target = path.last {
+            path.dropLast().forEach { outline.expandItem($0) }
+            selected = [target.id]
+        }
+        restoringSelection = true
+        defer { restoringSelection = false }
+        let rows = IndexSet(allRows(roots).filter { selected.contains($0.id) }.map(outline.row(forItem:)).filter { $0 >= 0 })
+        outline.selectRowIndexes(rows, byExtendingSelection: false)
+        if let first = rows.first { outline.scrollRowToVisible(first) }
+    }
+
+    /// What of the old rows carries over a reload. A leaf is kept so that a
+    /// row that gains children can be told from one the user collapsed.
+    private struct Snapshot {
+        var expanded: Set<Row.ID> = []
+        var leaves: Set<Row.ID> = []
+        var selected: Set<Row.ID> = []
+
+        mutating func renameTags(_ rename: (from: String, to: String)) {
+            func renamed(_ id: Row.ID) -> Row.ID {
+                guard case .item(.tag(let name)) = id,
+                    let range = name.range(of: rename.from, options: [.anchored, .caseInsensitive]),
+                    range.upperBound == name.endIndex || name[range.upperBound...].hasPrefix("::")
+                else { return id }
+                return .item(.tag(rename.to + name[range.upperBound...]))
+            }
+            expanded = Set(expanded.map(renamed))
+            leaves = Set(leaves.map(renamed))
+            selected = Set(selected.map(renamed))
+        }
+    }
+
+    private func snapshot(_ rows: [Row]) -> Snapshot {
+        var kept = Snapshot()
+        for row in allRows(rows) {
+            if row.children.isEmpty {
+                kept.leaves.insert(row.id)
+            } else if outline.isItemExpanded(row) {
+                kept.expanded.insert(row.id)
+            }
+        }
+        kept.selected = Set(selectedRows.map(\.id))
+        return kept
+    }
+
+    private func restoreExpansion(_ rows: [Row], _ kept: Snapshot) {
+        for row in rows where !row.children.isEmpty && (kept.expanded.contains(row.id) || kept.leaves.contains(row.id)) {
+            outline.expandItem(row)
+            restoreExpansion(row.children, kept)
+        }
+    }
+
+    private func path(to id: Row.ID, in rows: [Row]) -> [Row]? {
+        for row in rows {
+            if row.id == id { return [row] }
+            if let rest = path(to: id, in: row.children) { return [row] + rest }
+        }
+        return nil
+    }
+
+    private func allRows(_ rows: [Row]) -> [Row] {
+        rows.flatMap { [$0] + allRows($0.children) }
+    }
+
+    var selectedRows: [Row] {
+        outline.selectedRowIndexes.compactMap { outline.item(atRow: $0) as? Row }
     }
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -81,8 +172,17 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         return cell
     }
 
+    /// Clicking one row searches it; a selection of several is for the
+    /// context menu, which searches them all or any.
     func outlineViewSelectionDidChange(_ notification: Notification) {
-        guard let row = outline.item(atRow: outline.selectedRow) as? Row, let item = row.item else { return }
+        let before = selectionCount
+        selectionCount = outline.selectedRowIndexes.count
+        guard !restoringSelection, selectionCount == 1,
+            let row = outline.item(atRow: outline.selectedRow) as? Row, let item = row.item
+        else { return }
+        // Cmd-click or Shift-arrow that narrows several rows to one is still
+        // picking rows for the menu.
+        if before > 1, !NSEvent.modifierFlags.isDisjoint(with: [.command, .shift]) { return }
         model.search(item)
     }
 
@@ -90,18 +190,31 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     /// wrapped in objects once per load.
     final class Row {
         let title: String
+        let kind: SidebarKind
         let item: SidebarItem?
         let children: [Row]
 
+        /// Stable across reloads, unlike the object, and across renames.
+        let id: ID
+
+        enum ID: Hashable {
+            case header(SidebarKind)
+            case item(SidebarItem.ID)
+        }
+
         init(section: SidebarSection) {
             title = section.title
+            kind = section.kind
             item = nil
+            id = .header(section.kind)
             children = section.nodes.map(Row.init(node:))
         }
 
         init(node: SidebarNode) {
             title = node.title
+            kind = node.item.kind
             item = node.item
+            id = .item(node.item.id)
             children = (node.children ?? []).map(Row.init(node:))
         }
     }
@@ -130,7 +243,21 @@ private final class SidebarHeaderCell: NSTableCellView {
     }
 }
 
-private final class SidebarCell: NSTableCellView {
+/// Delete removes the selected rows, when their kind allows it.
+final class SidebarOutlineView: NSOutlineView {
+    var onDelete: () -> Void = {}
+
+    override func keyDown(with event: NSEvent) {
+        // Delete and Forward Delete.
+        if event.keyCode == 51 || event.keyCode == 117 {
+            onDelete()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+}
+
+final class SidebarCell: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("SidebarCell")
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
@@ -147,7 +274,24 @@ private final class SidebarCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    func beginEditing(delegate: NSTextFieldDelegate) {
+        label.isEditable = true
+        label.drawsBackground = true
+        label.delegate = delegate
+        label.selectText(nil)
+    }
+
+    func endEditing(title: String) {
+        label.isEditable = false
+        label.drawsBackground = false
+        label.delegate = nil
+        label.stringValue = title
+    }
+
     func show(_ title: String, item: SidebarItem) {
+        label.isEditable = false
+        label.drawsBackground = false
+        label.delegate = nil
         label.stringValue = title
         icon.image = NSImage(systemSymbolName: item.systemImage, accessibilityDescription: nil)
         // Flags keep their colour; every other icon follows the accent colour.

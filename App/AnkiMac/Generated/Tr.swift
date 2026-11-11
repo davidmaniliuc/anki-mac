@@ -1346,4 +1346,27 @@ nonisolated enum Tr {
     static let studyingThisIsASpecialDeckFor = "This is a special deck for studying outside of the normal schedule."
     static let studyingCardsWillBeAutomaticallyReturnedTo = "Cards will be automatically returned to their original decks after you review them."
     static let studyingDeletingThisDeckFromTheDeck = "Deleting this deck from the deck list will return all remaining cards to their original deck."
+    static let actionsAllSelected = "All selected"
+    static let actionsAnySelected = "Any selected"
+    static let actionsRenameDeck = "Rename Deck"
+    static let actionsRenameTag = "Rename Tag"
+    static let actionsRenameWithParents = "Rename with Parents"
+    static let browsingSidebarSaveCurrentSearch = "Save Current Search"
+    static let browsingUpdateSavedSearch = "Update with Current Search"
+    static func browsingConfirmSavedSearchOverwrite(name: String) -> String {
+        ("A saved search with the name " + name + " already exists. Do you want to overwrite it?")
+    }
+    static let browsingPleaseGiveYourFilterAName = "Please give your filter a name:"
+    static let browsingTagRenameWarningEmpty = "You can't rename a tag that has no notes."
+    static let browsingAddToSelectedNotes = "Add to Selected Notes"
+    static let browsingRemoveFromSelectedNotes = "Remove from Selected Notes"
+    static let browsingManageNoteTypes = "Manage Note Types"
+    static let browsingClearUnusedTags = "Clear Unused Tags"
+    static func browsingRemovedUnusedTagsCount(count: some TrNumber) -> String {
+        (count.trValue == 1 ? ("Removed " + Tr.number(count) + " unused tag.") : ("Removed " + Tr.number(count) + " unused tags."))
+    }
+    static func browsingNotesUpdated(count: some TrNumber) -> String {
+        (count.trValue == 1 ? (Tr.number(count) + " note updated.") : (Tr.number(count) + " notes updated."))
+    }
+    static let browsingAddNotes = "Add Notes..."
 }

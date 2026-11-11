@@ -178,7 +178,12 @@ extension BrowserModel {
 
     /// `tags` is space-separated, as typed.
     func changeTags(adding: Bool, tags: String) {
-        guard let selection = answer(), !tags.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard let selection = answer() else { return }
+        changeTags(of: selection, adding: adding, tags: tags)
+    }
+
+    func changeTags(of selection: Selection, adding: Bool, tags: String) {
+        guard !tags.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         change(searchAgain: true) { backend in
             var request = Anki_Tags_NoteIdsAndTagsRequest()
             request.noteIds = try Self.noteIDs(selection, backend: backend)
