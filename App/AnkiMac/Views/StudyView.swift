@@ -170,10 +170,6 @@ struct StudyView: View {
             session.undo()
             return true
         }
-        if modifiers == [.command, .shift], key == "z" {
-            session.redo()
-            return true
-        }
         if modifiers == .control, let digit = Int(key), let flag = CardFlag(rawValue: digit), flag != .none {
             session.toggleFlag(flag)
             return true
