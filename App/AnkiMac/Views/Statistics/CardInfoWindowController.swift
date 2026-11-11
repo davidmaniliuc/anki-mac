@@ -1,6 +1,7 @@
 import AppKit
+import SwiftUI
 
-/// A Card Info window: upstream's card-info page for one card.
+/// A Card Info window for one card, native SwiftUI over the backend's card stats.
 ///
 /// There is one window per `Kind`, as on desktop: the browser's follows the
 /// current row, the reviewer's the card on screen, and "previous" shows the
@@ -29,12 +30,12 @@ final class CardInfoWindowController: NSWindowController, NSWindowDelegate {
     private static var open: [Kind: CardInfoWindowController] = [:]
 
     private let kind: Kind
-    private let page: UpstreamPage
+    private let model: CardInfoModel
 
     /// Opens (or updates and raises) the Card Info window for a card. This is
     /// what the reviewer's I key and Card Info menu item call.
     static func show(cardID: Int64, kind: Kind = .reviewer, collection: CollectionModel) {
-        guard collection.isLoaded else { return }
+        guard collection.isLoaded, collection.backend != nil else { return }
         if let controller = open[kind] {
             controller.display(cardID)
             controller.window?.makeKeyAndOrderFront(nil)
@@ -54,15 +55,18 @@ final class CardInfoWindowController: NSWindowController, NSWindowDelegate {
 
     private init(kind: Kind, collection: CollectionModel) {
         self.kind = kind
-        page = UpstreamPage { [unowned collection] method, body in try collection.pageRequest(method, body) }
+        model = CardInfoModel(backend: collection.backend!)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Theme.Statistics.cardInfoSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         super.init(window: window)
         window.title = kind.title
-        window.contentView = page.webView
-        window.minSize = Theme.Statistics.cardInfoMinSize
+        let host = NSHostingController(rootView: CardInfoView(model: model))
+        host.sizingOptions = []
+        window.contentViewController = host
+        window.setContentSize(Theme.Statistics.cardInfoSize)
+        window.contentMinSize = Theme.Statistics.cardInfoMinSize
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -72,17 +76,8 @@ final class CardInfoWindowController: NSWindowController, NSWindowDelegate {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    private var shownCardID: Int64?
-
-    /// The page swaps cards itself (`anki.updateCard`) once it has loaded.
     private func display(_ cardID: Int64?) {
-        let id = cardID.map(String.init) ?? "0"
-        if shownCardID == nil || page.webView.isLoading {
-            page.load("card-info/\(id)")
-        } else if cardID != shownCardID {
-            page.evaluate("anki.updateCard('\(id)');")
-        }
-        shownCardID = cardID ?? 0
+        model.show(cardID)
     }
 
     func windowWillClose(_ notification: Notification) {
