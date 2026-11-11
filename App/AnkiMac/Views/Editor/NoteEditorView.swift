@@ -192,6 +192,13 @@ struct FormatBar: View {
                 Label(Tr.editingAttachPicturesaudiovideo, systemImage: "paperclip")
             }
             .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
+            Menu {
+                EquationButtons(send: { send($0) })
+            } label: {
+                Label(Tr.editingEquations, systemImage: "function")
+            }
+            .menuIndicator(.hidden)
+            .help(Tr.editingEquations)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .labelStyle(.iconOnly)
@@ -240,12 +247,6 @@ struct FormatBar: View {
         field.window?.makeFirstResponder(field)
         NSApp.sendAction(action, to: field, from: sender)
     }
-}
-
-/// "MathJax inline" as a menu item's title: "Inline".
-private func sentenceCase(_ title: String) -> String {
-    let word = title.split(separator: " ").last.map(String.init) ?? title
-    return word.prefix(1).uppercased() + word.dropFirst()
 }
 
 func applyColor(_ kind: ColorKind) {
@@ -320,10 +321,8 @@ struct FormatCommands: Commands {
             Button(Tr.editingAttachPicturesaudiovideo) { send(#selector(FieldTextView.attachMedia(_:))) }
                 .keyboardShortcut(functionKey(NSF3FunctionKey), modifiers: [])
             Divider()
-            Menu("MathJax") {
-                Button(sentenceCase(Tr.editingMathjaxInline)) { send(#selector(FieldTextView.insertMathInline(_:))) }
-                Button(sentenceCase(Tr.editingMathjaxBlock)) { send(#selector(FieldTextView.insertMathBlock(_:))) }
-                Button(sentenceCase(Tr.editingMathjaxChemistry)) { send(#selector(FieldTextView.insertMathChemistry(_:))) }
+            Menu(Tr.editingEquations) {
+                EquationButtons(send: { send($0) })
             }
             Divider()
             Button("Show HTML") { send(#selector(FieldTextView.toggleHTMLSource(_:))) }

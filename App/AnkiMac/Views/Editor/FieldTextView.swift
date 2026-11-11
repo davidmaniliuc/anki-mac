@@ -11,6 +11,7 @@ final class FieldTextView: NSTextView {
     weak var editor: NoteEditorModel?
     var mathPopover: NSPopover?
     var mathPendingCommit: (() -> Void)?
+    private var pendingChordPrefix: Character?
     private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
 
     private var document: FieldDocument { field.document }
@@ -161,17 +162,45 @@ final class FieldTextView: NSTextView {
     }
 
     private func wrapCloze(number: Int) {
+        wrap("{{c\(number)::", "}}")
+    }
+
+    /// The selection between two tags; with nothing selected, the cursor
+    /// lands between them.
+    private func wrap(_ front: String, _ back: String) {
         let range = selectedRange()
         guard let storage = textStorage else { return }
         let selected = storage.attributedSubstring(from: range)
         let attributes = FieldDocument.cleanTypingAttributes(typingAttributes)
-        let wrapped = NSMutableAttributedString(string: "{{c\(number)::", attributes: attributes)
+        let wrapped = NSMutableAttributedString(string: front, attributes: attributes)
         wrapped.append(selected)
-        wrapped.append(NSAttributedString(string: "}}", attributes: attributes))
+        wrapped.append(NSAttributedString(string: back, attributes: attributes))
         guard shouldChangeText(in: range, replacementString: wrapped.string) else { return }
         storage.replaceCharacters(in: range, with: wrapped)
         didChangeText()
-        setSelectedRange(NSRange(location: range.location + wrapped.length - (range.length == 0 ? 2 : 0), length: 0))
+        setSelectedRange(
+            NSRange(location: range.location + wrapped.length - (range.length == 0 ? back.utf16.count : 0), length: 0))
+    }
+
+    @objc func insertLatex(_ sender: Any?) { wrap("[latex]", "[/latex]") }
+    @objc func insertLatexEquation(_ sender: Any?) { wrap("[$]", "[/$]") }
+    @objc func insertLatexMathEnv(_ sender: Any?) { wrap("[$$]", "[/$$]") }
+
+    /// Desktop's Control-M and Control-T shortcuts take a second key.
+    override func keyDown(with event: NSEvent) {
+        let key = event.charactersIgnoringModifiers?.lowercased().first
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control])
+        if let prefix = pendingChordPrefix {
+            pendingChordPrefix = nil
+            if modifiers.isEmpty, let item = EquationItem.allCases.first(where: { $0.chord.prefix == prefix && $0.chord.key == key }) {
+                NSApp.sendAction(item.action, to: self, from: nil)
+                return
+            }
+        } else if modifiers == .control, let key, EquationItem.chordPrefixes.contains(key) {
+            pendingChordPrefix = key
+            return
+        }
+        super.keyDown(with: event)
     }
 
     @objc func toggleHTMLSource(_ sender: Any?) {
