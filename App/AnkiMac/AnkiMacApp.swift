@@ -251,7 +251,7 @@ struct StudyCommands: Commands {
     }
 }
 
-/// Undo, and the Cards menu: flag, suspend, mark and delete, for the card
+/// Undo and Redo, for the text being typed or else the collection, and the Cards menu: flag, suspend, mark and delete, for the card
 /// being studied or the rows selected in the browser, whichever window is
 /// in front. Shortcuts follow desktop, with Command for its Ctrl, except the
 /// flags, which keep Control+1 to 7 as in the study screen.
@@ -267,10 +267,22 @@ struct CardCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .undoRedo) {
-            let label = target?.undoLabel ?? ""
-            Button(label.isEmpty ? "Undo" : "Undo \(label)") { target?.undo() }
-                .keyboardShortcut("z")
-                .disabled(label.isEmpty)
+            if let text = TextUndo.shared.state {
+                Button(text.undoTitle) { TextUndo.shared.undo() }
+                    .keyboardShortcut("z")
+                    .disabled(!text.canUndo)
+                Button(text.redoTitle) { TextUndo.shared.redo() }
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .disabled(!text.canRedo)
+            } else {
+                let state = target?.undoState ?? UndoState()
+                Button(state.undoTitle) { target?.undo() }
+                    .keyboardShortcut("z")
+                    .disabled(!state.canUndo)
+                Button(state.redoTitle) { target?.redo() }
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .disabled(!state.canRedo)
+            }
         }
         CommandMenu("Cards") {
             let card = target?.commandCard

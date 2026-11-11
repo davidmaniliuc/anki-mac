@@ -1228,6 +1228,14 @@ nonisolated enum Tr {
     static func undoActionUndone(action: String) -> String {
         (action + " undone")
     }
+    static let undoUndo = "Undo"
+    static let undoRedo = "Redo"
+    static func undoUndoAction(val: String) -> String {
+        ("Undo " + val)
+    }
+    static func undoRedoAction(action: String) -> String {
+        ("Redo " + action)
+    }
     static func schedulingSetDueDateDone(cards: some TrNumber) -> String {
         (cards.trValue == 1 ? ("Set due date of " + Tr.number(cards) + " card.") : ("Set due date of " + Tr.number(cards) + " cards."))
     }

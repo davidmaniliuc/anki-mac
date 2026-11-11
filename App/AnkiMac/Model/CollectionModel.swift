@@ -84,8 +84,8 @@ final class CollectionModel {
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
     var errorMessage: String?
-    /// What Undo would undo in the main window, while not studying.
-    private(set) var undoLabel = ""
+    /// What Undo and Redo would act on in the main window, while not studying.
+    private(set) var undoState = UndoState()
     /// The deck whose name is being edited in the sidebar.
     var renamingDeckID: Int64?
     /// The Custom Study dialog, while it's open.
@@ -373,15 +373,15 @@ final class CollectionModel {
         guard !collectionClosed else { return }
         guard let backend else { return }
         do {
-            let (tree, nextDayAt, undo) = try await backend.perform { backend in
+            let (tree, nextDayAt, undoState) = try await backend.perform { backend in
                 var request = Anki_Decks_DeckTreeRequest()
                 request.now = Int64(Date().timeIntervalSince1970)
                 return (
                     try backend.deckTree(request), try backend.schedTimingToday().nextDayAt,
-                    try backend.getUndoStatus().undo)
+                    try backend.undoState())
             }
             decks = tree.children.map { DeckNode($0) }
-            undoLabel = undo
+            self.undoState = undoState
             if let id = selectedDeckID, deck(id) == nil {
                 selectedDeckID = nil
             }

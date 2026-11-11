@@ -151,10 +151,20 @@ extension CollectionModel {
 
     /// Undoes the last change, from the main window while not studying.
     func undoLast() {
-        guard let backend, !undoLabel.isEmpty else { return }
+        guard undoState.canUndo else { return }
+        replay { _ = try $0.undo() }
+    }
+
+    func redoLast() {
+        guard undoState.canRedo else { return }
+        replay { _ = try $0.redo() }
+    }
+
+    private func replay(_ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
+        guard let backend else { return }
         Task {
             do {
-                _ = try await backend.perform { try $0.undo() }
+                try await backend.perform(change)
             } catch {
                 errorMessage = FilteredDeckModel.message(error)
             }
@@ -179,7 +189,7 @@ extension CollectionModel {
     }
 }
 
-/// The main window's Undo while no card is being studied.
+/// The main window's Undo and Redo while no card is being studied.
 extension CollectionModel: CardCommandTarget {
     var commandCard: CommandCard? { nil }
     var canDeleteNotes: Bool { false }
@@ -188,4 +198,5 @@ extension CollectionModel: CardCommandTarget {
     func toggleSuspend() {}
     func deleteNotes() {}
     func undo() { undoLast() }
+    func redo() { redoLast() }
 }

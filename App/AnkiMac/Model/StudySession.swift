@@ -79,9 +79,7 @@ final class StudySession {
     private(set) var previousCardID: Int64?
     private(set) var counts = (new: 0, learn: 0, review: 0)
     private(set) var currentQueue: Anki_Scheduler_QueuedCards.Queue?
-    /// What Undo would undo, as the backend names it; empty when nothing.
-    private(set) var undoLabel = ""
-    var canUndo: Bool { !undoLabel.isEmpty }
+    private(set) var undoState = UndoState()
     var errorMessage: String?
     private(set) var audioPaused = false
     /// The time is up: the alert's text, until Continue or Finish.
@@ -194,11 +192,21 @@ final class StudySession {
     }
 
     func undo() {
-        guard canUndo, !busy else { return }
+        guard undoState.canUndo else { return }
+        replay { backend in _ = try backend.undo() }
+    }
+
+    func redo() {
+        guard undoState.canRedo else { return }
+        replay { backend in _ = try backend.redo() }
+    }
+
+    private func replay(_ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
+        guard !busy else { return }
         audio.stop()
         busy = true
         Task {
-            await loadNext { backend in _ = try backend.undo() }
+            await loadNext(after: change)
         }
     }
 
@@ -238,12 +246,12 @@ final class StudySession {
         _ cardID: Int64, _ change: @escaping @Sendable (AnkiBackend) throws -> Void, applied: @escaping () -> Void
     ) {
         Task {
-            let undoLabel = await run { backend in
+            let undoState = await run { backend in
                 try change(backend)
-                return try backend.getUndoStatus().undo
+                return try backend.undoState()
             }
-            guard let undoLabel, card?.queued.card.id == cardID else { return }
-            self.undoLabel = undoLabel
+            guard let undoState, card?.queued.card.id == cardID else { return }
+            self.undoState = undoState
             applied()
         }
     }
@@ -469,14 +477,14 @@ final class StudySession {
     private func loadNext(answered: Bool = false, after change: @escaping @Sendable (AnkiBackend) throws -> Void) async {
         defer { busy = timeboxMessage != nil }
         let configCache = self.configCache
-        let next: (StudyCard?, Anki_Scheduler_QueuedCards, String, UInt32)? = await run { backend in
+        let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32)? = await run { backend in
             try change(backend)
             let timeLimitSecs = try answered ? backend.getPreferences().reviewing.timeLimitSecs : 0
             var request = Anki_Scheduler_GetQueuedCardsRequest()
             request.fetchLimit = 1
             let queue = try backend.getQueuedCards(request)
-            let undoLabel = try backend.getUndoStatus().undo
-            guard let queued = queue.cards.first else { return (nil, queue, undoLabel, timeLimitSecs) }
+            let undoState = try backend.undoState()
+            guard let queued = queue.cards.first else { return (nil, queue, undoState, timeLimitSecs) }
 
             var hideKey = Anki_Config_GetConfigBoolRequest()
             hideKey.key = .hideAudioPlayButtons
@@ -490,11 +498,11 @@ final class StudySession {
             let studyCard = StudyCard(
                 queued: queued, rendered: rendered, intervals: intervals, options: options,
                 flag: CardFlag(cardFlags: queued.card.flags), isMarked: isMarked)
-            return (studyCard, queue, undoLabel, timeLimitSecs)
+            return (studyCard, queue, undoState, timeLimitSecs)
         }
         BenchDriver.trace("first_card_rendered")
-        guard let (card, queue, undoLabel, timeLimitSecs) = next else { return }
-        self.undoLabel = undoLabel
+        guard let (card, queue, undoState, timeLimitSecs) = next else { return }
+        self.undoState = undoState
         if answered {
             timebox.answers += 1
             timeboxMessage = timebox.messageIfReached(limitSecs: timeLimitSecs)
