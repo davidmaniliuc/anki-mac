@@ -223,6 +223,7 @@ EXTRA = [
     "notetypes-hide-all-guess-one",
     "notetypes-hide-one-guess-one",
     "notetypes-error-loading-image-occlusion",
+    "notetypes-error-getting-imagecloze",
     "notetypes-no-occlusion-created2",
     "notetypes-io-select-image",
     "notetypes-io-paste-image-from-clipboard",

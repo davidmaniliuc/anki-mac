@@ -125,9 +125,11 @@ final class NoteEditorModel {
         self.mediaFolder = mediaFolder
     }
 
-    /// Shows a note type's fields with these values. `noteID` is the note
-    /// being edited, nil for a new one.
-    func load(notetype: Anki_Notetypes_Notetype, values: [String], noteID: Int64? = nil, focus: Bool = true) {
+    /// Shows a note type's fields with these values, and the mask editor
+    /// when `occlusionSetup` read one for the note.
+    func load(
+        notetype: Anki_Notetypes_Notetype, values: [String], occlusion setup: OcclusionSetup?, focus: Bool = true
+    ) {
         notetypeID = notetype.id
         let collapsed = collapsedByNotetype[notetype.id] ?? notetype.fields.map(\.config.collapsed)
         fields = notetype.fields.enumerated().map { index, field in
@@ -140,28 +142,39 @@ final class NoteEditorModel {
             editorField.collapsed = index < collapsed.count && collapsed[index]
             return editorField
         }
-        occlusion = occlusionEditor(notetype: notetype, noteID: noteID)
+        occlusion = setup.map { setup in
+            let editor = ImageOcclusionEditor(setup) { [weak self] data, name in
+                self?.addMedia(data, preferredName: name)
+            }
+            editor.onChange = { [weak self] in self?.edited() }
+            return editor
+        }
         let hidden = occlusion?.hiddenFields ?? []
         focusRequest = focus ? fields.first { !$0.collapsed && !hidden.contains($0.index) }?.index : nil
     }
 
-    private func occlusionEditor(notetype: Anki_Notetypes_Notetype, noteID: Int64?) -> ImageOcclusionEditor? {
+    /// Reads what an image occlusion note's mask editor starts from; nil
+    /// for other note types. `noteID` is the note being edited, nil for a
+    /// new one. It calls the backend, so run it off the main actor.
+    nonisolated static func occlusionSetup(
+        notetype: Anki_Notetypes_Notetype, noteID: Int64?, backend: AnkiBackend
+    ) -> OcclusionSetup? {
         guard notetype.config.originalStockKind == .imageOcclusion else { return nil }
         var fieldsRequest = Anki_ImageOcclusion_GetImageOcclusionFieldsRequest()
         fieldsRequest.notetypeID = notetype.id
-        guard let indexes = try? backend.getImageOcclusionFields(fieldsRequest).fields else { return nil }
-        let editor = ImageOcclusionEditor(fields: indexes, isNew: noteID == nil) { [weak self] data, name in
-            self?.addMedia(data, preferredName: name)
-        }
-        if let noteID {
-            var request = Anki_ImageOcclusion_GetImageOcclusionNoteRequest()
-            request.noteID = noteID
-            if case .note(let note)? = try? backend.getImageOcclusionNote(request).value {
-                editor.load(note)
+        guard let fields = try? backend.getImageOcclusionFields(fieldsRequest).fields else { return nil }
+        guard let noteID else { return OcclusionSetup(fields: fields, note: .new) }
+        var request = Anki_ImageOcclusion_GetImageOcclusionNoteRequest()
+        request.noteID = noteID
+        do {
+            switch try backend.getImageOcclusionNote(request).value {
+            case .note(let note): return OcclusionSetup(fields: fields, note: .existing(note))
+            case .error(let reason): return OcclusionSetup(fields: fields, note: .unreadable(reason))
+            case nil: return OcclusionSetup(fields: fields, note: .unreadable(""))
             }
+        } catch {
+            return OcclusionSetup(fields: fields, note: .unreadable((error as? AnkiError)?.message ?? "\(error)"))
         }
-        editor.onChange = { [weak self] in self?.edited() }
-        return editor
     }
 
     /// Collapses or expands a field; an expanded field takes focus.
@@ -219,6 +232,20 @@ final class NoteEditorModel {
     var currentClozeNumber: Int {
         max(1, nextClozeNumber - 1)
     }
+}
+
+/// An image occlusion note's field indexes and its masks as the backend
+/// read them, for the mask editor.
+nonisolated struct OcclusionSetup: Sendable {
+    enum Note: Sendable {
+        case new
+        case existing(Anki_ImageOcclusion_GetImageOcclusionNoteResponse.ImageOcclusionNote)
+        /// The masks couldn't be read, for the backend's reason.
+        case unreadable(String)
+    }
+
+    let fields: Anki_ImageOcclusion_ImageOcclusionFieldIndexes
+    let note: Note
 }
 
 struct MediaDownloadError: Error {

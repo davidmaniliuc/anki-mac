@@ -40,20 +40,24 @@ final class BrowserEditorModel {
         }
         Task {
             do {
-                let (note, notetype) = try await backend.perform { backend in
+                let (note, notetype, occlusion) = try await backend.perform { backend in
                     var noteID = Anki_Notes_NoteId()
                     noteID.nid = try BrowserModel.noteIDs(selection, backend: backend).first ?? 0
                     let note = try backend.getNote(noteID)
                     var notetypeID = Anki_Notetypes_NotetypeId()
                     notetypeID.ntid = note.notetypeID
-                    return (note, try backend.getNotetype(notetypeID))
+                    let notetype = try backend.getNotetype(notetypeID)
+                    return (
+                        note, notetype,
+                        NoteEditorModel.occlusionSetup(notetype: notetype, noteID: note.id, backend: backend)
+                    )
                 }
                 // A newer selection won while this one loaded.
                 guard generation == loadGeneration else { return }
                 guard note.id != noteID else { return }
                 self.note = note
                 noteID = note.id
-                editor.load(notetype: notetype, values: note.fields, noteID: note.id, focus: false)
+                editor.load(notetype: notetype, values: note.fields, occlusion: occlusion, focus: false)
                 tags = note.tags
             } catch {
                 guard generation == loadGeneration else { return }

@@ -108,10 +108,14 @@ final class AddCardsModel {
     private func load(notetypeID id: Int64, copyFrom: (Anki_Notes_Note, [String])? = nil, sticky: Anki_Notes_Note? = nil)
         async throws
     {
-        let (notetype, fresh) = try await backend.perform { backend in
+        let (notetype, fresh, occlusion) = try await backend.perform { backend in
             var notetypeID = Anki_Notetypes_NotetypeId()
             notetypeID.ntid = id
-            return (try backend.getNotetype(notetypeID), try backend.newNote(notetypeID))
+            let notetype = try backend.getNotetype(notetypeID)
+            return (
+                notetype, try backend.newNote(notetypeID),
+                NoteEditorModel.occlusionSetup(notetype: notetype, noteID: nil, backend: backend)
+            )
         }
         var note = fresh
         let names = notetype.fields.map(\.name)
@@ -131,7 +135,7 @@ final class AddCardsModel {
         self.note = note
         tags = note.tags
         problem = nil
-        editor.load(notetype: notetype, values: note.fields)
+        editor.load(notetype: notetype, values: note.fields, occlusion: occlusion)
     }
 
     /// Desktop's rule: same-named non-empty fields, then the remaining

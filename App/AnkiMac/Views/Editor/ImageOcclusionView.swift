@@ -9,7 +9,13 @@ struct ImageOcclusionView: View {
 
     var body: some View {
         Group {
-            if editor.image == nil {
+            if let reason = editor.unreadable {
+                ContentUnavailableView {
+                    Label(Tr.notetypesErrorGettingImagecloze, systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(reason)
+                }
+            } else if editor.image == nil {
                 picker
             } else {
                 VStack(spacing: 0) {

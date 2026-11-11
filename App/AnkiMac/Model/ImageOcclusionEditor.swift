@@ -57,7 +57,13 @@ final class ImageOcclusionEditor {
     var tool: Tool = .select
     var tab: Tab = .masks
     /// Desktop's "Hide All, Guess One"; off is "Hide One, Guess One".
-    private(set) var occludeInactive = true
+    private(set) var occludeInactive: Bool
+    /// The mode new notes start in: the last one picked for a new note
+    /// since launch, as desktop keeps it for the session.
+    private static var newNoteOccludeInactive = true
+    /// Why an existing note's masks couldn't be read. The note's fields are
+    /// then left alone, so its masks aren't overwritten.
+    let unreadable: String?
     /// Masks drawn see-through, to place them over what they hide.
     var translucent = false
     var message: String?
@@ -72,32 +78,38 @@ final class ImageOcclusionEditor {
     private var occlusionField: String?
     private var imageField: String?
     private let addMedia: (Data, String) -> String?
+    private let isNew: Bool
 
-    /// A new note starts with no image and no masks; an existing one is
-    /// loaded with `load(_:)`.
-    init(
-        fields: Anki_ImageOcclusion_ImageOcclusionFieldIndexes, isNew: Bool, addMedia: @escaping (Data, String) -> String?
-    ) {
-        self.fields = fields
+    /// A new note starts with no image and no masks; an existing one with
+    /// its image and masks as the backend read them.
+    init(_ setup: OcclusionSetup, addMedia: @escaping (Data, String) -> String?) {
+        fields = setup.fields
         self.addMedia = addMedia
-        if isNew {
+        switch setup.note {
+        case .new:
+            isNew = true
+            unreadable = nil
+            occludeInactive = Self.newNoteOccludeInactive
             occlusionField = ""
             imageField = ""
+        case .existing(let note):
+            isNew = false
+            unreadable = nil
+            occludeInactive = note.occludeInactive
+            occlusions = OcclusionCloze.occlusions(
+                note.occlusions.map { occlusion in
+                    OcclusionCloze.Parsed(
+                        ordinal: Int(occlusion.ordinal),
+                        shapes: occlusion.shapes.map { shape in
+                            (shape.shape, shape.properties.map { ($0.name, $0.value) })
+                        })
+                })
+            if let image = NSImage(data: note.imageData) { show(image) }
+        case .unreadable(let reason):
+            isNew = false
+            unreadable = reason
+            occludeInactive = true
         }
-    }
-
-    /// An existing note's image and masks, as the backend reads them.
-    func load(_ note: Anki_ImageOcclusion_GetImageOcclusionNoteResponse.ImageOcclusionNote) {
-        if let image = NSImage(data: note.imageData) { show(image) }
-        occlusions = OcclusionCloze.occlusions(
-            note.occlusions.map { occlusion in
-                OcclusionCloze.Parsed(
-                    ordinal: Int(occlusion.ordinal),
-                    shapes: occlusion.shapes.map { shape in
-                        (shape.shape, shape.properties.map { ($0.name, $0.value) })
-                    })
-            })
-        occludeInactive = note.occludeInactive
     }
 
     /// The editor's value for one of the note's fields, or nil for a field
@@ -115,6 +127,7 @@ final class ImageOcclusionEditor {
     func setOccludeInactive(_ value: Bool) {
         guard value != occludeInactive else { return }
         occludeInactive = value
+        if isNew { Self.newNoteOccludeInactive = value }
         save()
     }
 
@@ -183,7 +196,7 @@ final class ImageOcclusionEditor {
     }
 
     private func useImage(_ image: NSImage, data: Data, name: String) {
-        guard let stored = addMedia(data, name) else {
+        guard unreadable == nil, let stored = addMedia(data, name) else {
             message = Tr.notetypesErrorLoadingImageOcclusion
             return
         }

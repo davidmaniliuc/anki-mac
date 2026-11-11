@@ -972,6 +972,7 @@ nonisolated enum Tr {
     static let notetypesHideAllGuessOne = "Hide All, Guess One"
     static let notetypesHideOneGuessOne = "Hide One, Guess One"
     static let notetypesErrorLoadingImageOcclusion = "Error loading image occlusion. Is your Anki version up to date?"
+    static let notetypesErrorGettingImagecloze = "An error occurred while fetching an image occlusion note"
     static let notetypesNoOcclusionCreated2 = "Unable to add. Either you have not added any occlusions, or the first field is empty."
     static let notetypesIoSelectImage = "Select Image"
     static let notetypesIoPasteImageFromClipboard = "Paste Image from Clipboard"
