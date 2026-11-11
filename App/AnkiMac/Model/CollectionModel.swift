@@ -430,6 +430,8 @@ final class CollectionModel {
         session?.stop()
         let session = StudySession(deckID: deckID, backend: backend, reviewer: reviewer)
         self.session = session
+        // The sidebar stays on screen while studying, so its counts follow each answer.
+        session.onCountsChanged = { [weak self] in Task { await self?.refreshDecks() } }
         Task { await session.start() }
     }
 
