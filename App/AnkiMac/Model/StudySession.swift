@@ -66,6 +66,7 @@ final class StudySession {
     private(set) var undoLabel = ""
     var canUndo: Bool { !undoLabel.isEmpty }
     var errorMessage: String?
+    var feedbackMessage: String?
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
     var onDisplayed: ((Phase) -> Void)?
@@ -221,6 +222,57 @@ final class StudySession {
         let tags = phase == .answer ? card.rendered.answerAV : card.rendered.questionAV
         audio.play(tags, mediaFolder: folder)
     }
+
+    func suspendCurrentCard() { changeScheduling(mode: .suspend, note: false, message: "Card suspended.") }
+    func suspendCurrentNote() { changeScheduling(mode: .suspend, note: true, message: "Note suspended.") }
+    func buryCurrentCard() { changeScheduling(mode: .buryUser, note: false, message: "Card buried.") }
+    func buryCurrentNote() { changeScheduling(mode: .buryUser, note: true, message: "Note buried.") }
+
+    private func changeScheduling(mode: Anki_Scheduler_BuryOrSuspendCardsRequest.Mode, note: Bool, message: String) {
+        guard let card, !busy else { return }
+        busy = true
+        audio.stop()
+        let ids = card.queued.card
+        Task {
+            await loadNext { backend in
+                var request = Anki_Scheduler_BuryOrSuspendCardsRequest()
+                request.mode = mode
+                if note { request.noteIds = [ids.noteID] } else { request.cardIds = [ids.id] }
+                _ = try backend.buryOrSuspendCards(request)
+            }
+            if self.errorMessage == nil { self.feedbackMessage = message }
+        }
+    }
+
+    func forgetCurrentCard() {
+        guard let card, !busy else { return }
+        busy = true
+        let id = card.queued.card.id
+        Task {
+            await loadNext { backend in
+                var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
+                request.cardIds = [id]
+                request.context = .reviewer
+                _ = try backend.scheduleCardsAsNew(request)
+            }
+        }
+    }
+
+    func deleteCurrentNote() {
+        guard let card, !busy else { return }
+        busy = true
+        let id = card.queued.card.noteID
+        Task {
+            await loadNext { backend in
+                var request = Anki_Notes_RemoveNotesRequest()
+                request.noteIds = [id]
+                _ = try backend.removeNotes(request)
+            }
+        }
+    }
+
+    /// Integration point for the Card Info window being added by another worker.
+    func showCardInfo() {}
 
     // MARK: -
 

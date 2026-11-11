@@ -129,6 +129,24 @@ struct StudyCommands: Commands {
             Button("Replay Audio") { session?.replayAudio() }
                 .keyboardShortcut("r", modifiers: [])
                 .disabled(session == nil || session?.phase == .finished)
+            Button("Edit Note…") {
+                guard let session, let noteID = session.card?.queued.card.noteID else { return }
+                BrowserWindowController.show(collection: model)
+                BrowserWindowController.current?.model.search(text: "nid:\(noteID)")
+            }
+            .keyboardShortcut("e", modifiers: [])
+            .disabled(session?.card == nil)
+            Divider()
+            Button("Suspend Card") { session?.suspendCurrentCard() }.keyboardShortcut("@", modifiers: [])
+            Button("Suspend Note") { session?.suspendCurrentNote() }.keyboardShortcut("!", modifiers: [])
+            Button("Bury Card") { session?.buryCurrentCard() }.keyboardShortcut("-", modifiers: [])
+            Button("Bury Note") { session?.buryCurrentNote() }.keyboardShortcut("=", modifiers: [])
+            Button("Forget Card") { session?.forgetCurrentCard() }.keyboardShortcut("n", modifiers: [.control])
+            Button("Delete Note") { session?.deleteCurrentNote() }.keyboardShortcut(.delete, modifiers: [.command])
+            Button("Card Info…") { session?.showCardInfo() }.keyboardShortcut("i", modifiers: [])
+            if let deck = model.selectedDeck {
+                Button("Options…") { model.showOptions(deck) }.keyboardShortcut("o", modifiers: [])
+            }
             Button("End Session") { model.stopStudying() }
                 .keyboardShortcut(.escape, modifiers: [])
                 .disabled(session == nil)
