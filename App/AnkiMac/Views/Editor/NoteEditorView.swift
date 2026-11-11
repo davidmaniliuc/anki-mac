@@ -186,6 +186,12 @@ struct FormatBar: View {
                 Label("Cloze Deletion", systemImage: "ellipsis.curlybraces")
             }
             .help("Cloze Deletion (\u{2318}\u{21E7}C)")
+            Button {
+                send(#selector(FieldTextView.attachMedia(_:)))
+            } label: {
+                Label(Tr.editingAttachPicturesaudiovideo, systemImage: "paperclip")
+            }
+            .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .labelStyle(.iconOnly)
@@ -300,7 +306,7 @@ struct FormatCommands: Commands {
             format(.subscript, "Subscript", "=")
             Divider()
             Button("Text Color") { applyColor(.text) }
-                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF7FunctionKey)!)), modifiers: [])
+                .keyboardShortcut(functionKey(NSF7FunctionKey), modifiers: [])
             Button("Highlight Color") { applyColor(.highlight) }
             Divider()
             Button("Remove Formatting") { send(#selector(FieldTextView.removeFieldFormatting(_:))) }
@@ -311,6 +317,9 @@ struct FormatCommands: Commands {
             Button("Cloze Deletion, Same Number") { send(#selector(FieldTextView.insertClozeSameNumber(_:))) }
                 .keyboardShortcut("c", modifiers: [.command, .option, .shift])
             Divider()
+            Button(Tr.editingAttachPicturesaudiovideo) { send(#selector(FieldTextView.attachMedia(_:))) }
+                .keyboardShortcut(functionKey(NSF3FunctionKey), modifiers: [])
+            Divider()
             Menu("MathJax") {
                 Button(sentenceCase(Tr.editingMathjaxInline)) { send(#selector(FieldTextView.insertMathInline(_:))) }
                 Button(sentenceCase(Tr.editingMathjaxBlock)) { send(#selector(FieldTextView.insertMathBlock(_:))) }
@@ -320,6 +329,10 @@ struct FormatCommands: Commands {
             Button("Show HTML") { send(#selector(FieldTextView.toggleHTMLSource(_:))) }
                 .keyboardShortcut("x", modifiers: [.command, .shift])
         }
+    }
+
+    private func functionKey(_ code: Int) -> KeyEquivalent {
+        KeyEquivalent(Character(UnicodeScalar(code)!))
     }
 
     private func format(

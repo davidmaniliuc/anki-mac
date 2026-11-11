@@ -1,3 +1,4 @@
+import AnkiKit
 import AppKit
 import FieldEditor
 import SwiftUI
@@ -285,8 +286,7 @@ final class FieldTextView: NSTextView {
         Task {
             switch await editor.addMedia(fromURL: url) {
             case .success(let name):
-                let image = UTType(filenameExtension: (name as NSString).pathExtension)?.conforms(to: .image) ?? false
-                insertHTML(image ? "<img src=\"\(Self.escapeAttribute(name))\">" : "[sound:\(escapeHTMLText(name))]")
+                insertHTML(Self.mediaTag(forFile: name) ?? "")
             case .failure(let error):
                 showError(error.message)
                 insertHTML(link)
@@ -300,11 +300,13 @@ final class FieldTextView: NSTextView {
         if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
     }
 
-    /// Desktop's image and audio suffixes for pasted links.
-    private static let mediaSuffixes = [
-        "jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif", "3gp", "aac", "avi", "flac", "flv", "m4a", "mkv",
-        "mov", "mp3", "mp4", "mpeg", "mpg", "oga", "ogg", "ogv", "ogx", "opus", "spx", "swf", "wav", "webm",
+    /// Desktop's image and audio suffixes, for pasted links and Attach.
+    private static let imageSuffixes = ["jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif"]
+    private static let audioSuffixes = [
+        "3gp", "aac", "avi", "flac", "flv", "m4a", "mkv", "mov", "mp3", "mp4", "mpeg", "mpg", "oga", "ogg", "ogv", "ogx",
+        "opus", "spx", "swf", "wav", "webm",
     ]
+    private static let mediaSuffixes = imageSuffixes + audioSuffixes
 
     private static func isRemote(_ src: String) -> Bool {
         let lower = src.lowercased()
@@ -319,10 +321,48 @@ final class FieldTextView: NSTextView {
     private func mediaReference(_ url: URL) -> String? {
         guard let data = try? Data(contentsOf: url), let name = editor?.addMedia(data, preferredName: url.lastPathComponent)
         else { return nil }
-        let type = UTType(filenameExtension: url.pathExtension)
-        if type?.conforms(to: .image) ?? false { return "<img src=\"\(Self.escapeAttribute(name))\">" }
-        if type?.conforms(to: .audiovisualContent) ?? false { return "[sound:\(name)]" }
+        return Self.mediaTag(forFile: name)
+    }
+
+    /// An image's `<img>` or a sound's `[sound:]`, as desktop's `filenameToLink`.
+    private static func mediaTag(forFile name: String) -> String? {
+        let ext = (name as NSString).pathExtension.lowercased()
+        let type = UTType(filenameExtension: ext)
+        if imageSuffixes.contains(ext) || type?.conforms(to: .image) ?? false {
+            return "<img src=\"\(escapeAttribute(name))\">"
+        }
+        if audioSuffixes.contains(ext) || type?.conforms(to: .audiovisualContent) ?? false {
+            return "[sound:\(escapeHTMLText(name))]"
+        }
         return nil
+    }
+
+    /// F3 and the paperclip: pick a picture, sound or video and put it in
+    /// the field at the cursor.
+    @objc func attachMedia(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.title = Tr.editingAddMedia
+        panel.allowedContentTypes = Self.mediaSuffixes.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let path = panel.url?.path else { return }
+            self?.insertMedia(fromPath: path)
+        }
+    }
+
+    /// Copies a file into the media folder and inserts its tag.
+    func insertMedia(fromPath path: String) {
+        guard let editor else { return }
+        Task {
+            do {
+                let name = try await editor.addMedia(fromPath: path)
+                window?.makeFirstResponder(self)
+                if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
+            } catch {
+                showError((error as? AnkiError)?.message ?? String(describing: error))
+            }
+        }
     }
 
     private func insertHTML(_ html: String) {
