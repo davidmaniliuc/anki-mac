@@ -186,7 +186,6 @@ final class StudySession {
             _ = try backend.setFlag(request)
         } applied: { [self] in
             self.card?.flag = new
-            reviewer.drawFlag(new)
         }
     }
 
@@ -202,7 +201,6 @@ final class StudySession {
             _ = marked ? try backend.addNoteTags(request) : try backend.removeNoteTags(request)
         } applied: { [self] in
             self.card?.isMarked = marked
-            reviewer.drawMark(marked)
         }
     }
 
@@ -480,8 +478,6 @@ final class StudySession {
         phase = .question
         shownAt = Date()
         reviewer.showQuestion(card.rendered.question, answer: card.rendered.answer, bodyClass: card.rendered.bodyClass)
-        reviewer.drawFlag(card.flag)
-        reviewer.drawMark(card.isMarked)
         notifyDisplayed(.question)
         if card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)

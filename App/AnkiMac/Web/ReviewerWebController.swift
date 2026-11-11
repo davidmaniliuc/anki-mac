@@ -68,14 +68,6 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         evaluate("_queueAction(() => pycmd('_shown'));")
     }
 
-    func drawFlag(_ flag: CardFlag) {
-        evaluate("_drawFlag(\(flag.rawValue));")
-    }
-
-    func drawMark(_ marked: Bool) {
-        evaluate("_drawMark(\(marked));")
-    }
-
     /// The card layout editor's "Add Mobile Class".
     func emulateMobile(_ enabled: Bool) {
         evaluate("_emulateMobile(\(enabled));")
@@ -124,8 +116,6 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         <body class="\(themeBodyClasses(nightMode: nightMode))">
         <script src="/_anki/js/webview.js"></script>
         <script src="/_anki/js/reviewer.js"></script>
-        <div id="_mark" hidden>&#x2605;</div>
-        <div id="_flag" hidden>&#x2691;</div>
         <div id="qa" dir="auto"></div>
         </body>
         </html>

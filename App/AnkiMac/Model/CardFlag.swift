@@ -1,7 +1,7 @@
 import Foundation
 
 /// A card's user flag, stored in the low three bits of `Card.flags`. The raw
-/// value is what the backend and the reviewer page's `--flag-N` colours use.
+/// value is what the backend uses.
 nonisolated enum CardFlag: Int, CaseIterable, Sendable {
     case none, red, orange, green, blue, pink, turquoise, purple
 

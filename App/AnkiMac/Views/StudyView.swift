@@ -24,6 +24,11 @@ struct StudyView: View {
                         .contextMenu {
                             reviewerActions
                         }
+                        .overlay(alignment: .top) {
+                            if let card = session?.card, session?.phase != .finished {
+                                CardIndicators(flag: card.flag, isMarked: card.isMarked)
+                            }
+                        }
                 } else {
                     Color.clear
                 }
@@ -218,6 +223,35 @@ struct StudyView: View {
             Button("Replay Audio") { session.replayAudio() }
             Button(Tr.studyingPauseAudio) { session.toggleAudioPause() }
         }
+    }
+}
+
+/// The marked star in the top-left corner of the card and the flag in the
+/// top-right, where desktop draws them inside the page.
+private struct CardIndicators: View {
+    let flag: CardFlag
+    let isMarked: Bool
+
+    var body: some View {
+        HStack {
+            if isMarked {
+                Image(systemName: "star.fill")
+                    .foregroundStyle(.yellow)
+                    .accessibilityLabel("Marked")
+            }
+            Spacer()
+            if flag != .none {
+                Image(systemName: "flag.fill")
+                    .foregroundStyle(Theme.flagColor(flag))
+                    .accessibilityLabel("\(flag.title) Flag")
+            }
+        }
+        .font(.title2)
+        .shadow(color: .black.opacity(0.2), radius: 1, y: 0.5)
+        .padding(Theme.Spacing.medium)
+        .allowsHitTesting(false)
+        .animation(.default, value: isMarked)
+        .animation(.default, value: flag)
     }
 }
 
