@@ -68,8 +68,18 @@ final class ChangeNotetypeModel {
         }
     }
 
+    // A picker for a row the new note type no longer has still reads once while it's torn down.
+    func field(_ index: Int) -> Int32 { fields.indices.contains(index) ? fields[index] : Self.nothing }
+    func template(_ index: Int) -> Int32 { templates.indices.contains(index) ? templates[index] : Self.nothing }
+
+    func setField(_ index: Int, to old: Int32) {
+        guard fields.indices.contains(index) else { return }
+        fields[index] = old
+    }
+
     /// A card type can take its cards from one old card type only, unlike fields, which may be copied.
     func setTemplate(_ index: Int, to old: Int32) {
+        guard templates.indices.contains(index) else { return }
         if old != Self.nothing {
             for other in templates.indices where templates[other] == old { templates[other] = Self.nothing }
         }

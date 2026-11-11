@@ -29,7 +29,9 @@ struct ChangeNotetypeSheet: View {
                 Section(Tr.changeNotetypeFields) {
                     ForEach(Array(model.info.newFieldNames.enumerated()), id: \.offset) { index, name in
                         if model.fields.indices.contains(index) {
-                            mapping(name, oldNames: model.info.oldFieldNames, selection: $model.fields[index])
+                            mapping(
+                                name, oldNames: model.info.oldFieldNames,
+                                selection: Binding { model.field(index) } set: { model.setField(index, to: $0) })
                         }
                     }
                     discarded(Tr.changeNotetypeWillDiscardContent, model.discardedFields)
@@ -44,7 +46,7 @@ struct ChangeNotetypeSheet: View {
                             if model.templates.indices.contains(index) {
                                 mapping(
                                     name, oldNames: model.info.oldTemplateNames,
-                                    selection: Binding { model.templates[index] } set: { model.setTemplate(index, to: $0) })
+                                    selection: Binding { model.template(index) } set: { model.setTemplate(index, to: $0) })
                             }
                         }
                         discarded(Tr.changeNotetypeWillDiscardCards, model.discardedTemplates)
