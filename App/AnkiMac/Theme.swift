@@ -125,8 +125,39 @@ enum Theme {
     }
 
     enum Statistics {
-        static let defaultSize = CGSize(width: 900, height: 800)
-        static let minSize = CGSize(width: 520, height: 400)
+        static let defaultSize = CGSize(width: 1000, height: 800)
+        static let minSize = CGSize(width: 560, height: 400)
+        /// Graphs sit side by side once each can be this wide, as desktop's
+        /// one to three columns.
+        static let graphMinWidth: CGFloat = 520
+        static let chartHeight: CGFloat = 220
+        static let pdfWidth: CGFloat = 760
+        static let searchWidth: CGFloat = 220
+        /// Desktop asks d3 for about 7 ticks along x and 5 up y.
+        static let xTickCount: Double = 7
+        static let yTickCount: Double = 5
+        /// The gap between bars, as a share of each side of a bar.
+        static let barInset = 0.06
+        /// d3's inner band padding for the hour and button bars.
+        static let bandPadding = 0.1
+        static let axisFont = Font.caption2.monospacedDigit()
+        static let gridLine = Color.secondary.opacity(0.25)
+        static let hoverColumn = Color.primary.opacity(0.06)
+        /// The running total behind the bars, as desktop's faint overlay.
+        static let areaFill = Color.primary.opacity(0.07)
+        static let tooltipFont = Font.callout.monospacedDigit()
+        static let tooltipRadius: CGFloat = 6
+        static let tooltipOffset: CGFloat = 14
+        /// Lines a table label up with the labels that have a colour swatch.
+        static let swatchIndent: CGFloat = 16
+        static let pieSize: CGFloat = 180
+        static let calendarGap: CGFloat = 2
+        static let calendarLabelWidth: CGFloat = 14
+        /// Desktop's colours for the retention table.
+        static let youngRetention = Color(hex: 0x64c476)
+        static let matureRetention = Color(hex: 0x31a354)
+        static let pass = Color(hex: 0x3bc464)
+        static let fail = Color(hex: 0xc43b3b)
         static let cardInfoSize = CGSize(width: 640, height: 760)
         static let cardInfoMinSize = CGSize(width: 560, height: 300)
         /// Desktop's colours for a review log's type and a failed rating: the

@@ -6,10 +6,13 @@ when the submodule is bumped.
 Usage: python3 -I scripts/gen-strings.py
 
 Every message of the files in WHOLE_FILES is included, plus the single
-messages in EXTRA. Variables become parameters (Int when a plural selector
-uses them, String otherwise, already formatted by the caller). Lines inside a
-paragraph are joined with spaces, as desktop's Markdown renderer does; blank
-lines stay paragraph breaks.
+messages in EXTRA. Variables become parameters: a number (Int or Double) when
+a selector on plural categories or numbers ([one], [0]) uses them, shown with
+at most two decimals as desktop's Fluent arguments are; otherwise a String,
+already formatted by the caller. A selector on other keys ([seconds]) compares
+its String against them. Either way the variant marked * is the fallback.
+Lines inside a paragraph are joined with spaces, as desktop's Markdown
+renderer does; blank lines stay paragraph breaks.
 """
 
 import re
@@ -34,6 +37,7 @@ WHOLE_FILES = [
     "card-templates.ftl",
     "change-notetype.ftl",
     "card-stats.ftl",
+    "statistics.ftl",
 ]
 EXTRA = [
     "actions-add",
@@ -62,6 +66,13 @@ EXTRA = [
     "studying-again",
     "studying-hard",
     "studying-good",
+    "studying-easy",
+    "scheduling-time-span-seconds",
+    "scheduling-time-span-minutes",
+    "scheduling-time-span-hours",
+    "scheduling-time-span-days",
+    "scheduling-time-span-months",
+    "scheduling-time-span-years",
     "studying-empty",
     "scheduling-seconds",
     "editing-collapse",
@@ -98,11 +109,6 @@ EXTRA = [
     "scheduling-starting-ease",
     "scheduling-tag-only",
     "scheduling-the-default-configuration-cant-be-removed",
-    "statistics-cards-per-day",
-    "statistics-memorized",
-    "statistics-reviews",
-    "statistics-reviews-per-day",
-    "statistics-reviews-time-checkbox",
     "studying-bury-card",
     "actions-rename",
     "actions-delete",
@@ -140,9 +146,6 @@ EXTRA = [
     "actions-previous-card-info",
     "card-stats-current-card",
     "card-stats-previous-card",
-    "statistics-title",
-    "statistics-save-pdf",
-    "statistics-stats",
     "decks-study",
     "exporting-all-decks",
     "exporting-anki-collection-package",
@@ -279,6 +282,8 @@ class Compiler:
         self.messages = messages
         self.decimal = False
 
+    PLURAL_KEYS = {"zero", "one", "two", "few", "many", "other"}
+
     def segments(self, text: str, plural_vars: set[str], all_vars: list[str]) -> list[str]:
         """Swift expressions whose concatenation is the message."""
         out: list[str] = []
@@ -313,36 +318,49 @@ class Compiler:
         raise ValueError(f"unbalanced braces in {text!r}")
 
     def placeable(self, inner: str, plural_vars: set[str], all_vars: list[str]) -> str:
-        select = re.match(r"^\$([a-zA-Z_]+)\s*->\s*(.*)$", inner, re.S)
+        select = re.match(r"^\$([a-zA-Z_-]+)\s*->\s*(.*)$", inner, re.S)
         if select:
             var = select.group(1)
-            plural_vars.add(var)
             if var not in all_vars:
                 all_vars.append(var)
-            variants = self.variants(select.group(2))
-            one = variants.get("one", variants["other"])
-            other = variants["other"]
-            one_expr = self.join(self.segments(one, plural_vars, all_vars))
-            other_expr = self.join(self.segments(other, plural_vars, all_vars))
-            return f"({camel(var)} == 1 ? {one_expr} : {other_expr})"
+            variants, default = self.variants(select.group(2))
+            numeric = all(k in self.PLURAL_KEYS or k.isdigit() for k in variants)
+            if numeric:
+                plural_vars.add(var)
+            expr = self.join(self.segments(variants[default], plural_vars, all_vars))
+            for key, text in reversed(list(variants.items())):
+                # English has no zero/two/few/many plural forms.
+                if key == default or key in self.PLURAL_KEYS - {"one"}:
+                    continue
+                if numeric:
+                    test = f"{camel(var)}.trValue == {1 if key == 'one' else key}"
+                else:
+                    test = f'{camel(var)} == "{key}"'
+                expr = f"({test} ? {self.join(self.segments(text, plural_vars, all_vars))} : {expr})"
+            return expr
         if inner.startswith("$"):
             var = inner[1:]
             if var not in all_vars:
                 all_vars.append(var)
             return f"Tr.number({camel(var)})" if self.decimal else f"String(describing: {camel(var)})"
+            return f"Tr.number({camel(var)})" if var in self.numeric_vars else camel(var)
         if inner.startswith('"') and inner.endswith('"'):
             return swift_literal(inner[1:-1])
         # A reference to another message, inlined.
         return self.join(self.segments(self.normalise(self.messages[inner]), plural_vars, all_vars))
 
-    def variants(self, body: str) -> dict[str, str]:
+    def variants(self, body: str) -> tuple[dict[str, str], str]:
+        """Variant key -> text, and the key of the * default."""
         found: dict[str, str] = {}
-        pattern = re.compile(r"\*?\[([a-z0-9]+)\]\s*")
-        positions = [(m.start(), m.end(), m.group(1)) for m in pattern.finditer(body) if self.depth_at(body, m.start()) == 0]
-        for n, (start, end, name) in enumerate(positions):
-            stop = positions[n + 1][0] if n + 1 < len(positions) else len(body)
-            found[name] = " ".join(body[end:stop].split())
-        return found
+        default = "other"
+        pattern = re.compile(r"(\*?)\[([a-z0-9]+)\]\s*")
+        positions = [m for m in pattern.finditer(body) if self.depth_at(body, m.start()) == 0]
+        for n, match in enumerate(positions):
+            stop = positions[n + 1].start() if n + 1 < len(positions) else len(body)
+            found[match.group(2)] = " ".join(body[match.end():stop].split())
+            if match.group(1):
+                default = match.group(2)
+        return found, default
 
     @staticmethod
     def depth_at(text: str, index: int) -> int:
@@ -377,10 +395,16 @@ class Compiler:
         return text.count("{") > text.count("}")
 
     def emit(self, key: str) -> str:
+        text = self.normalise(self.messages[key])
+        # A first pass finds the numeric variables, so a { $count } placed
+        # before its selector is formatted as a number too.
+        self.numeric_vars: set[str] = set()
+        self.segments(text, self.numeric_vars, [])
         plural_vars: set[str] = set()
         all_vars: list[str] = []
         self.decimal = key in DECIMAL
         expr = self.join(self.segments(self.normalise(self.messages[key]), plural_vars, all_vars))
+        expr = self.join(self.segments(text, plural_vars, all_vars))
         name = camel(key)
         if key.startswith("qt-accel-"):
             expr = expr.replace("&", "", 1)  # the Qt menu mnemonic
@@ -388,6 +412,7 @@ class Compiler:
             return f"    static let {name} = {expr}"
         kind = {v: "Double" if self.decimal else "Int" if v in plural_vars else "String" for v in all_vars}
         params = ", ".join(f"{camel(v)}: {kind[v]}" for v in all_vars)
+        params = ", ".join(f"{camel(v)}: {'some TrNumber' if v in plural_vars else 'String'}" for v in all_vars)
         return f"    static func {name}({params}) -> String {{\n        {expr}\n    }}"
 
 
@@ -415,6 +440,17 @@ def main() -> None:
         "// GENERATED by scripts/gen-strings.py from anki/ftl/core. Do not edit.\n\nimport Foundation\n\n"
         "/// Desktop's English strings, by Fluent id in camel case.\n"
         "nonisolated enum Tr {\n" + NUMBER_HELPER + body + "\n}\n"
+        "// GENERATED by scripts/gen-strings.py from anki/ftl/core. Do not edit.\n\n"
+        "/// A number argument: desktop's Fluent selects plurals on its value and\n"
+        "/// shows it with at most two decimals.\n"
+        "nonisolated protocol TrNumber { var trValue: Double { get } }\n"
+        "nonisolated extension Int: TrNumber { var trValue: Double { Double(self) } }\n"
+        "nonisolated extension Double: TrNumber { var trValue: Double { self } }\n\n"
+        "/// Desktop's English strings, by Fluent id in camel case.\n"
+        "nonisolated enum Tr {\n"
+        "    static func number(_ value: some TrNumber) -> String {\n"
+        "        value.trValue.formatted(.number.precision(.fractionLength(0...2)))\n"
+        "    }\n" + body + "\n}\n"
     )
     print(f"wrote {len(keys)} strings to {OUT.relative_to(ROOT)}", file=sys.stderr)
 

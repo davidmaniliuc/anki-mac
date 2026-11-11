@@ -14,6 +14,8 @@ so the original is never touched. Screenshots land in OUT_DIR as PNG. Steps:
     code:KEYCODE[:MOD]   key code (36 return, 53 escape, 49 space)
     type:TEXT            type text
     appearance:light|dark  switch the system appearance (restored on exit)
+    mouse:X,Y            move the pointer to a point of the front window
+    scroll:PIXELS        scroll under the pointer (negative scrolls down)
 
 The terminal app needs Accessibility permission for System Events.
 """
@@ -61,6 +63,14 @@ def shot(out: Path, name: str, title: str | None = None) -> None:
     print("saved", out / f"{name}.png")
 
 
+def post_events(event: str) -> None:
+    """Posts a CoreGraphics event (pointer moves and scrolls; never clicks)."""
+    script = f"ObjC.import('CoreGraphics'); $.CGEventPost($.kCGHIDEventTap, {event});"
+    result = subprocess.run(["osascript", "-l", "JavaScript", "-e", script], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip())
+
+
 def step(out: Path, spec: str) -> None:
     kind, _, rest = spec.partition(":")
     if kind == "wait":
@@ -83,6 +93,12 @@ def step(out: Path, spec: str) -> None:
         system_events("set frontmost to true\n" + f'keystroke "{rest}"')
     elif kind == "appearance":
         osa(f'tell application "System Events" to tell appearance preferences to set dark mode to {str(rest == "dark").lower()}')
+    elif kind == "mouse":
+        x, y = (int(v) for v in rest.split(","))
+        wx, wy = (int(v) for v in system_events("get position of window 1").split(", "))
+        post_events(f"$.CGEventCreateMouseEvent(null, $.kCGEventMouseMoved, {{x: {wx + x}, y: {wy + y}}}, 0)")
+    elif kind == "scroll":
+        post_events(f"$.CGEventCreateScrollWheelEvent2(null, $.kCGScrollEventUnitPixel, 1, {int(rest)}, 0, 0)")
     else:
         raise SystemExit(f"unknown step {spec!r}")
 
@@ -99,6 +115,8 @@ def main() -> None:
     original_dark = osa('tell application "System Events" to get dark mode of appearance preferences')
     log = (out / "app.log").open("w")
     proc = subprocess.Popen(
+        # autoSync off: the app would otherwise sync the copy with the Keychain's
+        # AnkiWeb account. A plain NO reads as a String, so pass a plist bool.
         [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO",
          "-autoSync", "<false/>"],
         stdout=log, stderr=subprocess.STDOUT)
