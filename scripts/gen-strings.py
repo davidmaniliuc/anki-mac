@@ -20,7 +20,15 @@ ROOT = Path(__file__).resolve().parent.parent
 FTL = ROOT / "anki/ftl/core"
 OUT = ROOT / "App/AnkiMac/Generated/Tr.swift"
 
-WHOLE_FILES = ["deck-config.ftl", "adding.ftl", "custom-study.ftl"]
+WHOLE_FILES = [
+    "deck-config.ftl",
+    "adding.ftl",
+    "custom-study.ftl",
+    "preferences.ftl",
+    "database-check.ftl",
+    "media-check.ftl",
+    "empty-cards.ftl",
+]
 EXTRA = [
     "actions-add",
     "decks-deck",

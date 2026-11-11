@@ -352,6 +352,226 @@ nonisolated enum Tr {
     static func customStudyAvailableReviewCards(count: String) -> String {
         ("Available review cards: " + String(describing: count))
     }
+    static let preferencesAutomaticallySyncOnProfileOpenclose = "Automatically sync on profile open/close"
+    static let preferencesBackups = "Backups"
+    static let preferencesChangeDeckDependingOnNoteType = "Change deck depending on note type"
+    static let preferencesChangesWillTakeEffectWhenYou = "Changes will take effect when you restart Anki."
+    static let preferencesHoursPastMidnight = "hours past midnight"
+    static let preferencesLanguage = "Language"
+    static let preferencesInterruptCurrentAudioWhenAnswering = "Interrupt current audio when answering"
+    static let preferencesLearnAheadLimit = "Learn ahead limit"
+    static let preferencesMins = "mins"
+    static let preferencesNetwork = "Syncing"
+    static let preferencesNextDayStartsAt = "Next day starts at"
+    static let preferencesMediaIsNotBackedUp = "Media is not backed up. Please create a periodic backup of your Anki folder to be safe."
+    static let preferencesOnNextSyncForceChangesIn = "On next sync, force changes in one direction"
+    static let preferencesPasteClipboardImagesAsPng = "Paste clipboard images as PNG"
+    static let preferencesPasteWithoutShiftKeyStripsFormatting = "Paste without shift key strips formatting"
+    static let preferencesGenerateLatexImagesAutomatically = "Generate LaTeX images (security risk)"
+    static let preferencesLatexGenerationDisabled = "LaTeX image generation is disabled in the preferences."
+    static let preferencesPeriodicallySyncMedia = "Periodically sync media"
+    static let preferencesPleaseRestartAnkiToCompleteLanguage = "Please restart Anki to complete language change."
+    static let preferencesPreferences = "Preferences"
+    static let preferencesScheduling = "Scheduling"
+    static let preferencesShowLearningCardsWithLargerSteps = "Show learning cards with larger steps before reviews"
+    static let preferencesShowNextReviewTimeAboveAnswer = "Show next review time above answer buttons"
+    static let preferencesSpacebarRatesCard = "Spacebar (or enter) also answers card"
+    static let preferencesShowPlayButtonsOnCardsWith = "Show play buttons on cards with audio"
+    static let preferencesShowRemainingCardCount = "Show remaining card count"
+    static let preferencesSomeSettingsWillTakeEffectAfter = "Some settings will take effect after you restart Anki."
+    static let preferencesTabSynchronisation = "Synchronization"
+    static let preferencesSynchronizeAudioAndImagesToo = "Synchronize audio and images too"
+    static let preferencesLoginSuccessfulSyncNow = "Log-in successful. Save preferences and sync now?"
+    static let preferencesTimeboxTimeLimit = "Timebox time limit"
+    static let preferencesUserInterfaceSize = "User interface size"
+    static let preferencesWhenAddingDefaultToCurrentDeck = "When adding, default to current deck"
+    static let preferencesYouCanRestoreBackupsViaFileswitch = "You can restore backups via File > Switch Profile."
+    static let preferencesLegacyTimezoneHandling = "Legacy timezone handling (buggy, but required for AnkiDroid <= 2.14)"
+    static let preferencesDefaultSearchText = "Default search text"
+    static let preferencesDefaultSearchTextExample = "e.g. \"deck:current\""
+    static let preferencesTheme = "Theme"
+    static let preferencesThemeFollowSystem = "Follow System"
+    static let preferencesThemeLight = "Light"
+    static let preferencesThemeDark = "Dark"
+    static let preferencesV3Scheduler = "V3 scheduler"
+    static let preferencesUpdates = "Updates"
+    static let preferencesCheckForUpdates = "Check for program updates"
+    static let preferencesCheckForAddonUpdates = "Check for add-on updates"
+    static let preferencesIgnoreAccentsInSearch = "Ignore accents in search (slower)"
+    static let preferencesBackupExplanation = "Anki periodically backs up your collection. After backups are more than 2 days old, Anki will start removing some of them to free up disk space."
+    static let preferencesDailyBackups = "Daily backups to keep:"
+    static let preferencesWeeklyBackups = "Weekly backups to keep:"
+    static let preferencesMonthlyBackups = "Monthly backups to keep:"
+    static let preferencesMinutesBetweenBackups = "Minutes between automatic backups:"
+    static let preferencesReduceMotion = "Reduce motion"
+    static let preferencesReduceMotionTooltip = "Disable various animations and transitions of the user interface"
+    static let preferencesCustomSyncUrl = "Self-hosted sync server"
+    static let preferencesCustomSyncUrlDisclaimer = "For advanced users - please see the manual"
+    static let preferencesHideTopBarDuringReview = "Hide top bar during review"
+    static let preferencesHideBottomBarDuringReview = "Hide bottom bar during review"
+    static let preferencesAlways = "Always"
+    static let preferencesFullScreenOnly = "Full screen only"
+    static let preferencesAppearance = "Appearance"
+    static let preferencesGeneral = "General"
+    static let preferencesStyle = "Style"
+    static let preferencesReview = "Review"
+    static let preferencesAnswerKeys = "Answer keys"
+    static let preferencesDistractions = "Distractions"
+    static let preferencesMinimalistMode = "Minimalist mode"
+    static let preferencesMinimalistModeTooltip = "Make the interface more compact/less fancy"
+    static let preferencesEditing = "Editing"
+    static let preferencesBrowsing = "Browsing"
+    static let preferencesDefaultDeck = "Default deck"
+    static let preferencesAccount = "AnkiWeb Account"
+    static let preferencesNote = "Note"
+    static let preferencesScheduler = "Scheduler"
+    static let preferencesUserInterface = "User Interface"
+    static let preferencesImportExport = "Import/Export"
+    static let preferencesNetworkTimeout = "Network timeout"
+    static let preferencesResetWindowSizes = "Reset Window Sizes"
+    static let preferencesResetWindowSizesComplete = "Window sizes and locations have been reset."
+    static let preferencesShortcutPlaceholder = "Enter an unused shortcut key, or leave empty to disable."
+    static let preferencesThirdPartyServices = "Third-Party Services"
+    static let preferencesAnkihubNotLoggedIn = "Not currently logged in to AnkiHub."
+    static let preferencesAnkiwebIntro = "AnkiWeb is a free service that lets you keep your flashcard data in sync across your devices, and provides a way to recover the data if your device breaks or is lost."
+    static let preferencesAnkihubIntro = "AnkiHub provides collaborative deck editing and additional study tools. A paid subscription is required to access certain features."
+    static let preferencesThirdPartyDescription = "Third-party services are unaffiliated with and not endorsed by Anki. Use of these services may require payment."
+    static let preferencesExperimentalFeaturesTab = "Experiments"
+    static let preferencesUrlSchemes = "URL Schemes"
+    static let preferencesUrlSchemePrompt = "Allowed URL Schemes (space-separated):"
+    static func preferencesUrlSchemeWarning(link: String, scheme: String) -> String {
+        ("Blocked attempt to open `" + String(describing: link) + "`, which may be a security issue.\n\nIf you trust the deck author and wish to proceed, you can add `" + String(describing: scheme) + "` to your allowed URL Schemes.")
+    }
+    static let preferencesUrlSchemeAllowOnce = "Allow Once"
+    static let preferencesUrlSchemeAlwaysAllow = "Always Allow"
+    static let preferencesBasic = "Basic"
+    static let preferencesReviewer = "Reviewer"
+    static let preferencesMedia = "Media"
+    static let preferencesNotLoggedIn = "Not currently logged in to AnkiWeb."
+    static let databaseCheckCorrupt = "Collection file is corrupt. Please restore from an automatic backup."
+    static let databaseCheckRebuilt = "Database rebuilt and optimized."
+    static func databaseCheckCardProperties(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " invalid card property.") : ("Fixed " + String(describing: count) + " invalid card properties."))
+    }
+    static func databaseCheckCardLastReviewTimeEmpty(count: Int) -> String {
+        (count == 1 ? ("Added last review time to " + String(describing: count) + " card.") : ("Added last review time to " + String(describing: count) + " cards."))
+    }
+    static func databaseCheckMissingTemplates(count: Int) -> String {
+        (count == 1 ? ("Deleted " + String(describing: count) + " card with missing template.") : ("Deleted " + String(describing: count) + " cards with missing template."))
+    }
+    static func databaseCheckFieldCount(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " note with wrong field count.") : ("Fixed " + String(describing: count) + " notes with wrong field count."))
+    }
+    static func databaseCheckNewCardHighDue(count: Int) -> String {
+        (count == 1 ? ("Found " + String(describing: count) + " new card with a due number >= 1,000,000 - consider repositioning it in the Browse screen.") : ("Found " + String(describing: count) + " new cards with a due number >= 1,000,000 - consider repositioning them in the Browse screen."))
+    }
+    static func databaseCheckCardMissingNote(count: Int) -> String {
+        (count == 1 ? ("Deleted " + String(describing: count) + " card with missing note.") : ("Deleted " + String(describing: count) + " cards with missing note."))
+    }
+    static func databaseCheckDuplicateCardOrds(count: Int) -> String {
+        (count == 1 ? ("Deleted " + String(describing: count) + " card with duplicate template.") : ("Deleted " + String(describing: count) + " cards with duplicate template."))
+    }
+    static func databaseCheckMissingDecks(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " missing deck.") : ("Fixed " + String(describing: count) + " missing decks."))
+    }
+    static func databaseCheckRevlogProperties(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " review entry with invalid properties.") : ("Fixed " + String(describing: count) + " review entries with invalid properties."))
+    }
+    static func databaseCheckNotesWithInvalidUtf8(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " note with invalid utf8 characters.") : ("Fixed " + String(describing: count) + " notes with invalid utf8 characters."))
+    }
+    static func databaseCheckFixedInvalidIds(count: Int) -> String {
+        (count == 1 ? ("Fixed " + String(describing: count) + " object with timestamps in the future.") : ("Fixed " + String(describing: count) + " objects with timestamps in the future."))
+    }
+    static let databaseCheckNotetypesRecovered = "One or more note types were missing. The notes that used them have been given new note types starting with \"db-check\", but field names and card design have been lost, so you may be better off restoring from an automatic backup."
+    static let databaseCheckCheckingIntegrity = "Checking collection..."
+    static let databaseCheckRebuilding = "Rebuilding..."
+    static let databaseCheckCheckingCards = "Checking cards..."
+    static let databaseCheckCheckingNotes = "Checking notes..."
+    static let databaseCheckCheckingHistory = "Checking history..."
+    static let databaseCheckTitle = "Check Database"
+    static let mediaCheckWindowTitle = "Check Media"
+    static func mediaCheckTrashCount(count: Int, megs: String) -> String {
+        ("Trash folder: " + (count == 1 ? (String(describing: count) + " file, " + String(describing: megs) + "MB") : (String(describing: count) + " files, " + String(describing: megs) + "MB")))
+    }
+    static func mediaCheckMissingCount(count: String) -> String {
+        ("Missing files: " + String(describing: count))
+    }
+    static func mediaCheckUnusedCount(count: String) -> String {
+        ("Unused files: " + String(describing: count))
+    }
+    static func mediaCheckRenamedCount(count: String) -> String {
+        ("Renamed files: " + String(describing: count))
+    }
+    static func mediaCheckOversizeCount(count: String) -> String {
+        ("Over 100MB: " + String(describing: count))
+    }
+    static func mediaCheckSubfolderCount(count: String) -> String {
+        ("Subfolders: " + String(describing: count))
+    }
+    static func mediaCheckExtractedCount(count: String) -> String {
+        ("Extracted images: " + String(describing: count))
+    }
+    static let mediaCheckRenamedHeader = "Some files have been renamed for compatibility:"
+    static let mediaCheckOversizeHeader = "Files over 100MB can not be synced with AnkiWeb."
+    static let mediaCheckSubfolderHeader = "Folders inside the media folder are not supported."
+    static let mediaCheckMissingHeader = "The following files are referenced by cards, but were not found in the media folder:"
+    static let mediaCheckUnusedHeader = "The following files were found in the media folder, but do not appear to be used on any cards:"
+    static let mediaCheckTemplateReferencesFieldHeader = ("Anki can not detect used files when you use " + "{{Field}}" + " references in media/LaTeX tags. The media/LaTeX tags should be placed on individual notes instead.\n\nReferencing templates:")
+    static func mediaCheckRenamedFile(old: String, new: String) -> String {
+        ("Renamed: " + String(describing: old) + " -> " + String(describing: new))
+    }
+    static func mediaCheckOversizeFile(filename: String) -> String {
+        ("Over 100MB: " + String(describing: filename))
+    }
+    static func mediaCheckSubfolderFile(filename: String) -> String {
+        ("Folder: " + String(describing: filename))
+    }
+    static func mediaCheckMissingFile(filename: String) -> String {
+        ("Missing: " + String(describing: filename))
+    }
+    static func mediaCheckUnusedFile(filename: String) -> String {
+        ("Unused: " + String(describing: filename))
+    }
+    static func mediaCheckNotetypeTemplate(notetype: String, cardType: String, side: String) -> String {
+        (String(describing: notetype) + ": " + String(describing: cardType) + " (" + String(describing: side) + ")")
+    }
+    static func mediaCheckChecked(count: String) -> String {
+        ("Checked " + String(describing: count) + "...")
+    }
+    static let mediaCheckDeleteUnusedConfirm = "Delete unused media?"
+    static func mediaCheckFilesRemaining(count: Int) -> String {
+        ((count == 1 ? (String(describing: count) + " file") : (String(describing: count) + " files")) + " remaining.")
+    }
+    static func mediaCheckDeleteUnusedComplete(count: Int) -> String {
+        ((count == 1 ? (String(describing: count) + " file") : (String(describing: count) + " files")) + " moved to the trash.")
+    }
+    static let mediaCheckTrashEmptied = "The trash folder is now empty."
+    static let mediaCheckTrashRestored = "Restored deleted files to the media folder."
+    static let mediaCheckAllLatexRendered = "All LaTeX rendered."
+    static let mediaCheckDeleteUnused = "Delete Unused"
+    static let mediaCheckRenderLatex = "Render LaTeX"
+    static let mediaCheckEmptyTrash = "Empty Trash"
+    static let mediaCheckRestoreTrash = "Restore Deleted"
+    static let mediaCheckCheckMediaAction = "Check Media"
+    static let mediaCheckMissingMediaTag = "missing-media"
+    static let mediaCheckAddTag = "Tag Missing"
+    static func emptyCardsForNoteType(notetype: String) -> String {
+        ("Empty cards for " + String(describing: notetype) + ":")
+    }
+    static func emptyCardsCountLine(emptyCount: String, existingCount: String, templateNames: String) -> String {
+        (String(describing: emptyCount) + " of " + String(describing: existingCount) + " cards empty (" + String(describing: templateNames) + ").")
+    }
+    static let emptyCardsWindowTitle = "Empty Cards"
+    static let emptyCardsPreserveNotesCheckbox = "Keep notes with no valid cards"
+    static let emptyCardsDeleteButton = "Delete"
+    static let emptyCardsNotFound = "No empty cards."
+    static func emptyCardsDeletedCount(cards: Int) -> String {
+        ("Deleted " + (cards == 1 ? (String(describing: cards) + " card.") : (String(describing: cards) + " cards.")))
+    }
+    static let emptyCardsDeleteEmptyCards = "Delete Empty Cards"
+    static let emptyCardsDeleteEmptyNotes = "Delete Empty Notes"
+    static let emptyCardsDeleting = "Deleting..."
     static let actionsAdd = "Add"
     static let decksDeck = "Deck"
     static let editingShowDuplicates = "Show Duplicates"
