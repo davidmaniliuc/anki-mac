@@ -14,6 +14,7 @@ final class CardTemplatesWindowController: NSWindowController, NSWindowDelegate 
         ord: Int = 0, note: Anki_Notes_Note? = nil
     ) {
         if let existing = open[notetype.id] {
+            if let note { existing.model.preview(note: note, ord: ord) }
             existing.window?.makeKeyAndOrderFront(nil)
             return
         }

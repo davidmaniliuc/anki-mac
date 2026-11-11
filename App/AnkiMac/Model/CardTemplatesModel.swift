@@ -27,6 +27,9 @@ final class CardTemplatesModel {
     private(set) var previewBodyClass = ""
     private(set) var previewVersion = 0
     private var note: Anki_Notes_Note?
+    /// A cloze note type has one template and renders the card's own ord, as
+    /// desktop's `ephemeral_card(self.ord, ...)` does.
+    private var clozeOrd: Int
     private var renderTask: Task<Void, Never>?
 
     /// Opened from an editor, the preview shows that note as written (desktop
@@ -40,7 +43,9 @@ final class CardTemplatesModel {
         original = notetype
         self.useCount = useCount
         draft = notetype
-        selected = notetype.templates.indices.contains(ord) ? ord : 0
+        let isCloze = notetype.config.kind == .cloze
+        selected = !isCloze && notetype.templates.indices.contains(ord) ? ord : 0
+        clozeOrd = isCloze ? max(ord, 0) : 0
         fillEmpty = note == nil
         self.note = note
     }
@@ -49,6 +54,18 @@ final class CardTemplatesModel {
     var isCloze: Bool { draft.config.kind == .cloze }
     var template: Anki_Notetypes_Notetype.Template? {
         draft.templates.indices.contains(selected) ? draft.templates[selected] : nil
+    }
+
+    /// Switches an open editor to another note and card, keeping the edits.
+    func preview(note: Anki_Notes_Note, ord: Int) {
+        self.note = note
+        fillEmpty = false
+        if isCloze {
+            clozeOrd = max(ord, 0)
+        } else if draft.templates.indices.contains(ord) {
+            selected = ord
+        }
+        scheduleRender(immediately: true)
     }
 
     // MARK: Text being edited
@@ -224,7 +241,7 @@ final class CardTemplatesModel {
             note.fields[0] = Tr.cardTemplatesSampleCloze
         }
         let sample = note
-        let ord = UInt32(draft.config.kind == .cloze ? 0 : selected)
+        let ord = UInt32(draft.config.kind == .cloze ? clozeOrd : selected)
         let backend = backend
         do {
             let html = try await backend.perform { backend -> String in
