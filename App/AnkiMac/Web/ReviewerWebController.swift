@@ -47,10 +47,11 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         call("_showQuestion", question, answer, "\(bodyClass) \(themeClasses)")
     }
 
-    func showAnswer(_ answer: String) {
+    /// `bodyClass` is for a card shown straight on its answer, as the previewer's Back Side Only.
+    func showAnswer(_ answer: String, bodyClass: String? = nil) {
         // The typing box is replaced, and a removed element sends no focusout.
         isEditingText = false
-        call("_showAnswer", answer, "")
+        call("_showAnswer", answer, bodyClass.map { "\($0) \(themeClasses)" } ?? "")
     }
 
     /// What is in the type-in-the-answer box ("" when there is none).

@@ -50,6 +50,10 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         view = scroll
+        model.selectRow = { [weak self] row in
+            self?.table.selectRowIndexes([row], byExtendingSelection: false)
+            self?.table.scrollRowToVisible(row)
+        }
         track { [weak self] in
             guard let self else { return }
             update(
