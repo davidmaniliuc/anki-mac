@@ -91,6 +91,8 @@ final class BrowserModel {
     private(set) var columns: [BrowserColumn] = []
     private(set) var sort = BrowserSort(column: "noteFld", reverse: false)
     private(set) var sidebar: [SidebarSection] = []
+    /// What the reload that produced `sidebar` was for; nil for a plain one.
+    private(set) var sidebarChange: SidebarChange?
     private(set) var selectedRows = IndexSet()
     private(set) var commandCard: CommandCard?
     /// The card of the current row (the note's first card in Notes mode), which Card Info shows.
@@ -405,9 +407,10 @@ final class BrowserModel {
 
     // MARK: Sidebar
 
-    func loadSidebar() async {
+    func loadSidebar(_ change: SidebarChange? = nil) async {
         guard let backend = collection.backend else { return }
         if let sections = try? await backend.perform({ backend in try SidebarSection.load(backend) }) {
+            sidebarChange = change
             sidebar = sections
         }
     }
@@ -529,14 +532,16 @@ final class BrowserModel {
 
     func undo() {
         guard !undoLabel.isEmpty else { return }
-        change(searchAgain: true) { backend in _ = try backend.undo() }
+        change(searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.undo() }
     }
 
     /// Runs an undoable change, then redraws the rows (or searches again when
     /// rows may have appeared or gone) and refreshes the main window's decks.
-    /// `then` gets what `work` returned, once the change has succeeded.
+    /// `then` gets what `work` returned, once the change has succeeded. A
+    /// non-nil `sidebar` loads the sidebar again, as desktop does for any op
+    /// whose changes touch it.
     func change<Result: Sendable>(
-        searchAgain: Bool = false, reloadSidebar: Bool = false,
+        searchAgain: Bool = false, sidebar change: SidebarChange? = nil,
         _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: @escaping (Result) -> Void = { _ in }
     ) {
         guard let backend = collection.backend else { return }
@@ -560,7 +565,7 @@ final class BrowserModel {
             }
             refreshCommandCard()
             if let result { then(result) }
-            if reloadSidebar { await loadSidebar() }
+            if let change { await loadSidebar(change) }
             await collection.refreshDecks()
         }
     }
@@ -584,9 +589,11 @@ final class BrowserModel {
         }
     }
 
-    func refreshAfterSync() {
+    /// After the main window synced or undid something.
+    func refreshAfterExternalChange() {
         searchAgain()
         refreshUndo()
+        Task { await loadSidebar() }
     }
 
     // MARK: Backend helpers

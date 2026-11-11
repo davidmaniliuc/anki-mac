@@ -12,7 +12,7 @@ extension BrowserModel {
     // MARK: Decks and tags
 
     func renameDeck(_ deckID: Int64, to fullName: String) {
-        change(searchAgain: true, reloadSidebar: true) { backend in
+        change(sidebar: SidebarChange(reveal: .deck(deckID))) { backend in
             var request = Anki_Decks_RenameDeckRequest()
             request.deckID = deckID
             request.newName = fullName
@@ -21,8 +21,8 @@ extension BrowserModel {
     }
 
     func deleteDecks(_ deckIDs: [Int64]) {
-        if let studying = collection.session?.deckID, deckIDs.contains(studying) { collection.stopStudying() }
-        change(searchAgain: true, reloadSidebar: true) { backend in
+        collection.stopStudying(deleting: deckIDs)
+        change(searchAgain: true, sidebar: SidebarChange()) { backend in
             var request = Anki_Decks_DeckIds()
             request.dids = deckIDs
             _ = try backend.removeDecks(request)
@@ -31,7 +31,8 @@ extension BrowserModel {
 
     /// Renames the tag and its children. A tag no note uses cannot be renamed.
     func renameTag(_ name: String, to newName: String) {
-        change(searchAgain: true, reloadSidebar: true) { backend in
+        let change = SidebarChange(reveal: .tag(newName), tagRename: (name, newName))
+        self.change(sidebar: change) { backend in
             var request = Anki_Tags_RenameTagsRequest()
             request.currentPrefix = name
             request.newPrefix = newName
@@ -42,7 +43,7 @@ extension BrowserModel {
     }
 
     func removeTags(_ names: [String]) {
-        change(searchAgain: true, reloadSidebar: true) { backend in
+        change(sidebar: SidebarChange()) { backend in
             var request = Anki_Generic_String()
             request.val = names.joined(separator: " ")
             return Int(try backend.removeTags(request).count)
@@ -52,7 +53,7 @@ extension BrowserModel {
     }
 
     func clearUnusedTags() {
-        change(reloadSidebar: true) { backend in
+        change(sidebar: SidebarChange()) { backend in
             Int(try backend.clearUnusedTags().count)
         } then: { count in
             self.showToast(Tr.browsingRemovedUnusedTagsCount(count: count))
@@ -86,7 +87,7 @@ extension BrowserModel {
                 if !update, let existing = savedSearch(named: name) {
                     if existing == search || !confirmOverwrite(name) { return }
                 }
-                editConfig(Self.savedSearchesKey) { $0[name] = search }
+                editConfig(Self.savedSearchesKey, reveal: .savedSearch(name)) { $0[name] = search }
             } catch {
                 errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
             }
@@ -95,7 +96,7 @@ extension BrowserModel {
 
     func renameSavedSearch(_ name: String, to newName: String, confirmOverwrite: (String) -> Bool) {
         if savedSearch(named: newName) != nil && !confirmOverwrite(newName) { return }
-        editConfig(Self.savedSearchesKey) { searches in
+        editConfig(Self.savedSearchesKey, reveal: .savedSearch(newName)) { searches in
             guard let search = searches.removeValue(forKey: name) else { return }
             searches[newName] = search
         }
@@ -114,16 +115,14 @@ extension BrowserModel {
         }
     }
 
-    private func editConfig(_ key: String, _ edit: @escaping @Sendable (inout [String: String]) -> Void) {
+    private func editConfig(
+        _ key: String, reveal: SidebarItem.ID? = nil, _ edit: @escaping @Sendable (inout [String: String]) -> Void
+    ) {
         guard let backend = collection.backend else { return }
         Task {
             do {
-                try await backend.perform { backend in
-                    var value = backend.configJSON(key, as: [String: String].self) ?? [:]
-                    edit(&value)
-                    try backend.setConfigJSON(key, value)
-                }
-                await loadSidebar()
+                try await backend.perform { try $0.editConfigStrings(key, edit) }
+                await loadSidebar(SidebarChange(reveal: reveal))
             } catch {
                 errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
             }

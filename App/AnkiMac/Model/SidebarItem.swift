@@ -11,6 +11,28 @@ nonisolated enum SidebarItem: Hashable, Sendable {
     case notetype(id: Int64, name: String)
     case tag(String)
 
+    /// What identifies the row across a reload and a rename: a deck or note
+    /// type by id, the others by name.
+    nonisolated enum ID: Hashable, Sendable {
+        case savedSearch(String)
+        case cardState(Anki_Search_SearchNode.CardState)
+        case flag(CardFlag)
+        case deck(Int64)
+        case notetype(Int64)
+        case tag(String)
+    }
+
+    var id: ID {
+        switch self {
+        case .savedSearch(let name, _): .savedSearch(name)
+        case .cardState(let state): .cardState(state)
+        case .flag(let flag): .flag(flag)
+        case .deck(let id, _): .deck(id)
+        case .notetype(let id, _): .notetype(id)
+        case .tag(let name): .tag(name)
+        }
+    }
+
     var searchNode: Anki_Search_SearchNode {
         var node = Anki_Search_SearchNode()
         switch self {
@@ -78,7 +100,7 @@ nonisolated struct SidebarNode: Identifiable, Hashable, Sendable {
     /// nil for a leaf, so the list shows no disclosure triangle.
     let children: [SidebarNode]?
 
-    var id: SidebarItem { item }
+    var id: SidebarItem.ID { item.id }
 }
 
 nonisolated struct SidebarSection: Identifiable, Equatable, Sendable {
@@ -93,7 +115,7 @@ nonisolated struct SidebarSection: Identifiable, Equatable, Sendable {
     static func load(_ backend: AnkiBackend) throws -> [SidebarSection] {
         var sections: [SidebarSection] = []
 
-        let saved = backend.configJSON("savedFilters", as: [String: String].self) ?? [:]
+        let saved = backend.configStrings("savedFilters")
         sections.append(SidebarSection(
             kind: .savedSearchRoot, title: "Saved Searches",
             nodes: saved.keys.sorted(using: .localizedStandard).map { name in
@@ -108,7 +130,7 @@ nonisolated struct SidebarSection: Identifiable, Equatable, Sendable {
             nodes: states.map { SidebarNode(item: .cardState($0.0), title: $0.1, children: nil) }))
 
         // Renamed flags keep their colour; the label comes from the config.
-        let labels = backend.configJSON("flagLabels", as: [String: String].self) ?? [:]
+        let labels = backend.configStrings("flagLabels")
         sections.append(SidebarSection(
             kind: .flagRoot, title: "Flags",
             nodes: CardFlag.assignable.map { flag in

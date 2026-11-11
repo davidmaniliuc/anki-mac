@@ -68,3 +68,11 @@ nonisolated enum SidebarAction: Sendable {
         }
     }
 }
+
+/// What a sidebar reload follows from, so the sidebar can show it: the row to
+/// reveal and select, and for a renamed tag the old prefix and the new one,
+/// to carry the expansion and selection of its children across.
+nonisolated struct SidebarChange: Sendable {
+    var reveal: SidebarItem.ID?
+    var tagRename: (from: String, to: String)?
+}
