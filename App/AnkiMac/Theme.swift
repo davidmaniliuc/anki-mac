@@ -126,7 +126,17 @@ enum Theme {
         static let defaultSize = CGSize(width: 900, height: 800)
         static let minSize = CGSize(width: 520, height: 400)
         static let cardInfoSize = CGSize(width: 640, height: 760)
-        static let cardInfoMinSize = CGSize(width: 400, height: 300)
+        static let cardInfoMinSize = CGSize(width: 560, height: 300)
+        /// Desktop's colours for a review log's type and a failed rating: the
+        /// queue colours, so a Learn row reads as new, Review as review.
+        static let revlogLearn = Colors.newCards
+        static let revlogReview = Colors.reviewCards
+        static let revlogRelearn = Colors.learnCards
+        /// The forgetting curve's gradient: below, at and above desired retention.
+        static let curveLow = Color(red: 1, green: 0.388, blue: 0.278)
+        static let curveTarget = Color(red: 0.275, green: 0.510, blue: 0.706)
+        static let curveHigh = Color(red: 0, green: 0.5, blue: 0)
+        static let curveHeight: CGFloat = 220
     }
 
     enum DeckOptions {

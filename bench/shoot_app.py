@@ -8,6 +8,7 @@ so the original is never touched. Screenshots land in OUT_DIR as PNG. Steps:
 
     wait:SECONDS         sleep
     shot:NAME            save OUT_DIR/NAME.png of the app window
+    shotwin:NAME:TITLE   same, of the window whose title contains TITLE
     menu:MENU:ITEM       click a menu bar item, e.g. menu:Study:Study Now
     key:CHAR[:MOD,...]   keystroke, MOD from command, control, option, shift
     code:KEYCODE[:MOD]   key code (36 return, 53 escape, 49 space)
@@ -50,8 +51,12 @@ def modifiers(spec: str | None) -> str:
     return " using {" + ", ".join(names) + "}"
 
 
-def shot(out: Path, name: str) -> None:
-    x, y, w, h = (int(v) for v in system_events("get {position, size} of window 1").split(", "))
+def shot(out: Path, name: str, title: str | None = None) -> None:
+    window = f'(first window whose title contains "{title}")' if title else "window 1"
+    if title:
+        system_events(f'set position of {window} to {{300, 30}}\nperform action "AXRaise" of {window}')
+        time.sleep(0.5)
+    x, y, w, h = (int(v) for v in system_events(f"get {{position, size}} of {window}").split(", "))
     subprocess.run(["screencapture", "-x", "-R", f"{x},{y},{w},{h}", str(out / f"{name}.png")], check=True)
     print("saved", out / f"{name}.png")
 
@@ -62,6 +67,9 @@ def step(out: Path, spec: str) -> None:
         time.sleep(float(rest))
     elif kind == "shot":
         shot(out, rest)
+    elif kind == "shotwin":
+        name, _, title = rest.partition(":")
+        shot(out, name, title)
     elif kind == "menu":
         menu, item = rest.split(":", 1)
         system_events(f'click menu item "{item}" of menu "{menu}" of menu bar 1')
@@ -91,7 +99,8 @@ def main() -> None:
     original_dark = osa('tell application "System Events" to get dark mode of appearance preferences')
     log = (out / "app.log").open("w")
     proc = subprocess.Popen(
-        [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO"],
+        [str(APP), "-CollectionPath", str(profile / "collection.anki2"), "-NSQuitAlwaysKeepsWindows", "NO",
+         "-autoSync", "<false/>"],
         stdout=log, stderr=subprocess.STDOUT)
     global pid
     pid = proc.pid
