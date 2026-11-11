@@ -143,6 +143,11 @@ struct StudyView: View {
             model.showOptions(deck)
             return true
         }
+        // "/" picks a deck to study, from the deck list, the overview and a session.
+        if modifiers.isEmpty, key == "/", model.isLoaded {
+            model.studyDeckPresented = true
+            return true
+        }
         // "f" creates a filtered deck; in a filtered deck's overview, "r" rebuilds and "e" empties it.
         if modifiers.isEmpty, key == "f" {
             model.editFilteredDeck()
