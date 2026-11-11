@@ -10,6 +10,9 @@ struct BrowserPreviewView: View {
         VStack(spacing: 0) {
             if let view = model.web.webView {
                 CardWebView(webView: view)
+                    .overlay(alignment: .top) {
+                        CardIndicators(flag: model.flag, isMarked: model.isMarked)
+                    }
             }
             HStack(spacing: Theme.Spacing.small) {
                 Button(Tr.actionsReplayAudio) { model.replayAudio() }

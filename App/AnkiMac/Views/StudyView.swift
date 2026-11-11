@@ -248,8 +248,9 @@ struct StudyView: View {
 }
 
 /// The marked star in the top-left corner of the card and the flag in the
-/// top-right, where desktop draws them inside the page.
-private struct CardIndicators: View {
+/// top-right, where desktop draws them inside the page. Study and the
+/// browser's previewer show it.
+struct CardIndicators: View {
     let flag: CardFlag
     let isMarked: Bool
 

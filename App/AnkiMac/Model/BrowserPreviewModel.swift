@@ -74,6 +74,8 @@ final class BrowserPreviewModel {
     let web = ReviewerWebController()
     private(set) var canGoBack = false
     private(set) var canGoForward = false
+    private(set) var flag = CardFlag.none
+    private(set) var isMarked = false
     private(set) var backSideOnly: Bool
     /// Called when the browser no longer has exactly one card selected.
     @ObservationIgnored var onSelectionLost: (() -> Void)?
@@ -181,8 +183,8 @@ final class BrowserPreviewModel {
                 try Self.load(cardID, side: side, unlessStamp: previous, backend: backend)
             }
             guard !Task.isCancelled, let loaded else { return }
-            web.drawFlag(loaded.flag)
-            web.drawMark(loaded.isMarked)
+            flag = loaded.flag
+            isMarked = loaded.isMarked
             if let card = loaded.changed { display(card) }
         }
     }
