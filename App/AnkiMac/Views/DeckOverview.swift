@@ -11,6 +11,8 @@ struct DeckOverview: View {
                 .font(Theme.Fonts.overviewTitle)
                 .multilineTextAlignment(.center)
 
+            description
+
             HStack(spacing: Theme.Spacing.xLarge) {
                 count(deck.newCount, "New", Theme.Colors.newCards)
                 count(deck.learnCount, "Learning", Theme.Colors.learnCards)
@@ -37,6 +39,7 @@ struct DeckOverview: View {
                     Button(Tr.studyingEmpty) { model.emptyFilteredDeck(deck.id) }
                         .help("\(Tr.studyingEmpty) (E)")
                 } else {
+                    Button(Tr.schedulingDescription) { model.editDescription(deck.id) }
                     Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(deck.id) }
                         .help("\(Tr.actionsCustomStudy) (C)")
                 }
@@ -53,6 +56,29 @@ struct DeckOverview: View {
         // The counts change with every refresh, so this follows unburying too.
         .task(id: deck) {
             model.selectedBuried = await model.buriedCards(in: deck)
+        }
+        .task(id: deck.id) {
+            model.selectedDescription = deck.filtered ? nil : await model.description(of: deck.id)
+        }
+    }
+
+    /// A filtered deck shows desktop's note about special decks in place of a
+    /// description.
+    @ViewBuilder private var description: some View {
+        let text: Text? = if deck.filtered {
+            Text(DeckDescription.filteredNote)
+        } else if let description = model.selectedDescription, description.id == deck.id, !description.text.isEmpty {
+            Text(description.body)
+        } else {
+            nil
+        }
+        if let text {
+            ViewThatFits(in: .vertical) {
+                text.textSelection(.enabled)
+                ScrollView { text.textSelection(.enabled) }
+                    .frame(maxHeight: Theme.Overview.descriptionMaxHeight)
+            }
+            .frame(maxWidth: Theme.Overview.descriptionWidth)
         }
     }
 

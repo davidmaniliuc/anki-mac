@@ -202,6 +202,11 @@ EXTRA = [
     "actions-set-due-date",
     "actions-forget-card",
     "actions-options",
+    "scheduling-description",
+    "decks-new-deck-name",
+    "studying-this-is-a-special-deck-for",
+    "studying-cards-will-be-automatically-returned-to",
+    "studying-deleting-this-deck-from-the-deck",
 ]
 
 

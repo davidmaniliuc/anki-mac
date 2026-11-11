@@ -127,6 +127,9 @@ private struct DeckPrompts: ViewModifier {
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
             }
+            .sheet(item: Binding { model.descriptionEdit } set: { model.descriptionEdit = $0 }) { edit in
+                DeckDescriptionSheet(edit: edit, cancel: { model.descriptionEdit = nil }, save: model.saveDescription)
+            }
             .confirmationDialog(
                 Tr.studyingWhatWouldYouLikeToUnbury,
                 isPresented: Binding { model.unburyPrompt != nil } set: { if !$0 { model.unburyPrompt = nil } },

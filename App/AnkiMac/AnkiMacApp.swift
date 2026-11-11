@@ -151,6 +151,8 @@ struct DeckOptionsCommands: Commands {
                 if let deck { model.showOptions(deck) }
             }
             .disabled(deck == nil)
+            Button(Tr.schedulingDescription) { if let deck { model.editDescription(deck.id) } }
+                .disabled(deck == nil || deck?.filtered == true)
             Button("\(Tr.actionsCustomStudy)…") { if let deck { model.showCustomStudy(deck.id) } }
                 .disabled(deck == nil || deck?.filtered == true)
             Button(model.selectedBuried.manually && model.selectedBuried.siblings
