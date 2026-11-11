@@ -40,11 +40,17 @@ final class StudyEditModel: Identifiable {
         }
     }
 
+    /// The note with the editor's fields and tags as they stand.
+    var currentNote: Anki_Notes_Note {
+        var current = note
+        current.fields = editor.values
+        current.tags = tags
+        return current
+    }
+
     /// The note with the editor's fields and tags; nil when nothing changed.
     func changedNote() -> Anki_Notes_Note? {
-        var updated = note
-        updated.fields = editor.values
-        updated.tags = tags
+        let updated = currentNote
         return updated.fields != note.fields || updated.tags != note.tags ? updated : nil
     }
 

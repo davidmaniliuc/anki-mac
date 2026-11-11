@@ -24,7 +24,8 @@ struct AddCardsView: View {
             NoteEditorView(
                 editor: model.editor,
                 sticky: (isOn: model.isSticky, toggle: model.toggleSticky),
-                duplicateField: model.problem == .duplicate ? 0 : nil)
+                duplicateField: model.problem == .duplicate ? 0 : nil,
+                cardLayout: actions.cardLayout)
             hints
             Divider()
             TagField(tags: $model.tags, complete: model.completeTags)

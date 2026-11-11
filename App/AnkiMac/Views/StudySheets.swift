@@ -111,10 +111,15 @@ private struct RepositionForm: View {
 struct StudyEditSheet: View {
     @Bindable var model: StudyEditModel
     let session: StudySession
+    @Environment(CollectionModel.self) private var collection
 
     var body: some View {
         VStack(spacing: 0) {
-            NoteEditorView(editor: model.editor)
+            NoteEditorView(editor: model.editor) {
+                CardTemplatesWindowController.show(
+                    collection: collection, note: model.currentNote,
+                    ord: Int(session.card?.queued.card.templateIdx ?? 0))
+            }
             Divider()
             TagField(tags: $model.tags, complete: model.completeTags)
                 .padding(Theme.Spacing.medium)

@@ -83,7 +83,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         split.addSplitViewItem(NSSplitViewItem(viewController: DetailController(errorBar: errorBar, table: tableController)))
         if let editor {
             // An inspector, so a narrow window can fold it away.
-            let host = NSHostingController(rootView: BrowserEditorView(model: editor))
+            let host = NSHostingController(rootView: BrowserEditorView(model: editor) { [model] in
+                CardTemplatesWindowController.show(collection: model.collection, note: editor.currentNote, ord: editor.cardOrd)
+            })
             // By default the pane's SwiftUI size would cap the window's:
             // "No Note Selected" is short, and the window couldn't grow taller.
             host.sizingOptions = []

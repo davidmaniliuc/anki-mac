@@ -55,7 +55,8 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         let actions = AddCardsActions(
             add: { [weak self] in self?.add() },
-            showInBrowser: { [weak self] search in self?.showInBrowser(search) })
+            showInBrowser: { [weak self] search in self?.showInBrowser(search) },
+            cardLayout: { [weak self] in self?.showCardLayout() })
         let host = NSHostingController(rootView: AddCardsView(model: model, actions: actions))
         host.sceneBridgingOptions = [.toolbars]
         window.contentViewController = host
@@ -82,6 +83,10 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
     private func showInBrowser(_ search: String) {
         BrowserWindowController.show(collection: collection)
         BrowserWindowController.current?.model.search(text: search)
+    }
+
+    private func showCardLayout() {
+        CardTemplatesWindowController.show(collection: collection, note: model.currentNote, ord: 0)
     }
 
     // MARK: Window
@@ -118,6 +123,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
 struct AddCardsActions {
     let add: () -> Void
     let showInBrowser: (String) -> Void
+    let cardLayout: () -> Void
 }
 
 /// The Add window that File > Add Note acts on while it is key.

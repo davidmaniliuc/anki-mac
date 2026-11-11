@@ -196,7 +196,7 @@ final class AddCardsModel {
 
     // MARK: Checks and adding
 
-    private var currentNote: Anki_Notes_Note {
+    var currentNote: Anki_Notes_Note {
         var note = self.note
         note.fields = editor.values
         note.tags = tags

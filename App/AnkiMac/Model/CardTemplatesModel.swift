@@ -14,10 +14,10 @@ final class CardTemplatesModel {
     let original: Anki_Notetypes_Notetype
     let useCount: UInt32
     var draft: Anki_Notetypes_Notetype
-    var selected = 0 { didSet { scheduleRender() } }
+    var selected: Int { didSet { scheduleRender() } }
     var editor = Editor.front
     var showsAnswer = false { didSet { scheduleRender() } }
-    var fillEmpty = true { didSet { scheduleRender() } }
+    var fillEmpty: Bool { didSet { scheduleRender() } }
     var nightMode = false { didSet { scheduleRender() } }
     var mobileClass = false { didSet { scheduleRender() } }
     var errorMessage: String?
@@ -29,12 +29,20 @@ final class CardTemplatesModel {
     private var note: Anki_Notes_Note?
     private var renderTask: Task<Void, Never>?
 
-    init(manager: NotetypeManager, notetype: Anki_Notetypes_Notetype, useCount: UInt32) {
+    /// Opened from an editor, the preview shows that note as written (desktop
+    /// leaves "fill empty fields" off there) and starts on the card's type.
+    init(
+        manager: NotetypeManager, notetype: Anki_Notetypes_Notetype, useCount: UInt32,
+        ord: Int = 0, note: Anki_Notes_Note? = nil
+    ) {
         self.manager = manager
         backend = manager.backend
         original = notetype
         self.useCount = useCount
         draft = notetype
+        selected = notetype.templates.indices.contains(ord) ? ord : 0
+        fillEmpty = note == nil
+        self.note = note
     }
 
     var isEdited: Bool { draft != original }
@@ -171,9 +179,14 @@ final class CardTemplatesModel {
 
     // MARK: Preview
 
-    /// The note the preview shows: the first of this type if there is one,
-    /// otherwise an empty one (desktop fills its fields with their names).
+    /// The note the preview shows: the one given, else the first of this type
+    /// if there is one, otherwise an empty one (desktop fills its fields with
+    /// their names).
     func loadSampleNote() async {
+        guard note == nil else {
+            scheduleRender(immediately: true)
+            return
+        }
         let ntid = original.id
         let backend = backend
         let loaded = try? await backend.perform { backend -> Anki_Notes_Note in
