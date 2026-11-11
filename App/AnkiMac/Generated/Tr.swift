@@ -936,6 +936,11 @@ nonisolated enum Tr {
     }
     static let studyingDeleteNote = "Delete Note"
     static let studyingPauseAudio = "Pause Audio"
+    static func studyingCardStudiedInMinute(cards: Int, minutes: Int) -> String {
+        ((cards == 1 ? (String(describing: cards) + " card") : (String(describing: cards) + " cards")) + " studied in " + (minutes == 1 ? (String(describing: minutes) + " minute.") : (String(describing: minutes) + " minutes.")))
+    }
+    static let studyingContinue = "Continue"
+    static let studyingFinish = "Finish"
     static func browsingCardsDeleted(count: Int) -> String {
         (count == 1 ? (String(describing: count) + " card deleted.") : (String(describing: count) + " cards deleted."))
     }
