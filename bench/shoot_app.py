@@ -62,12 +62,12 @@ def step(out: Path, spec: str) -> None:
         system_events(f'click menu item "{item}" of menu "{menu}" of menu bar 1')
     elif kind == "key":
         char, _, mods = rest.partition(":")
-        system_events(f'keystroke "{char}"{modifiers(mods)}')
+        system_events("set frontmost to true\n" + f'keystroke "{char}"{modifiers(mods)}')
     elif kind == "code":
         code, _, mods = rest.partition(":")
-        system_events(f"key code {code}{modifiers(mods)}")
+        system_events("set frontmost to true\n" + f"key code {code}{modifiers(mods)}")
     elif kind == "type":
-        system_events(f'keystroke "{rest}"')
+        system_events("set frontmost to true\n" + f'keystroke "{rest}"')
     elif kind == "appearance":
         osa(f'tell application "System Events" to tell appearance preferences to set dark mode to {str(rest == "dark").lower()}')
     else:
