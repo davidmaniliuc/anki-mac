@@ -204,6 +204,28 @@ enum Theme {
         }
     }
 
+    /// The mask editor, in desktop's colours (ts/routes/image-occlusion/tools/lib.ts).
+    enum ImageOcclusion {
+        static let border = NSColor(srgbRed: 0x21 / 255, green: 0x21 / 255, blue: 0x21 / 255, alpha: 1)
+        static let textBackground = NSColor.white
+        static let textFont = "Arial"
+        /// A new label's size, in screen pixels as it's typed.
+        static let textFontSize: CGFloat = 40
+        static let textPadding: CGFloat = 5
+        static let selection = NSColor.controlAccentColor
+        static let handleSize: CGFloat = 8
+        static let translucentAlpha: CGFloat = 0.4
+        /// Smaller masks are dropped, as desktop does.
+        static let minShapeSize: CGFloat = 5
+        /// How close a click must be to a polygon's first point to close it.
+        static let closeDistance: CGFloat = 8
+        static let zoomStep: CGFloat = 1.25
+        static let minZoom: CGFloat = 0.05
+        static let maxZoom: CGFloat = 8
+        static let canvasBackground = NSColor.underPageBackgroundColor
+        static let pickerSpacing: CGFloat = 12
+    }
+
     /// Flag colours in the sidebar and menus, matching the row tints.
     static func flagColor(_ flag: CardFlag) -> Color {
         switch flag {
