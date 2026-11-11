@@ -31,6 +31,7 @@ final class BrowserEditorModel {
     /// Shows the selected row's note, or nothing when no row or several
     /// rows are selected. Pending edits to the previous note are saved first.
     func show(_ selection: BrowserModel.Selection?) {
+        editor.commitPendingEdits()
         saveNow()
         loadGeneration += 1
         let generation = loadGeneration

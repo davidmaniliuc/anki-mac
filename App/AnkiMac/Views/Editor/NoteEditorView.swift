@@ -15,7 +15,13 @@ struct NoteEditorView: View {
         if let occlusion = editor.occlusion {
             // Desktop's Mask and Note tabs: the masks, or the remaining fields.
             VStack(spacing: 0) {
-                Picker(Tr.notetypesImageOcclusionName, selection: Binding { occlusion.tab } set: { occlusion.tab = $0 }) {
+                Picker(
+                    Tr.notetypesImageOcclusionName,
+                    selection: Binding { occlusion.tab } set: {
+                        editor.commitPendingEdits()
+                        occlusion.tab = $0
+                    }
+                ) {
                     Text(Tr.notetypesOcclusionMask).tag(ImageOcclusionEditor.Tab.masks)
                     Text(Tr.notetypesOcclusionNote).tag(ImageOcclusionEditor.Tab.note)
                 }

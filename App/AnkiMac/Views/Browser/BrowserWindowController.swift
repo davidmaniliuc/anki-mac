@@ -218,6 +218,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     func windowWillClose(_ notification: Notification) {
+        editor?.editor.commitPendingEdits()
         editor?.saveNow()
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }
         Self.current = nil

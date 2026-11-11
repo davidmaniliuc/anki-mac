@@ -225,6 +225,7 @@ final class AddCardsModel {
     /// Adds the note, unless a check stops it. `confirmedCloze` is set once
     /// the user agreed to add a cloze note without clozes.
     func add(confirmedCloze: Bool = false) async -> Bool {
+        editor.commitPendingEdits()
         let note = currentNote
         do {
             let state = try await backend.perform { try $0.noteFieldsCheck(note).state }

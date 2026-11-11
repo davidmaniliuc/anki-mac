@@ -45,6 +45,7 @@ final class StudyEditModel: Identifiable {
 
     /// The note with the editor's fields and tags; nil when nothing changed.
     func changedNote() -> Anki_Notes_Note? {
+        editor.commitPendingEdits()
         var updated = note
         updated.fields = editor.values
         updated.tags = tags

@@ -177,6 +177,12 @@ final class NoteEditorModel {
         }
     }
 
+    /// Commits a label still being typed on the mask canvas, so saving the
+    /// note keeps it.
+    func commitPendingEdits() {
+        occlusion?.canvas?.endTextEditing()
+    }
+
     /// Collapses or expands a field; an expanded field takes focus.
     func toggleCollapsed(_ field: EditorField) {
         field.collapsed.toggle()
