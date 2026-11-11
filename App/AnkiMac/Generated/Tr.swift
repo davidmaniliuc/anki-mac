@@ -1217,6 +1217,11 @@ nonisolated enum Tr {
     }
     static let studyingDeleteNote = "Delete Note"
     static let studyingPauseAudio = "Pause Audio"
+    static func studyingCardStudiedInMinute(cards: some TrNumber, minutes: some TrNumber) -> String {
+        ((cards.trValue == 1 ? (Tr.number(cards) + " card") : (Tr.number(cards) + " cards")) + " studied in " + (minutes.trValue == 1 ? (Tr.number(minutes) + " minute.") : (Tr.number(minutes) + " minutes.")))
+    }
+    static let studyingContinue = "Continue"
+    static let studyingFinish = "Finish"
     static func browsingCardsDeleted(count: some TrNumber) -> String {
         (count.trValue == 1 ? (Tr.number(count) + " card deleted.") : (Tr.number(count) + " cards deleted."))
     }
