@@ -572,6 +572,63 @@ nonisolated enum Tr {
     static let emptyCardsDeleteEmptyCards = "Delete Empty Cards"
     static let emptyCardsDeleteEmptyNotes = "Delete Empty Notes"
     static let emptyCardsDeleting = "Deleting..."
+    static func syncMediaAddedCount(up: String, down: String) -> String {
+        ("Added: " + String(describing: up) + "↑ " + String(describing: down) + "↓")
+    }
+    static func syncMediaRemovedCount(up: String, down: String) -> String {
+        ("Removed: " + String(describing: up) + "↑ " + String(describing: down) + "↓")
+    }
+    static func syncMediaCheckedCount(count: String) -> String {
+        ("Checked: " + String(describing: count))
+    }
+    static let syncMediaStarting = "Media sync starting..."
+    static let syncMediaComplete = "Media sync complete."
+    static let syncMediaFailed = "Media sync failed."
+    static let syncMediaAborting = "Media sync aborting..."
+    static let syncMediaAborted = "Media sync aborted."
+    static let syncMediaDisabled = "Media sync disabled."
+    static let syncMediaLogTitle = "Media Sync Log"
+    static let syncConflict = "Only one copy of Anki can sync to your account at once. Please wait a few minutes, then try again."
+    static let syncServerError = "AnkiWeb encountered a problem. Please try again in a few minutes."
+    static let syncClientTooOld = "Your Anki version is too old. Please update to the latest version to continue syncing."
+    static let syncWrongPass = "Email or password was incorrect; please try again."
+    static let syncResyncRequired = "Please sync again. If this message keeps appearing, please post on the support site."
+    static let syncMustWaitForEnd = "Anki is currently syncing. Please wait for the sync to complete, then try again."
+    static let syncConfirmEmptyDownload = "Local collection has no cards. Download from AnkiWeb?"
+    static let syncConfirmEmptyUpload = "AnkiWeb collection has no cards. Replace it with local collection?"
+    static let syncConflictExplanation = "Your decks here and on AnkiWeb differ in such a way that they can't be merged together, so it's necessary to overwrite the decks on one side with the decks from the other.\n\nIf you choose download, Anki will fetch the collection from AnkiWeb, and any changes you have made on this device since the last sync will be lost.\n\nIf you choose upload, Anki will send this device's data to AnkiWeb, and any changes that are waiting on AnkiWeb will be lost.\n\nAfter all devices are in sync, future reviews and added cards can be merged automatically."
+    static let syncConflictExplanation2 = ("There is a conflict between decks on this device and AnkiWeb. You must choose which version to keep:\n\n- Select **" + "Download from AnkiWeb" + "** to replace decks here with AnkiWeb’s version. You will lose any changes you made on this device since your last sync.\n- Select **" + "Upload to AnkiWeb" + "** to overwrite AnkiWeb’s versions with decks from this device, and delete any changes on AnkiWeb.\n\nOnce the conflict is resolved, syncing will work as usual.")
+    static let syncAnkiwebIdLabel = "Email:"
+    static let syncPasswordLabel = "Password:"
+    static func syncAccountRequired(link: String) -> String {
+        ("<h1>Account Required</h1> A free account is required to keep your collection synchronized. Please <a href=\"" + String(describing: link) + "\">sign up</a> for an account, then enter your details below.")
+    }
+    static let syncSanityCheckFailed = "Please use the Check Database function, then sync again. If problems persist, please force a one-way sync in the preferences screen."
+    static let syncClockOff = "Unable to sync - your clock is not set to the correct time."
+    static func syncUploadTooLarge(details: String) -> String {
+        ("Your collection file is too large to send to AnkiWeb. You can reduce its size by removing any unwanted decks (optionally exporting them first), and then using Check Database to shrink the file size down.\n\n" + String(describing: details) + " (uncompressed)")
+    }
+    static let syncSignIn = "Sign in"
+    static let syncAnkihubDialogHeading = "AnkiHub Login"
+    static let syncAnkihubUsernameLabel = "Username or Email:"
+    static let syncAnkihubLoginFailed = "Unable to log in to AnkiHub with the provided credentials."
+    static let syncAnkihubAddonInstallation = "AnkiHub Add-on Installation"
+    static let syncMediaLogButton = "Media Log"
+    static let syncAbortButton = "Abort"
+    static let syncDownloadFromAnkiweb = "Download from AnkiWeb"
+    static let syncUploadToAnkiweb = "Upload to AnkiWeb"
+    static let syncCancelButton = "Cancel"
+    static let syncDownloadingFromAnkiweb = "Downloading from AnkiWeb..."
+    static let syncUploadingToAnkiweb = "Uploading to AnkiWeb..."
+    static let syncSyncing = "Syncing..."
+    static let syncChecking = "Checking..."
+    static let syncConnecting = "Connecting..."
+    static func syncAddedUpdatedCount(up: String, down: String) -> String {
+        ("Added/modified: " + String(describing: up) + "↑ " + String(describing: down) + "↓")
+    }
+    static let syncLogInButton = "Log In"
+    static let syncLogOutButton = "Log Out"
+    static let syncCollectionComplete = "Collection sync complete."
     static let actionsAdd = "Add"
     static let decksDeck = "Deck"
     static let editingShowDuplicates = "Show Duplicates"

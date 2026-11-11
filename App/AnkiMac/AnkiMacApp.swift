@@ -30,6 +30,7 @@ struct AnkiMacApp: App {
             StudyCommands(model: model)
             CardCommands()
             DeckOptionsCommands(model: model)
+            SyncCommands(model: model)
             ToolsCommands(model: model)
             FormatCommands()
             CommandGroup(before: .windowList) {
@@ -42,6 +43,29 @@ struct AnkiMacApp: App {
         Settings {
             PreferencesView(model: model)
                 .environment(model)
+        }
+    }
+}
+
+struct SyncCommands: Commands {
+    let model: CollectionModel
+
+    var body: some Commands {
+        CommandMenu("Account") {
+            Button(model.syncIsRunning ? "Cancel Sync" : model.syncAuth == nil ? Tr.syncLogInButton : "Sync") {
+                if model.syncIsRunning { model.cancelSync() }
+                else { Task { await model.synchronize() } }
+            }
+            .keyboardShortcut("y")
+            .disabled(!model.isLoaded)
+            if model.syncAuth != nil {
+                Button(Tr.syncLogOutButton) { model.logOut() }
+                Toggle("Sync Media", isOn: Binding(get: { model.syncMediaEnabled }, set: { model.syncMediaEnabled = $0 }))
+            }
+            Divider()
+            Toggle("Automatically Sync on Open and Close", isOn: Binding(
+                get: { UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true },
+                set: { UserDefaults.standard.set($0, forKey: "autoSync") }))
         }
     }
 }
