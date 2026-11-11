@@ -148,6 +148,20 @@ enum Theme {
         static let progressInterval = Duration.milliseconds(100)
     }
 
+    enum Notetypes {
+        static let managerSize = CGSize(width: 640, height: 500)
+        static let managerMinSize = CGSize(width: 640, height: 500)
+        static let nameSheetWidth: CGFloat = 340
+        static let optionsSheetSize = CGSize(width: 560, height: 440)
+        static let fieldsSheetSize = CGSize(width: 600, height: 460)
+        static let fieldListWidth: CGFloat = 180
+        static let cardsDefaultSize = CGSize(width: 1040, height: 680)
+        static let cardsMinSize = CGSize(width: 760, height: 480)
+        static let editorMinHeight: CGFloat = 120
+        static let editorFont = Font.system(.body, design: .monospaced)
+        static let previewDelay = Duration.milliseconds(200)
+    }
+
     enum AddCards {
         static let defaultSize = CGSize(width: 560, height: 680)
         static let minSize = CGSize(width: 400, height: 300)

@@ -76,6 +76,11 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         evaluate("_drawMark(\(marked));")
     }
 
+    /// The card layout editor's "Add Mobile Class".
+    func emulateMobile(_ enabled: Bool) {
+        evaluate("_emulateMobile(\(enabled));")
+    }
+
     func clear() {
         isEditingText = false
         evaluate("_queueAction(() => { document.getElementById('qa').innerHTML = ''; });")
