@@ -529,6 +529,11 @@ final class BrowserModel {
         }
     }
 
+    func refreshAfterSync() {
+        searchAgain()
+        refreshUndo()
+    }
+
     // MARK: Backend helpers
 
     nonisolated private static let markedTag = "marked"

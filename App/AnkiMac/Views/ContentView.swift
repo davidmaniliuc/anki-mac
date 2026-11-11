@@ -45,6 +45,7 @@ struct ContentView: View {
             MaintenanceToolView(model: model, tool: tool)
         }
         .modifier(DeckPrompts())
+        .modifier(SyncPrompts())
         .alert(
             "Something went wrong",
             isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
@@ -53,6 +54,35 @@ struct ContentView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+}
+
+private struct SyncPrompts: ViewModifier {
+    @Environment(CollectionModel.self) private var model
+
+    func body(content: Content) -> some View {
+        content
+        .sheet(isPresented: Binding { model.syncLoginPresented } set: { model.syncLoginPresented = $0 }) {
+            SyncLoginSheet().environment(model)
+        }
+        .alert("Sync", isPresented: Binding { model.syncConflictPresented } set: { model.syncConflictPresented = $0 }) {
+            if model.syncConflict == .fullUpload {
+                Button(Tr.syncUploadToAnkiweb) { Task { await model.resolveSyncConflict(upload: true) } }
+                Button("Cancel", role: .cancel) { Task { await model.resolveSyncConflict(upload: nil) } }
+            } else if model.syncConflict == .fullDownload {
+                Button(Tr.syncDownloadFromAnkiweb) { Task { await model.resolveSyncConflict(upload: false) } }
+                Button("Cancel", role: .cancel) { Task { await model.resolveSyncConflict(upload: nil) } }
+            } else {
+                Button(Tr.syncUploadToAnkiweb) { Task { await model.resolveSyncConflict(upload: true) } }
+                Button(Tr.syncDownloadFromAnkiweb) { Task { await model.resolveSyncConflict(upload: false) } }
+                Button("Cancel", role: .cancel) { Task { await model.resolveSyncConflict(upload: nil) } }
+            }
+        } message: {
+            Text(model.syncConflict == .fullUpload ? Tr.syncConfirmEmptyUpload : model.syncConflict == .fullDownload ? Tr.syncConfirmEmptyDownload : Tr.syncConflictExplanation2)
+        }
+        .alert("Sync", isPresented: Binding { model.syncAlert != nil } set: { if !$0 { model.syncAlert = nil } }) {
+            Button("OK") { model.syncAlert = nil }
+        } message: { Text(model.syncAlert ?? "") }
     }
 }
 

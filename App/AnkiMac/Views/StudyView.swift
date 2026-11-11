@@ -58,6 +58,25 @@ struct StudyView: View {
                 .disabled(undoLabel.isEmpty)
                 Button("End Session", systemImage: "xmark") { model.stopStudying() }
                     .disabled(session == nil)
+                Button {
+                    if model.syncIsRunning {
+                        model.cancelSync()
+                    } else {
+                        Task { await model.synchronize() }
+                    }
+                } label: {
+                    if model.syncIsRunning {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            if !model.syncMediaProgress.isEmpty { Text(model.syncMediaProgress) }
+                        }
+                    } else {
+                        Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .help(model.syncIsRunning ? "Cancel Sync" : model.syncMediaProgress.isEmpty ? "Sync" : model.syncMediaProgress)
+                .tint(model.syncStatus == .fullSync ? Theme.Colors.learnCards : model.syncStatus == .normalSync ? Theme.Colors.newCards : nil)
+                .disabled(!model.isLoaded)
             }
         }
         .alert(

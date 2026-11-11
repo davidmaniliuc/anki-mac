@@ -2,6 +2,7 @@ import AnkiKit
 import AppKit
 import Foundation
 import Observation
+import Security
 
 /// One deck in the sidebar, flattened from the backend's `DeckTreeNode`.
 nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
@@ -92,6 +93,22 @@ final class CollectionModel {
     var filteredDeck: FilteredDeckModel?
     var maintenanceTool: MaintenanceTool?
 
+    // Sync account and progress. SyncAuth is kept in the login Keychain item.
+    var syncAuth: Anki_Sync_SyncAuth? = SyncKeychain.load()
+    var syncStatus: Anki_Sync_SyncStatusResponse.Required = .noChanges
+    var syncIsRunning = false
+    var syncMediaProgress = ""
+    var syncLoginPresented = false
+    var syncUsername = ""
+    var syncConflictPresented = false
+    var syncConflict: Anki_Sync_SyncCollectionResponse.ChangesRequired = .noChanges
+    var syncServerUsn: Int32 = 0
+    var syncAlert: String?
+    var syncMediaEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "syncMedia") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "syncMedia") }
+    }
+
     /// Started at launch, off the main thread, while SwiftUI builds the window.
     private let backendStartup = Task.detached(priority: .userInitiated) { try AnkiBackend() }
 
@@ -131,6 +148,11 @@ final class CollectionModel {
             isLoaded = true
             refreshWhenActivated()
             Task { await prepareReviewer() }
+            if UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, syncAuth != nil {
+                await synchronize()
+            } else {
+                await updateSyncStatus()
+            }
         } catch {
             errorMessage = "Could not open the collection: \(error)"
         }
@@ -152,8 +174,174 @@ final class CollectionModel {
         activationTask?.cancel()
         session?.stop()
         guard paths != nil, let backend else { return }
+        // Desktop's unattended close sync only merges when it can do so safely.
+        // A full-sync choice needs a person, so leave it for the next launch.
+        if UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, let auth = syncAuth {
+            var request = Anki_Sync_SyncCollectionRequest()
+            request.auth = auth
+            if let response = try? backend.syncCollection(request) {
+                if response.hasNewEndpoint {
+                    var updated = auth
+                    updated.endpoint = response.newEndpoint
+                    syncAuth = updated
+                    SyncKeychain.save(updated)
+                }
+                if response.required != .fullSync, syncMediaEnabled {
+                    try? backend.syncMedia(auth)
+                    while (try? backend.mediaSyncStatus().active) == true {
+                        Thread.sleep(forTimeInterval: 0.25)
+                    }
+                }
+            }
+        }
         try? backend.closeCollection(Anki_Collection_CloseCollectionRequest())
         paths = nil
+    }
+
+    func updateSyncStatus() async {
+        guard let backend, let auth = syncAuth else {
+            syncStatus = .noChanges
+            return
+        }
+        do {
+            let status = try await backend.perform { try $0.syncStatus(auth) }
+            syncStatus = status.required
+            if status.hasNewEndpoint {
+                var updated = auth
+                updated.endpoint = status.newEndpoint
+                syncAuth = updated
+                SyncKeychain.save(updated)
+            }
+        } catch {
+            // Status checks are background hints; explicit sync shows errors.
+        }
+    }
+
+    func login(username: String, password: String) async {
+        guard let backend else { return }
+        do {
+            var request = Anki_Sync_SyncLoginRequest()
+            request.username = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            request.password = password
+            let loginRequest = request
+            let auth = try await backend.perform { try $0.syncLogin(loginRequest) }
+            syncAuth = auth
+            syncUsername = request.username
+            SyncKeychain.save(auth)
+            UserDefaults.standard.set(request.username, forKey: "syncUsername")
+            syncLoginPresented = false
+            await synchronize()
+        } catch {
+            syncAlert = String(describing: error)
+        }
+    }
+
+    func logOut() {
+        syncAuth = nil
+        syncUsername = ""
+        syncStatus = .noChanges
+        SyncKeychain.delete()
+        UserDefaults.standard.removeObject(forKey: "syncUsername")
+    }
+
+    func cancelSync() {
+        guard let backend else { return }
+        Task {
+            try? await backend.perform { backend in
+                try backend.abortSync()
+                try backend.abortMediaSync()
+            }
+        }
+    }
+
+    func synchronize() async {
+        guard let backend else { return }
+        guard let auth = syncAuth else {
+            syncUsername = UserDefaults.standard.string(forKey: "syncUsername") ?? ""
+            syncLoginPresented = true
+            return
+        }
+        guard !syncIsRunning else { return }
+        syncIsRunning = true
+        defer { syncIsRunning = false }
+        do {
+            var request = Anki_Sync_SyncCollectionRequest()
+            request.auth = auth
+            request.syncMedia = syncMediaEnabled
+            let syncRequest = request
+            let output = try await backend.perform { try $0.syncCollection(syncRequest) }
+            syncServerUsn = output.serverMediaUsn
+            if output.hasNewEndpoint {
+                var updated = auth
+                updated.endpoint = output.newEndpoint
+                syncAuth = updated
+                SyncKeychain.save(updated)
+            }
+            switch output.required {
+            case .noChanges, .normalSync:
+                session?.stop()
+                session = nil
+                await refreshDecks()
+                BrowserWindowController.current?.model.refreshAfterSync()
+                if !output.serverMessage.isEmpty { syncAlert = output.serverMessage }
+                if syncMediaEnabled { await monitorMediaSync(backend) }
+            case .fullUpload, .fullDownload, .fullSync:
+                syncConflict = output.required
+                syncConflictPresented = true
+            case .UNRECOGNIZED:
+                syncAlert = "AnkiWeb returned an unsupported sync status."
+            }
+            await updateSyncStatus()
+        } catch {
+            if let ankiError = error as? AnkiError, ankiError.backend?.kind == .syncAuthError {
+                logOut()
+            }
+            syncAlert = String(describing: error)
+        }
+    }
+
+    func resolveSyncConflict(upload: Bool?) async {
+        guard let backend, let auth = syncAuth else { return }
+        syncConflictPresented = false
+        guard let upload else { return }
+        syncIsRunning = true
+        defer { syncIsRunning = false }
+        do {
+            var request = Anki_Sync_FullUploadOrDownloadRequest()
+            request.auth = auth
+            request.upload = upload
+            if syncMediaEnabled { request.serverUsn = syncServerUsn }
+            let fullSyncRequest = request
+            try await backend.perform { try $0.fullUploadOrDownload(fullSyncRequest) }
+            session?.stop()
+            session = nil
+            await refreshDecks()
+            BrowserWindowController.current?.model.refreshAfterSync()
+            if syncMediaEnabled { await monitorMediaSync(backend) }
+            await updateSyncStatus()
+        } catch {
+            syncAlert = String(describing: error)
+        }
+    }
+
+    private func monitorMediaSync(_ backend: AnkiBackend) async {
+        do {
+            guard let auth = syncAuth else { return }
+            try await backend.perform { try $0.syncMedia(auth) }
+            while true {
+                let status = try await backend.perform { try $0.mediaSyncStatus() }
+                if status.hasProgress {
+                    let progress = status.progress
+                    syncMediaProgress = "Added: \(progress.added) · Removed: \(progress.removed) · Checked: \(progress.checked)"
+                }
+                if !status.active { break }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            syncMediaProgress = Tr.syncMediaComplete
+        } catch {
+            syncMediaProgress = Tr.syncMediaFailed
+            syncAlert = String(describing: error)
+        }
     }
 
     func refreshDecks() async {
@@ -198,6 +386,7 @@ final class CollectionModel {
                 // Launch activates the app right after the first load.
                 guard let self, session == nil, Date().timeIntervalSince(lastRefresh) > 2 else { continue }
                 await refreshDecks()
+                await updateSyncStatus()
             }
         }
     }

@@ -28,6 +28,7 @@ WHOLE_FILES = [
     "database-check.ftl",
     "media-check.ftl",
     "empty-cards.ftl",
+    "sync.ftl",
 ]
 EXTRA = [
     "actions-add",
