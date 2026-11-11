@@ -325,6 +325,9 @@ struct CardCommands: Commands {
                 Divider()
                 Button("Find and Replace…") { browser?.askFindAndReplace() }
                     .keyboardShortcut("f", modifiers: [.command, .option])
+                Divider()
+                Button("Change Note Type…") { browser?.askChangeNotetype() }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
             }
             .disabled(!hasBrowserSelection)
             Divider()

@@ -519,25 +519,32 @@ final class BrowserModel {
     /// Runs an undoable change, then redraws the rows (or searches again when
     /// rows may have appeared or gone) and refreshes the main window's decks.
     func change(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) {
-        guard let backend = collection.backend else { return }
-        Task {
-            do {
-                undoLabel = try await backend.perform { backend in
-                    try work(backend)
-                    return try backend.getUndoStatus().undo
-                }
-            } catch {
-                errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+        Task { await perform(searchAgain: searchAgain, work) }
+    }
+
+    /// `change`, saying whether the work succeeded.
+    @discardableResult
+    func perform(searchAgain: Bool = false, _ work: @escaping @Sendable (AnkiBackend) throws -> Void) async -> Bool {
+        guard let backend = collection.backend else { return false }
+        var succeeded = true
+        do {
+            undoLabel = try await backend.perform { backend in
+                try work(backend)
+                return try backend.getUndoStatus().undo
             }
-            if searchAgain {
-                self.searchAgain()
-            } else {
-                rowCache.removeAll(keepingCapacity: true)
-                rowsVersion += 1
-            }
-            refreshCommandCard()
-            await collection.refreshDecks()
+        } catch {
+            succeeded = false
+            errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
         }
+        if searchAgain {
+            self.searchAgain()
+        } else {
+            rowCache.removeAll(keepingCapacity: true)
+            rowsVersion += 1
+        }
+        refreshCommandCard()
+        await collection.refreshDecks()
+        return succeeded
     }
 
     /// Called when the window comes to the front: the main window may have

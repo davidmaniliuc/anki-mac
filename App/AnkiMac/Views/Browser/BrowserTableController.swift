@@ -267,6 +267,7 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         menu.addItem(menuItem("Add Tags…") { [weak self] in self?.model.askTags(adding: true) })
         menu.addItem(menuItem("Remove Tags…") { [weak self] in self?.model.askTags(adding: false) })
         menu.addItem(menuItem("Find and Replace…") { [weak self] in self?.model.askFindAndReplace() })
+        menu.addItem(menuItem("Change Note Type…") { [weak self] in self?.model.askChangeNotetype() })
         menu.addItem(.separator())
         menu.addItem(menuItem("Delete Notes…") { [weak self] in self?.model.deleteNotes() })
     }

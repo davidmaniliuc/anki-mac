@@ -32,9 +32,11 @@ WHOLE_FILES = [
     "sync.ftl",
     "fields.ftl",
     "card-templates.ftl",
+    "change-notetype.ftl",
 ]
 EXTRA = [
     "actions-add",
+    "browsing-change-notetype",
     "decks-deck",
     "editing-show-duplicates",
     "editing-tags",

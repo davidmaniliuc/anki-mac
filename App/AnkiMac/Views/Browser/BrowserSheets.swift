@@ -21,6 +21,8 @@ struct BrowserPromptSheet: View {
             TagsSheet(model: model, adding: adding, notes: notes, known: known)
         case .findAndReplace(let notes, let fields):
             FindAndReplaceSheet(model: model, notes: notes, fields: fields)
+        case .changeNotetype(let noteIDs, let notetypes, let info):
+            ChangeNotetypeSheet(browser: model, noteIDs: noteIDs, notetypes: notetypes, info: info)
         }
     }
 }
@@ -30,6 +32,7 @@ struct PromptLayout<Content: View>: View {
     let title: String
     let action: String
     var canSubmit = true
+    var width = Theme.Browser.sheetWidth
     let cancel: () -> Void
     let submit: () -> Void
     @ViewBuilder let content: Content
@@ -48,7 +51,7 @@ struct PromptLayout<Content: View>: View {
             }
         }
         .padding(Theme.Spacing.large)
-        .frame(width: Theme.Browser.sheetWidth)
+        .frame(width: width)
     }
 }
 
