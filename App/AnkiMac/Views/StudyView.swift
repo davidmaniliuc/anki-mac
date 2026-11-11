@@ -165,7 +165,7 @@ struct StudyView: View {
         if modifiers.isEmpty, key == "=" { session.buryCurrentNote(); return true }
                 if modifiers == [.command, .option], key == "n" { session.askForget(); return true }
         if modifiers == [.command, .shift], key == "d" { session.askSetDueDate(); return true }
-        if modifiers.isEmpty, key == "i" { session.showCardInfo(); return true }
+        if modifiers.isEmpty, key == "i" { session.showCardInfo(in: model); return true }
         if modifiers == .command, key == "z" {
             session.undo()
             return true
@@ -213,7 +213,7 @@ struct StudyView: View {
                 .disabled(session.currentQueue != .new)
             Button(Tr.studyingDeleteNote) { session.deleteCurrentNote() }
             Divider()
-            Button("Card Info…") { session.showCardInfo() }
+            Button("Card Info…") { session.showCardInfo(in: model) }
             Button(Tr.actionsOptions + "…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
             Button("Replay Audio") { session.replayAudio() }
             Button(Tr.studyingPauseAudio) { session.toggleAudioPause() }

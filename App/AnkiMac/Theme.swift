@@ -122,6 +122,13 @@ enum Theme {
         }
     }
 
+    enum Statistics {
+        static let defaultSize = CGSize(width: 900, height: 800)
+        static let minSize = CGSize(width: 520, height: 400)
+        static let cardInfoSize = CGSize(width: 640, height: 760)
+        static let cardInfoMinSize = CGSize(width: 400, height: 300)
+    }
+
     enum DeckOptions {
         static let defaultSize = CGSize(width: 640, height: 760)
         static let minSize = CGSize(width: 480, height: 400)

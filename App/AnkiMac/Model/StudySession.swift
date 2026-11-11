@@ -60,6 +60,8 @@ final class StudySession {
     let deckID: Int64
     private(set) var phase: Phase = .loading
     private(set) var card: StudyCard?
+    /// The card answered last, for Previous Card Info.
+    private(set) var previousCardID: Int64?
     private(set) var counts = (new: 0, learn: 0, review: 0)
     private(set) var currentQueue: Anki_Scheduler_QueuedCards.Queue?
     /// What Undo would undo, as the backend names it; empty when nothing.
@@ -135,6 +137,7 @@ final class StudySession {
     func answer(_ rating: Rating) {
         guard phase == .answer, let card, !busy else { return }
         audio.stop()
+        previousCardID = card.queued.card.id
         let taken = min(
             UInt32(max(0, Date().timeIntervalSince(shownAt)) * 1000),
             card.options.maxAnswerMillis)
@@ -269,10 +272,9 @@ final class StudySession {
         return Tr.studyingCardsBuried(count: Int(try backend.buryOrSuspendCards(request).count))
     }
 
-    /// Integration point for the Card Info window being built on the
-    /// stats-cardinfo branch.
-    func showCardInfo() {
-        // Card Info lands with the stats-cardinfo branch
+    func showCardInfo(in collection: CollectionModel) {
+        guard let id = card?.queued.card.id else { return }
+        CardInfoWindowController.show(cardID: id, kind: .reviewer, collection: collection)
     }
 
     func toggleAudioPause() {

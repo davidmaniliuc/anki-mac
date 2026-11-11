@@ -93,6 +93,8 @@ final class BrowserModel {
     private(set) var sidebar: [SidebarSection] = []
     private(set) var selectedRows = IndexSet()
     private(set) var commandCard: CommandCard?
+    /// The card of the current row (the note's first card in Notes mode), which Card Info shows.
+    private(set) var currentCardID: Int64?
     private(set) var undoLabel = ""
     /// Notes waiting for the user to confirm deleting them.
     var notesToDelete: [Int64]?
@@ -423,11 +425,13 @@ final class BrowserModel {
     private func refreshCommandCard() {
         guard let backend = collection.backend, let currentRow, ids.indices.contains(currentRow) else {
             commandCard = nil
+            currentCardID = nil
+            CardInfoWindowController.update(cardID: nil, kind: .browser)
             return
         }
         let current = Selection(mode: mode, ids: [ids[currentRow]])
         Task {
-            commandCard = try? await backend.perform { backend in
+            let found = try? await backend.perform { backend -> (CommandCard, Int64)? in
                 guard let cardID = try Self.cardIDs(current, backend: backend).first else { return nil }
                 var request = Anki_Cards_CardId()
                 request.cid = cardID
@@ -435,12 +439,16 @@ final class BrowserModel {
                 var noteID = Anki_Notes_NoteId()
                 noteID.nid = card.noteID
                 let tags = try backend.getNote(noteID).tags
-                return CommandCard(
+                let command = CommandCard(
                     flag: CardFlag(cardFlags: card.flags),
                     isMarked: tags.contains { $0.caseInsensitiveCompare(Self.markedTag) == .orderedSame },
                     isSuspended: card.queue == Self.suspendedQueue,
                     isBuried: Self.buriedQueues.contains(card.queue))
+                return (command, cardID)
             }
+            commandCard = found?.0
+            currentCardID = found?.1
+            CardInfoWindowController.update(cardID: currentCardID, kind: .browser)
         }
     }
 
