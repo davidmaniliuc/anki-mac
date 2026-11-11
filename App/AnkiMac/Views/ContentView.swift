@@ -79,6 +79,9 @@ private struct ImportExportPrompts: ViewModifier {
         .sheet(isPresented: Binding { model.packageImportPresented } set: { model.packageImportPresented = $0 }) {
             if let url = model.packageImportURL { ImportOptionsSheet(url: url).environment(model) }
         }
+        .sheet(item: Binding { model.csvImport } set: { model.csvImport = $0 }) { draft in
+            CsvImportSheet(draft: draft).environment(model)
+        }
         .sheet(item: Binding { model.importResult } set: { model.importResult = $0 }) { result in
             ImportLogSheet(result: result)
         }

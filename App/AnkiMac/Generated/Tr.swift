@@ -1253,6 +1253,41 @@ nonisolated enum Tr {
     }
     static let importingImportOptions = "Import options"
     static let importingUpdates = "Updates"
+    static let importingTab = "Tab"
+    static let importingPipe = "Pipe"
+    static let importingSemicolon = "Semicolon"
+    static let importingColon = "Colon"
+    static let importingComma = "Comma"
+    static let studyingSpace = "Space"
+    static let importingFieldSeparator = "Field separator"
+    static let importingFieldSeparatorGuessed = "Field separator (guessed)"
+    static let importingFieldSeparatorHelp = "The character separating fields in the text file. You can use the preview to check if the fields are separated correctly.\n\nPlease note that if this character appears in any field itself, the field has to be quoted accordingly to the CSV standard. Spreadsheet programs like LibreOffice will do this automatically.\n\nIt cannot be changed if the text file forces use of a specific separator via a file header. If a file header is not present, Anki will try to guess what the separator is."
+    static let importingAllowHtmlInFields = "Allow HTML in fields"
+    static let importingAllowHtmlInFieldsHelp = "Enable this if the file contains HTML formatting. E.g. if the file contains the string '&lt;br&gt;', it will appear as a line break on your card. On the other hand, with this option disabled, the literal characters '&lt;br&gt;' will be rendered."
+    static let importingFile = "File"
+    static let importingFieldMapping = "Field mapping"
+    static let importingExistingNotes = "Existing notes"
+    static let importingExistingNotesHelp = ("What to do if an imported note matches an existing one.\n\n- `" + "Update" + "`: Update the existing note.\n- `" + "Preserve" + "`: Do nothing.\n- `" + "Duplicate" + "`: Create a new note.")
+    static let importingUpdate = "Update"
+    static let importingPreserve = "Preserve"
+    static let importingDuplicate = "Duplicate"
+    static let importingMatchScope = "Match scope"
+    static let importingMatchScopeHelp = "Only existing notes with the same note type will be checked for duplicates. This can additionally be restricted to notes with cards in the same deck."
+    static let importingNotetypeAndDeck = "Note type and deck"
+    static let importingNotetypeHelp = "Newly-imported notes will have this note type, and only existing notes with this note type will be updated.\n\nYou can choose which fields in the file correspond to which note type fields with the mapping tool."
+    static let importingDeckHelp = "Imported cards will be placed in this deck."
+    static let importingTagAllNotes = "Tag all notes"
+    static let importingTagAllNotesHelp = "These tags will be added to both newly-imported and updated notes."
+    static let importingTagUpdatedNotes = "Tag updated notes"
+    static let importingTagUpdatedNotesHelp = "These tags will be added to any updated notes."
+    static func importingNewDeckWillBeCreated(name: String) -> String {
+        ("A new deck will be created: " + String(describing: name))
+    }
+    static func importingPreviewTruncated(count: Int) -> String {
+        (count == 1 ? ("Only the first " + String(describing: count) + " columns are shown. If this doesn't seem right, try changing the field separator.") : ("Only the first " + String(describing: count) + " columns are shown. If this doesn't seem right, try changing the field separator."))
+    }
+    static let changeNotetypeNothing = "(Nothing)"
+    static let notetypesNotetype = "Note Type"
     static func importingAllSupportedFormats(val: String) -> String {
         ("All supported formats " + val)
     }
