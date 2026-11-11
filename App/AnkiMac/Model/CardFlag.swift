@@ -12,13 +12,13 @@ nonisolated enum CardFlag: Int, CaseIterable, Sendable {
     var title: String {
         switch self {
         case .none: "None"
-        case .red: "Red"
-        case .orange: "Orange"
-        case .green: "Green"
-        case .blue: "Blue"
-        case .pink: "Pink"
-        case .turquoise: "Turquoise"
-        case .purple: "Purple"
+        case .red: Tr.actionsFlagRed
+        case .orange: Tr.actionsFlagOrange
+        case .green: Tr.actionsFlagGreen
+        case .blue: Tr.actionsFlagBlue
+        case .pink: Tr.actionsFlagPink
+        case .turquoise: Tr.actionsFlagTurquoise
+        case .purple: Tr.actionsFlagPurple
         }
     }
 

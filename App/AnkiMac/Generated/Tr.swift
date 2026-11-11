@@ -853,6 +853,25 @@ nonisolated enum Tr {
     static let actionsReposition = "Reposition"
     static let actionsCardInfo = "Card Info"
     static let actionsPreviousCardInfo = "Previous Card Info"
+    static let actionsCopy = "Copy"
+    static let actionsCreateCopy = "Create Copy"
+    static let actionsReplayAudio = "Replay Audio"
+    static func actionsWithEllipsis(action: String) -> String {
+        (String(describing: action) + "...")
+    }
+    static let actionsFlagRed = "Red"
+    static let actionsFlagOrange = "Orange"
+    static let actionsFlagGreen = "Green"
+    static let actionsFlagBlue = "Blue"
+    static let actionsFlagPink = "Pink"
+    static let actionsFlagTurquoise = "Turquoise"
+    static let actionsFlagPurple = "Purple"
+    static let studyingFlagCard = "Flag Card"
+    static let studyingMarkNote = "Mark Note"
+    static let studyingBuryNote = "Bury Note"
+    static let studyingSuspendNote = "Suspend Note"
+    static let editingCards = "Cards"
+    static let editingCustomizeCardTemplates = "Customize Card Templates"
     static func cardStatsCurrentCard(context: String) -> String {
         ("Current Card (" + String(describing: context) + ")")
     }
