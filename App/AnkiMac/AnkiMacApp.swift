@@ -346,6 +346,9 @@ struct CardCommands: Commands {
             }
             .disabled(!hasBrowserSelection)
             Divider()
+            Button(Tr.browsingFindDuplicates + "…") { BrowserWindowController.current?.showFindDuplicates() }
+                .disabled(browser == nil)
+            Divider()
             Button("Export Notes…") { browser?.exportSelectedNotes() }
                 .disabled(!hasBrowserSelection)
         }
