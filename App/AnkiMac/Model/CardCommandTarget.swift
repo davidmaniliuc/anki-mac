@@ -1,19 +1,19 @@
 import SwiftUI
 
-/// What the Cards menu and Undo act on in the key window: the card being
+/// What the Cards menu, Undo and Redo act on in the key window: the card being
 /// studied in the main window, or the rows selected in the browser. One set
 /// of menu items, so a shortcut never reaches the other window.
 protocol CardCommandTarget: AnyObject {
     /// The card whose state the menu's checkmarks show; nil when there is none.
     var commandCard: CommandCard? { get }
-    /// What Undo would undo, as the backend names it; empty when nothing.
-    var undoLabel: String { get }
+    var undoState: UndoState { get }
     var canDeleteNotes: Bool { get }
     func toggleFlag(_ flag: CardFlag)
     func toggleMark()
     func toggleSuspend()
     func deleteNotes()
     func undo()
+    func redo()
     /// Whether Set Due Date, Reset and Reposition have a card to act on.
     var canScheduleCards: Bool { get }
     func toggleBury()

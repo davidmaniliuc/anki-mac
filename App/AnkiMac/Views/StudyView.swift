@@ -50,12 +50,12 @@ struct StudyView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // The card's last answer while studying, otherwise the last deck change.
-                let undoLabel = session?.undoLabel ?? model.undoLabel
+                let undoState = session?.undoState ?? model.undoState
                 Button("Undo", systemImage: "arrow.uturn.backward") {
                     if let session { session.undo() } else { model.undoLast() }
                 }
-                .help(undoLabel.isEmpty ? "Undo" : "Undo \(undoLabel)")
-                .disabled(undoLabel.isEmpty)
+                .help(undoState.undoTitle)
+                .disabled(!undoState.canUndo)
                 Button("End Session", systemImage: "xmark") { model.stopStudying() }
                     .disabled(session == nil)
                 Button {
@@ -168,6 +168,10 @@ struct StudyView: View {
         if modifiers.isEmpty, key == "i" { session.showCardInfo(in: model); return true }
         if modifiers == .command, key == "z" {
             session.undo()
+            return true
+        }
+        if modifiers == [.command, .shift], key == "z" {
+            session.redo()
             return true
         }
         if modifiers == .control, let digit = Int(key), let flag = CardFlag(rawValue: digit), flag != .none {

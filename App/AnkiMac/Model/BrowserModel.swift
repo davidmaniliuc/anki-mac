@@ -95,7 +95,7 @@ final class BrowserModel {
     private(set) var commandCard: CommandCard?
     /// The card of the current row (the note's first card in Notes mode), which Card Info shows.
     private(set) var currentCardID: Int64?
-    private(set) var undoLabel = ""
+    private(set) var undoState = UndoState()
     /// Notes waiting for the user to confirm deleting them.
     var notesToDelete: [Int64]?
     /// The sheet an action is waiting on (see BrowserModel+Actions).
@@ -145,7 +145,7 @@ final class BrowserModel {
                 searchText = opening.prompt
                 appliedSearch = opening.search
                 show(opening.ids)
-                undoLabel = opening.undoLabel
+                undoState = opening.undoState
             } catch {
                 errorMessage = String(describing: error)
             }
@@ -159,7 +159,7 @@ final class BrowserModel {
         let search: String
         let prompt: String
         let ids: [Int64]
-        let undoLabel: String
+        let undoState: UndoState
     }
 
     private nonisolated struct Settings: Sendable {
@@ -192,7 +192,7 @@ final class BrowserModel {
         let ids = try find(search, mode: mode, sort: settings.sort, backend: backend)
         return Opening(
             allColumns: allColumns, settings: settings, search: search, prompt: prompt, ids: ids,
-            undoLabel: try backend.getUndoStatus().undo)
+            undoState: try backend.undoState())
     }
 
     /// Reads a mode's columns and sort from the config and makes those
@@ -512,8 +512,13 @@ final class BrowserModel {
     }
 
     func undo() {
-        guard !undoLabel.isEmpty else { return }
+        guard undoState.canUndo else { return }
         change(searchAgain: true) { backend in _ = try backend.undo() }
+    }
+
+    func redo() {
+        guard undoState.canRedo else { return }
+        change(searchAgain: true) { backend in _ = try backend.redo() }
     }
 
     /// Runs an undoable change, then redraws the rows (or searches again when
@@ -522,9 +527,9 @@ final class BrowserModel {
         guard let backend = collection.backend else { return }
         Task {
             do {
-                undoLabel = try await backend.perform { backend in
+                undoState = try await backend.perform { backend in
                     try work(backend)
-                    return try backend.getUndoStatus().undo
+                    return try backend.undoState()
                 }
             } catch {
                 errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
@@ -545,8 +550,8 @@ final class BrowserModel {
     func refreshUndo() {
         guard let backend = collection.backend else { return }
         Task {
-            if let label = try? await backend.perform({ backend in try backend.getUndoStatus().undo }) {
-                undoLabel = label
+            if let state = try? await backend.perform({ backend in try backend.undoState() }) {
+                undoState = state
             }
         }
     }
