@@ -42,12 +42,12 @@ enum CardInfoFormat {
         if !precise, unit < .months { amount = amount.rounded() }
         if short {
             switch unit {
-            case .seconds: return Tr.statisticsElapsedTimeSeconds(amount: amount)
-            case .minutes: return Tr.statisticsElapsedTimeMinutes(amount: amount)
-            case .hours: return Tr.statisticsElapsedTimeHours(amount: amount)
-            case .days: return Tr.statisticsElapsedTimeDays(amount: amount)
-            case .months: return Tr.statisticsElapsedTimeMonths(amount: amount)
-            case .years: return Tr.statisticsElapsedTimeYears(amount: amount)
+            case .seconds: return Tr.statisticsElapsedTimeSeconds(amount: Tr.number(amount))
+            case .minutes: return Tr.statisticsElapsedTimeMinutes(amount: Tr.number(amount))
+            case .hours: return Tr.statisticsElapsedTimeHours(amount: Tr.number(amount))
+            case .days: return Tr.statisticsElapsedTimeDays(amount: Tr.number(amount))
+            case .months: return Tr.statisticsElapsedTimeMonths(amount: Tr.number(amount))
+            case .years: return Tr.statisticsElapsedTimeYears(amount: Tr.number(amount))
             }
         }
         switch unit {
