@@ -33,6 +33,15 @@ targets:
       # uses the CommonHTML build in web/).
       - path: ../anki/node_modules/mathjax/es5/tex-svg-full.js
         buildPhase: resources
+    # Finder hands .apkg/.colpkg to the app, which imports them (File > Import).
+    info:
+      path: AnkiMac/Info.plist
+      properties:
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Anki Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Default
+            CFBundleTypeExtensions: [apkg, colpkg]
     dependencies:
       - package: AnkiKit
         product: AnkiKit

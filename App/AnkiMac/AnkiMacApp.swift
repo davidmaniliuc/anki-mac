@@ -19,6 +19,7 @@ struct AnkiMacApp: App {
                     BenchDriver.trace("first_task")
                     appDelegate.model = model
                     await model.open()
+                    appDelegate.openPendingDocuments()
                     if let path = UserDefaults.standard.string(forKey: "BenchEventsPath") {
                         bench = BenchDriver(model: model, path: path)
                         bench?.run()
@@ -33,6 +34,7 @@ struct AnkiMacApp: App {
             SyncCommands(model: model)
             ToolsCommands(model: model)
             FormatCommands()
+            ImportExportCommands(model: model)
             CommandGroup(before: .windowList) {
                 Button("Browse") { BrowserWindowController.show(collection: model) }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
@@ -72,6 +74,18 @@ struct SyncCommands: Commands {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: CollectionModel?
+    private var pendingDocuments: [URL] = []
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let model, model.isLoaded else { pendingDocuments.append(contentsOf: urls); return }
+        urls.forEach { model.openPackage($0) }
+    }
+
+    func openPendingDocuments() {
+        let urls = pendingDocuments
+        pendingDocuments.removeAll()
+        urls.forEach { model?.openPackage($0) }
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
@@ -79,6 +93,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model?.close()
+    }
+}
+
+struct ImportExportCommands: Commands {
+    let model: CollectionModel
+
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button(Tr.actionsImport + "…") { model.promptForImport() }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .disabled(!model.isLoaded || model.packageOperationInProgress)
+            Button(Tr.actionsExport + "…") {
+                model.selectedExportNoteIDs = nil
+                model.exportDeckID = nil
+                model.exportSheetPresented = true
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(!model.isLoaded || model.packageOperationInProgress)
+        }
     }
 }
 
@@ -275,6 +308,9 @@ struct CardCommands: Commands {
                     .keyboardShortcut("f", modifiers: [.command, .option])
             }
             .disabled(!hasBrowserSelection)
+            Divider()
+            Button("Export Notes…") { browser?.exportSelectedNotes() }
+                .disabled(!hasBrowserSelection)
         }
     }
 

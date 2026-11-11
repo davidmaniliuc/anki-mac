@@ -721,6 +721,72 @@ nonisolated enum Tr {
     static let studyingBuriedSiblings = "Buried Siblings"
     static let studyingAllBuriedCards = "All Buried Cards"
     static let errors100TagsMax = "A maximum of 100 tags can be selected. Listing the tags you want instead of the ones you don't want is usually simpler, and there is no need to select child tags if you have selected a parent tag."
+    static let exportingAllDecks = "All Decks"
+    static let exportingAnkiCollectionPackage = "Anki Collection Package"
+    static let exportingAnkiDeckPackage = "Anki Deck Package"
+    static let exportingCardsInPlainText = "Cards in Plain Text"
+    static let exportingExport = "Export..."
+    static let exportingExportFormat = "<b>Export format</b>:"
+    static let exportingInclude = "<b>Include</b>:"
+    static let exportingIncludeHtmlAndMediaReferences = "Include HTML and media references"
+    static let exportingIncludeMedia = "Include media"
+    static let exportingIncludeSchedulingInformation = "Include scheduling information"
+    static let exportingIncludeDeckConfigs = "Include deck presets"
+    static let exportingIncludeTags = "Include tags"
+    static let exportingSupportOlderAnkiVersions = "Support older Anki versions (slower/larger files)"
+    static let exportingNotesInPlainText = "Notes in Plain Text"
+    static let exportingSelectedNotes = "Selected Notes"
+    static let exportingExportingFile = "Exporting file..."
+    static let exportingIncludeDeck = "Include deck name"
+    static let exportingIncludeNotetype = "Include note type name"
+    static let exportingIncludeGuid = "Include unique identifier"
+    static let exportingCollection = "collection"
+    static let importingMergeNotetypes = "Merge note types"
+    static let importingMergeNotetypesHelp = "If checked, and you or the deck author altered the schema of a note type, Anki will merge the two versions instead of keeping both.\n\nAltering a note type's schema means adding, removing, or reordering fields or templates, or changing the sort field. As a counterexample, changing the front side of an existing template does *not* constitute a schema change.\n\nWarning: This will require a one-way sync, and may mark existing notes as modified."
+    static let importingUpdateIfNewer = "If newer"
+    static let importingUpdateAlways = "Always"
+    static let importingUpdateNever = "Never"
+    static let importingUpdateNotes = "Update notes"
+    static let importingUpdateNotesHelp = "When to update an existing note in your collection. By default, this is only done if the matching imported note was more recently modified."
+    static let importingUpdateNotetypes = "Update note types"
+    static let importingUpdateNotetypesHelp = ("When to update an existing note type in your collection. By default, this is only done if the matching imported note type was more recently modified. Changes to template text and styling can always be imported, but for schema changes (e.g. the number or order of fields has changed), the '" + "Merge note types" + "' option will also need to be enabled.")
+    static let importingIncludeReviews = "Include reviews"
+    static let importingIncludeReviewsHelp = "If enabled, any previous reviews that the deck sharer included will also be imported. Otherwise, all cards will be imported as new cards, and any \"leech\" or \"marked\" tags will be removed."
+    static let importingWithDeckConfigs = "Import any deck presets"
+    static let importingWithDeckConfigsHelp = "If enabled, any deck options that the deck sharer included will also be imported. Otherwise, all decks will be assigned the default preset."
+    static let importingThisWillDeleteYourExistingCollection = "This will delete your existing collection and replace it with the data in the file you're importing. Are you sure?"
+    static let importingImportingComplete = "Importing complete."
+    static let importingImportLog = "Import Log"
+    static let importingNoNotesInFile = "No notes found in file."
+    static func importingNotesFoundInFile2(notes: Int) -> String {
+        ((notes == 1 ? (String(describing: notes) + " note") : (String(describing: notes) + " notes")) + " found in file. Of those:")
+    }
+    static func importingNotesAdded(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " new note imported.") : (String(describing: count) + " new notes imported."))
+    }
+    static func importingNotesUpdated(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note was used to update existing ones.") : (String(describing: count) + " notes were used to update existing ones."))
+    }
+    static func importingExistingNotesSkipped(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note already present in your collection.") : (String(describing: count) + " notes already present in your collection."))
+    }
+    static func importingNotesFailed(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note could not be imported.") : (String(describing: count) + " notes could not be imported."))
+    }
+    static func importingConflictingNotesSkipped(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note was not imported, because its note type has changed.") : (String(describing: count) + " notes were not imported, because their note type has changed."))
+    }
+    static func importingConflictingNotesSkipped2(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " note was not imported, because its note type has changed, and '" + "Merge note types" + "' was not enabled.") : (String(describing: count) + " notes were not imported, because their note type has changed, and '" + "Merge note types" + "' was not enabled."))
+    }
+    static let importingImportOptions = "Import options"
+    static let importingUpdates = "Updates"
+    static func importingAllSupportedFormats(val: String) -> String {
+        ("All supported formats " + String(describing: val))
+    }
+    static let importingPackagedAnkiDeckcollectionApkgColpkgZip = "Packaged Anki Deck/Collection (*.apkg *.colpkg *.zip)"
+    static let actionsImport = "Import"
+    static let actionsExport = "Export"
     static let studyingCardSuspended = "Card suspended."
     static let studyingNoteSuspended = "Note suspended."
     static func studyingCardsBuried(count: Int) -> String {

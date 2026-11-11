@@ -406,6 +406,20 @@ final class BrowserModel {
         return ids.isEmpty ? nil : Selection(mode: mode, ids: ids)
     }
 
+    func exportSelectedNotes() {
+        guard let selection, let backend = collection.backend else { return }
+        Task {
+            do {
+                let noteIDs = try await backend.perform { try Self.noteIDs(selection, backend: $0) }
+                collection.selectedExportNoteIDs = noteIDs
+                collection.exportDeckID = nil
+                collection.exportSheetPresented = true
+            } catch {
+                errorMessage = "Could not prepare selected notes for export: \(error)"
+            }
+        }
+    }
+
     private func refreshCommandCard() {
         guard let backend = collection.backend, let currentRow, ids.indices.contains(currentRow) else {
             commandCard = nil

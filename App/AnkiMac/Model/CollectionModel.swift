@@ -91,6 +91,18 @@ final class CollectionModel {
     var unburyPrompt: Int64?
     /// The filtered deck dialog, while it's open.
     var filteredDeck: FilteredDeckModel?
+    /// Import and export (File menu, Finder, the Browser's Export Notes).
+    var importResult: ImportResult?
+    var importMessage: String?
+    var packageImportURL: URL?
+    var packageImportPresented = false
+    var exportSheetPresented = false
+    var selectedExportNoteIDs: [Int64]?
+    var exportDeckID: Int64?
+    var packageOperationInProgress = false
+    /// True while the backend has the collection closed for a package export or replacement.
+    var collectionClosed = false
+
     var maintenanceTool: MaintenanceTool?
 
     // Sync account and progress. SyncAuth is kept in the login Keychain item.
@@ -345,6 +357,7 @@ final class CollectionModel {
     }
 
     func refreshDecks() async {
+        guard !collectionClosed else { return }
         guard let backend else { return }
         do {
             let (tree, nextDayAt, undo) = try await backend.perform { backend in
