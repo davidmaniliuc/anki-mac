@@ -1,7 +1,8 @@
 import AVFoundation
 
-/// A microphone recording in progress, written to a temporary file that
-/// the caller either keeps (`stop`) or throws away (`discard`). Desktop
+/// A microphone recording in progress, written to a file in its own
+/// temporary folder that the caller either keeps (`stop`) or throws away
+/// (`discard`). Desktop
 /// records a wav and encodes it to mp3 with lame; AVFoundation has no mp3
 /// encoder, so this records AAC in an .m4a, which Anki plays everywhere.
 final class AudioRecording {
@@ -13,8 +14,9 @@ final class AudioRecording {
     /// Asks for microphone access if needed, then starts recording.
     static func start() async throws -> AudioRecording {
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw RecordingError.accessDenied }
-        let url = FileManager.default.temporaryDirectory
-            .appending(path: "rec\(Int(Date().timeIntervalSince1970)).m4a")
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(path: "rec\(Int(Date().timeIntervalSince1970)).m4a")
         let recorder = try AVAudioRecorder(
             url: url,
             settings: [
@@ -23,7 +25,10 @@ final class AudioRecording {
                 AVNumberOfChannelsKey: 1,
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
             ])
-        guard recorder.record() else { throw RecordingError.noInput }
+        guard recorder.record() else {
+            try? FileManager.default.removeItem(at: directory)
+            throw RecordingError.noInput
+        }
         return AudioRecording(url: url, recorder: recorder)
     }
 
@@ -32,7 +37,7 @@ final class AudioRecording {
         self.recorder = recorder
     }
 
-    /// Ends the recording, leaving the file for the caller to use and delete.
+    /// Ends the recording, leaving the file for the caller to use, then `cleanUp`.
     func stop() -> URL {
         recorder.stop()
         return url
@@ -40,7 +45,12 @@ final class AudioRecording {
 
     func discard() {
         recorder.stop()
-        try? FileManager.default.removeItem(at: url)
+        cleanUp()
+    }
+
+    /// Removes the recording's private temporary folder and the file in it.
+    func cleanUp() {
+        try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
     }
 }
 

@@ -11,7 +11,11 @@ final class FieldTextView: NSTextView {
     weak var editor: NoteEditorModel?
     var mathPopover: NSPopover?
     var mathPendingCommit: (() -> Void)?
-    private var pendingChordPrefix: Character?
+    /// The Control key press that starts a two-key Equations shortcut,
+    /// held until the second key arrives.
+    private var pendingChord: (prefix: Character, event: NSEvent)?
+    private static let chordTimeout: TimeInterval = 1.5
+    private static var isRecording = false
     private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
 
     private var document: FieldDocument { field.document }
@@ -44,6 +48,7 @@ final class FieldTextView: NSTextView {
     func show(_ field: EditorField) {
         guard self.field !== field else { return }
         self.field = field
+        pendingChord = nil
         layoutManager?.replaceTextStorage(field.storage)
         baseWritingDirection = field.rightToLeft ? .rightToLeft : .natural
         typingAttributes = FieldDocument.cleanTypingAttributes(
@@ -55,6 +60,11 @@ final class FieldTextView: NSTextView {
         let became = super.becomeFirstResponder()
         if became { editor?.focusedView = self }
         return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        pendingChord = nil
+        return super.resignFirstResponder()
     }
 
     // MARK: Editing rules
@@ -89,6 +99,7 @@ final class FieldTextView: NSTextView {
     /// Clicking MathJax opens its editor; double-clicking a table or other
     /// chip opens the field's HTML.
     override func mouseDown(with event: NSEvent) {
+        pendingChord = nil
         if event.clickCount == 1, let index = characterIndex(at: convert(event.locationInWindow, from: nil)),
             textStorage?.attribute(.fieldMath, at: index, effectiveRange: nil) != nil
         {
@@ -186,18 +197,27 @@ final class FieldTextView: NSTextView {
     @objc func insertLatexEquation(_ sender: Any?) { wrap("[$]", "[/$]") }
     @objc func insertLatexMathEnv(_ sender: Any?) { wrap("[$$]", "[/$$]") }
 
-    /// Desktop's Control-M and Control-T shortcuts take a second key.
+    /// Desktop's Control-M and Control-T shortcuts take a second key within
+    /// a moment. Any other key, or a late one, drops the shortcut. Control-T
+    /// and Control-M still do what they do in any text field when no chord
+    /// follows, so the held press is replayed.
     override func keyDown(with event: NSEvent) {
         let key = event.charactersIgnoringModifiers?.lowercased().first
         let modifiers = event.modifierFlags.intersection([.command, .option, .control])
-        if let prefix = pendingChordPrefix {
-            pendingChordPrefix = nil
-            if modifiers.isEmpty, let item = EquationItem.allCases.first(where: { $0.chord.prefix == prefix && $0.chord.key == key }) {
-                NSApp.sendAction(item.action, to: self, from: nil)
-                return
+        if let held = pendingChord {
+            pendingChord = nil
+            if event.timestamp - held.event.timestamp <= Self.chordTimeout {
+                if modifiers.isEmpty,
+                    let item = EquationItem.allCases.first(where: { $0.chord.prefix == held.prefix && $0.chord.key == key })
+                {
+                    NSApp.sendAction(item.action, to: self, from: nil)
+                    return
+                }
+                super.keyDown(with: held.event)
             }
-        } else if modifiers == .control, let key, EquationItem.chordPrefixes.contains(key) {
-            pendingChordPrefix = key
+        }
+        if modifiers == .control, let key, EquationItem.chordPrefixes.contains(key) {
+            pendingChord = (key, event)
             return
         }
         super.keyDown(with: event)
@@ -376,15 +396,19 @@ final class FieldTextView: NSTextView {
         panel.allowsMultipleSelection = false
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let path = panel.url?.path else { return }
-            Task { await self?.insertMedia(fromPath: path) }
+            guard let self else { return }
+            let field = self.field!
+            Task { await self.insertMedia(fromPath: path, into: field) }
         }
     }
 
-    /// Copies a file into the media folder and inserts its tag.
-    private func insertMedia(fromPath path: String) async {
+    /// Copies a file into the media folder and inserts its tag, unless the
+    /// view has moved on to another note's field meanwhile.
+    private func insertMedia(fromPath path: String, into target: EditorField) async {
         guard let editor else { return }
         do {
             let name = try await editor.addMedia(fromPath: path)
+            guard field === target else { return }
             window?.makeFirstResponder(self)
             if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
         } catch {
@@ -393,20 +417,32 @@ final class FieldTextView: NSTextView {
     }
 
     /// F5 and the microphone: record to a file, then insert it as a sound.
+    /// One recording at a time. The sound goes into the field that was
+    /// focused when recording began; if the view shows another note's field
+    /// by the time the microphone is ready, the recording is dropped.
     @objc func recordAudio(_ sender: Any?) {
-        guard let window else { return }
-        Task {
+        guard let window, !Self.isRecording else { return }
+        Self.isRecording = true
+        let target = field!
+        Task { [weak self] in
             do {
                 let recording = try await AudioRecording.start()
+                guard let self, self.field === target else {
+                    recording.discard()
+                    Self.isRecording = false
+                    return
+                }
                 RecordingSheet.present(recording, over: window) { [weak self] url in
+                    Self.isRecording = false
                     guard let url else { return }
                     Task {
-                        await self?.insertMedia(fromPath: url.path)
-                        try? FileManager.default.removeItem(at: url)
+                        await self?.insertMedia(fromPath: url.path, into: target)
+                        recording.cleanUp()
                     }
                 }
             } catch {
-                showError(Tr.qtMiscUnableToRecord(error: error.localizedDescription))
+                Self.isRecording = false
+                self?.showError(Tr.qtMiscUnableToRecord(error: error.localizedDescription))
             }
         }
     }
