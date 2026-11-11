@@ -80,6 +80,8 @@ enum Theme {
         static let minHeight: CGFloat = 360
         static let columnWidth: CGFloat = 160
         static let columnMinWidth: CGFloat = 40
+        static let previewSize = CGSize(width: 480, height: 520)
+        static let previewMinSize = CGSize(width: 300, height: 240)
         static let cellFont = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         static let cellPadding: CGFloat = 4
         static let sidebarIconSize: CGFloat = 16

@@ -292,6 +292,9 @@ struct CardCommands: Commands {
             Button(Tr.actionsPreviousCardInfo) { showPreviousCardInfo() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(previousInfoCardID == nil)
+            Button(Tr.actionsPreview) { BrowserWindowController.current?.togglePreview() }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(browser?.singleSelectedRow == nil)
             Divider()
             Button("Change Deck…") { browser?.askChangeDeck() }
                 .keyboardShortcut("d")

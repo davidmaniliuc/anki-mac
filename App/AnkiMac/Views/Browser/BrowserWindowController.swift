@@ -15,7 +15,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     private let searchItem = NSSearchToolbarItem(itemIdentifier: .search)
     private let modeControl = NSSegmentedControl(
         labels: BrowserMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
+    private let previewItem = NSToolbarItem(itemIdentifier: .preview)
     private let errorBar = SearchErrorBar()
+    private var previewer: BrowserPreviewWindowController?
     private var presentingAlert = false
     private var promptSheet: NSViewController?
 
@@ -61,6 +63,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
         window.toolbarStyle = .unified
+        showPreviewState()
 
         searchItem.searchField.placeholderString = "Search"
         searchItem.searchField.sendsWholeSearchString = true
@@ -69,6 +72,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         modeControl.target = self
         modeControl.action = #selector(modeChanged(_:))
         modeControl.toolTip = "Show one row per card or one row per note"
+        previewItem.label = Tr.actionsPreview
+        previewItem.toolTip = Tr.actionsPreview + " (\u{21E7}\u{2318}P)"
+        previewItem.target = self
+        previewItem.action = #selector(togglePreview)
         window.initialFirstResponder = searchItem.searchField
         observeModel()
     }
@@ -125,6 +132,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         }
         track { [weak self] in
             guard let self else { return }
+            // As desktop, a preview needs exactly one card selected.
+            previewItem.isEnabled = model.singleSelectedRow != nil
+        }
+        track { [weak self] in
+            guard let self else { return }
             // The note follows the selection, and a new search's rows.
             _ = model.idsVersion
             let selection = model.selection
@@ -152,6 +164,24 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         sidebar.clearSelection()
         model.searchText = field.stringValue
         model.search()
+    }
+
+    /// Opens the preview window, or closes it when it is open.
+    @objc func togglePreview() {
+        if let previewer {
+            previewer.close()
+        } else if model.singleSelectedRow != nil {
+            previewer = BrowserPreviewWindowController(browser: model) { [weak self] in
+                self?.previewer = nil
+                self?.showPreviewState()
+            }
+            showPreviewState()
+        }
+    }
+
+    private func showPreviewState() {
+        previewItem.image = NSImage(
+            systemSymbolName: previewer == nil ? "eye" : "eye.fill", accessibilityDescription: Tr.actionsPreview)
     }
 
     @objc private func modeChanged(_ control: NSSegmentedControl) {
@@ -218,6 +248,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     func windowWillClose(_ notification: Notification) {
+        previewer?.close()
         editor?.saveNow()
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }
         Self.current = nil
@@ -226,7 +257,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .mode, .flexibleSpace, .search, .inspectorTrackingSeparator,
+        [.toggleSidebar, .sidebarTrackingSeparator, .mode, .flexibleSpace, .search, .preview, .inspectorTrackingSeparator,
          .flexibleSpace, .toggleInspector]
     }
 
@@ -241,6 +272,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         switch identifier {
         case .search:
             return searchItem
+        case .preview:
+            return previewItem
         case .mode:
             let item = NSToolbarItem(itemIdentifier: identifier)
             item.view = modeControl
@@ -258,6 +291,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 private extension NSToolbarItem.Identifier {
     static let search = Self("search")
     static let mode = Self("mode")
+    static let preview = Self("preview")
 }
 
 /// The browser that menu commands act on while its window is key. SwiftUI's
