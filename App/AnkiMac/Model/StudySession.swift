@@ -47,6 +47,21 @@ nonisolated enum Rating: Int, CaseIterable, Sendable {
     }
 }
 
+/// Desktop's timebox: the time and the answers since the session started or
+/// the last "Continue".
+nonisolated struct Timebox {
+    var startedAt = Date()
+    var answers = 0
+
+    /// The message when `limitSecs` (0 = no limit) has run out. Desktop names
+    /// the limit, not the time actually taken.
+    func messageIfReached(limitSecs: UInt32) -> String? {
+        guard limitSecs > 0, Date().timeIntervalSince(startedAt) > Double(limitSecs) else { return nil }
+        let minutes = Int((Double(limitSecs) / 60).rounded(.toNearestOrEven))
+        return Tr.studyingCardStudiedInMinute(cards: answers, minutes: minutes)
+    }
+}
+
 /// One review session on one deck: fetch, show question, show answer, answer.
 @Observable
 final class StudySession {
@@ -69,6 +84,8 @@ final class StudySession {
     var canUndo: Bool { !undoLabel.isEmpty }
     var errorMessage: String?
     private(set) var audioPaused = false
+    /// The time is up: the alert's text, until Continue or Finish.
+    private(set) var timeboxMessage: String?
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
     var onDisplayed: ((Phase) -> Void)?
@@ -77,6 +94,7 @@ final class StudySession {
     private let reviewer: ReviewerWebController
     private let audio = AudioPlayer()
     private var shownAt = Date()
+    private var timebox = Timebox()
     private var busy = false
     /// The typed text is being compared; a second Return must not start another.
     private var revealing = false
@@ -106,7 +124,7 @@ final class StudySession {
     }
 
     func showAnswer() {
-        guard phase == .question, !revealing, let card else { return }
+        guard phase == .question, !revealing, timeboxMessage == nil, let card else { return }
         guard let typeAnswer = card.rendered.typeAnswer else {
             display(card, answer: card.rendered.answer)
             return
@@ -144,7 +162,7 @@ final class StudySession {
         busy = true
         Task {
             // Answering and fetching the next card share one trip off the main thread.
-            await loadNext { backend in
+            await loadNext(answered: true) { backend in
                 let states = card.queued.states
                 var answer = Anki_Scheduler_CardAnswer()
                 answer.cardID = card.queued.card.id
@@ -160,6 +178,16 @@ final class StudySession {
                 answer.millisecondsTaken = taken
                 _ = try backend.answerCard(answer)
             }
+        }
+    }
+
+    /// Desktop restarts the timer and goes on to the next card.
+    func continueAfterTimebox() {
+        timebox = Timebox()
+        timeboxMessage = nil
+        busy = false
+        if phase == .question, let card, card.options.autoplay, let folder = reviewer.mediaFolder {
+            audio.play(card.rendered.questionAV, mediaFolder: folder)
         }
     }
 
@@ -436,16 +464,19 @@ final class StudySession {
     /// Runs `change` (answer, undo, pick deck), then fetches and renders the
     /// next card, in one background call. Callers set `busy` first, so a
     /// second key press can't answer the same card twice.
-    private func loadNext(after change: @escaping @Sendable (AnkiBackend) throws -> Void) async {
-        defer { busy = false }
+    /// `answered` counts the change as a review for the timebox, whose alert
+    /// then holds the session (`busy`) until Continue.
+    private func loadNext(answered: Bool = false, after change: @escaping @Sendable (AnkiBackend) throws -> Void) async {
+        defer { busy = timeboxMessage != nil }
         let configCache = self.configCache
-        let next: (StudyCard?, Anki_Scheduler_QueuedCards, String)? = await run { backend in
+        let next: (StudyCard?, Anki_Scheduler_QueuedCards, String, UInt32)? = await run { backend in
             try change(backend)
+            let timeLimitSecs = try answered ? backend.getPreferences().reviewing.timeLimitSecs : 0
             var request = Anki_Scheduler_GetQueuedCardsRequest()
             request.fetchLimit = 1
             let queue = try backend.getQueuedCards(request)
             let undoLabel = try backend.getUndoStatus().undo
-            guard let queued = queue.cards.first else { return (nil, queue, undoLabel) }
+            guard let queued = queue.cards.first else { return (nil, queue, undoLabel, timeLimitSecs) }
 
             var hideKey = Anki_Config_GetConfigBoolRequest()
             hideKey.key = .hideAudioPlayButtons
@@ -459,11 +490,15 @@ final class StudySession {
             let studyCard = StudyCard(
                 queued: queued, rendered: rendered, intervals: intervals, options: options,
                 flag: CardFlag(cardFlags: queued.card.flags), isMarked: isMarked)
-            return (studyCard, queue, undoLabel)
+            return (studyCard, queue, undoLabel, timeLimitSecs)
         }
         BenchDriver.trace("first_card_rendered")
-        guard let (card, queue, undoLabel) = next else { return }
+        guard let (card, queue, undoLabel, timeLimitSecs) = next else { return }
         self.undoLabel = undoLabel
+        if answered {
+            timebox.answers += 1
+            timeboxMessage = timebox.messageIfReached(limitSecs: timeLimitSecs)
+        }
         counts = (Int(queue.newCount), Int(queue.learningCount), Int(queue.reviewCount))
         self.card = card
         guard let card else {
@@ -480,7 +515,7 @@ final class StudySession {
         reviewer.drawFlag(card.flag)
         reviewer.drawMark(card.isMarked)
         notifyDisplayed(.question)
-        if card.options.autoplay, let folder = reviewer.mediaFolder {
+        if card.options.autoplay, timeboxMessage == nil, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)
         }
     }

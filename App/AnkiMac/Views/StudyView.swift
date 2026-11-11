@@ -87,6 +87,14 @@ struct StudyView: View {
         } message: {
             Text(session?.errorMessage ?? "")
         }
+        .alert(
+            session?.timeboxMessage ?? "",
+            isPresented: Binding { session?.timeboxMessage != nil } set: { _ in }
+        ) {
+            Button(Tr.studyingContinue) { session?.continueAfterTimebox() }
+                .keyboardShortcut(.defaultAction)
+            Button(Tr.studyingFinish) { model.stopStudying() }
+        }
         .overlay(alignment: .bottom) {
             if let feedback = session?.feedback {
                 Text(feedback)
