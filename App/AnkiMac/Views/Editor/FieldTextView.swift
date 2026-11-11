@@ -376,20 +376,37 @@ final class FieldTextView: NSTextView {
         panel.allowsMultipleSelection = false
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let path = panel.url?.path else { return }
-            self?.insertMedia(fromPath: path)
+            Task { await self?.insertMedia(fromPath: path) }
         }
     }
 
     /// Copies a file into the media folder and inserts its tag.
-    func insertMedia(fromPath path: String) {
+    private func insertMedia(fromPath path: String) async {
         guard let editor else { return }
+        do {
+            let name = try await editor.addMedia(fromPath: path)
+            window?.makeFirstResponder(self)
+            if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
+        } catch {
+            showError((error as? AnkiError)?.message ?? String(describing: error))
+        }
+    }
+
+    /// F5 and the microphone: record to a file, then insert it as a sound.
+    @objc func recordAudio(_ sender: Any?) {
+        guard let window else { return }
         Task {
             do {
-                let name = try await editor.addMedia(fromPath: path)
-                window?.makeFirstResponder(self)
-                if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
+                let recording = try await AudioRecording.start()
+                RecordingSheet.present(recording, over: window) { [weak self] url in
+                    guard let url else { return }
+                    Task {
+                        await self?.insertMedia(fromPath: url.path)
+                        try? FileManager.default.removeItem(at: url)
+                    }
+                }
             } catch {
-                showError((error as? AnkiError)?.message ?? String(describing: error))
+                showError(Tr.qtMiscUnableToRecord(error: error.localizedDescription))
             }
         }
     }

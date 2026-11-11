@@ -37,6 +37,7 @@ targets:
     info:
       path: AnkiMac/Info.plist
       properties:
+        NSMicrophoneUsageDescription: AnkiMac records from the microphone when you use Record Audio in the note editor.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Anki Package
             CFBundleTypeRole: Viewer

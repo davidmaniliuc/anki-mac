@@ -192,6 +192,12 @@ struct FormatBar: View {
                 Label(Tr.editingAttachPicturesaudiovideo, systemImage: "paperclip")
             }
             .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
+            Button {
+                send(#selector(FieldTextView.recordAudio(_:)))
+            } label: {
+                Label(Tr.editingRecordAudio, systemImage: "mic")
+            }
+            .help("\(Tr.editingRecordAudio) (F5)")
             Menu {
                 EquationButtons(send: { send($0) })
             } label: {
@@ -320,6 +326,8 @@ struct FormatCommands: Commands {
             Divider()
             Button(Tr.editingAttachPicturesaudiovideo) { send(#selector(FieldTextView.attachMedia(_:))) }
                 .keyboardShortcut(functionKey(NSF3FunctionKey), modifiers: [])
+            Button(Tr.editingRecordAudio) { send(#selector(FieldTextView.recordAudio(_:))) }
+                .keyboardShortcut(functionKey(NSF5FunctionKey), modifiers: [])
             Divider()
             Menu(Tr.editingEquations) {
                 EquationButtons(send: { send($0) })
