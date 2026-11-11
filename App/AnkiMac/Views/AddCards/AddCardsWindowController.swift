@@ -13,10 +13,18 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
     private var closing = false
 
     /// Opens the window, or brings it forward. The deck of the card being
-    /// studied, if any, picks the defaults.
-    static func show(collection: CollectionModel) {
+    /// studied, if any, picks the defaults. `copying` fills the window with
+    /// a note's type, fields and tags, as desktop's Create Copy does.
+    static func show(collection: CollectionModel, copying: (note: Anki_Notes_Note, deckID: Int64)? = nil) {
         if let current {
             current.window?.makeKeyAndOrderFront(nil)
+            if let copying {
+                Task {
+                    do { try await current.model.setNote(copying.note, deckID: copying.deckID) } catch {
+                        collection.errorMessage = "Could not copy the note: \(error)"
+                    }
+                }
+            }
             return
         }
         guard let backend = collection.backend else { return }
@@ -25,6 +33,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
         Task {
             do {
                 try await model.start(homeDeckID: homeDeck)
+                if let copying { try await model.setNote(copying.note, deckID: copying.deckID) }
                 model.editor.pasteKeepsFormatting = model.pasteKeepsFormatting
                 guard current == nil else { return }
                 let controller = AddCardsWindowController(model: model, collection: collection)

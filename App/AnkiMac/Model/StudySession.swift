@@ -69,6 +69,8 @@ final class StudySession {
     var canUndo: Bool { !undoLabel.isEmpty }
     var errorMessage: String?
     private(set) var audioPaused = false
+    /// Text on the card is selected, so the context menu offers Copy.
+    private(set) var hasSelection = false
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
     var onDisplayed: ((Phase) -> Void)?
@@ -275,6 +277,24 @@ final class StudySession {
     func showCardInfo(in collection: CollectionModel) {
         guard let id = card?.queued.card.id else { return }
         CardInfoWindowController.show(cardID: id, kind: .reviewer, collection: collection)
+    }
+
+    func copySelection() { reviewer.copySelection() }
+
+    /// Desktop's `on_create_copy`: Add with this note's type, fields and tags,
+    /// in the deck the card is in now.
+    func createCopy(in collection: CollectionModel) {
+        guard let card = card?.queued.card else { return }
+        let deckID = card.originalDeckID != 0 ? card.originalDeckID : card.deckID
+        Task {
+            let note = await run { backend in
+                var id = Anki_Notes_NoteId()
+                id.nid = card.noteID
+                return try backend.getNote(id)
+            }
+            guard let note else { return }
+            AddCardsWindowController.show(collection: collection, copying: (note, deckID))
+        }
     }
 
     func toggleAudioPause() {
@@ -527,6 +547,8 @@ final class StudySession {
     private func handle(_ command: String) {
         if command == "ans" {
             showAnswer()
+        } else if command.hasPrefix("_selection:") {
+            hasSelection = command == "_selection:1"
         } else if command.hasPrefix("play:"), let card, let folder = reviewer.mediaFolder {
             // "play:q:0": the first sound on the question side.
             let parts = command.split(separator: ":")

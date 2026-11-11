@@ -198,24 +198,37 @@ struct StudyView: View {
         return true
     }
 
+    /// Desktop's reviewer menu in its order, after Copy (from its web view's
+    /// own menu) and Edit (its E key).
     @ViewBuilder private var reviewerActions: some View {
         if let session {
+            if session.hasSelection {
+                Button(Tr.actionsCopy) { session.copySelection() }
+                Divider()
+            }
             Button("Edit Note…") { session.editCurrentNote() }
             Divider()
-            Button("Suspend Card") { session.suspendCurrentCard() }
-            Button("Suspend Note") { session.suspendCurrentNote() }
-            Button("Bury Card") { session.buryCurrentCard() }
-            Button("Bury Note") { session.buryCurrentNote() }
-            Divider()
-            Button(Tr.actionsSetDueDate + "…") { session.askSetDueDate() }
-            Button(Tr.actionsForgetCard + "…") { session.askForget() }
+            Menu(Tr.studyingFlagCard) {
+                ForEach(CardFlag.assignable, id: \.self) { flag in
+                    Toggle(flag.title, isOn: Binding { session.card?.flag == flag } set: { _ in session.toggleFlag(flag) })
+                }
+            }
+            Button(Tr.studyingBuryCard) { session.buryCurrentCard() }
+            Button(Tr.actionsWithEllipsis(action: Tr.actionsForgetCard)) { session.askForget() }
+            Button(Tr.actionsWithEllipsis(action: Tr.actionsSetDueDate)) { session.askSetDueDate() }
             Button(Tr.actionsReposition + "…") { session.askReposition() }
                 .disabled(session.currentQueue != .new)
+            Button(Tr.actionsSuspendCard) { session.suspendCurrentCard() }
+            Button(Tr.actionsOptions) { if let deck = model.selectedDeck { model.showOptions(deck) } }
+            Button(Tr.actionsCardInfo) { session.showCardInfo(in: model) }
+            Divider()
+            Toggle(Tr.studyingMarkNote, isOn: Binding { session.card?.isMarked ?? false } set: { _ in session.toggleMark() })
+            Button(Tr.studyingBuryNote) { session.buryCurrentNote() }
+            Button(Tr.studyingSuspendNote) { session.suspendCurrentNote() }
+            Button(Tr.actionsWithEllipsis(action: Tr.actionsCreateCopy)) { session.createCopy(in: model) }
             Button(Tr.studyingDeleteNote) { session.deleteCurrentNote() }
             Divider()
-            Button("Card Info…") { session.showCardInfo(in: model) }
-            Button(Tr.actionsOptions + "…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
-            Button("Replay Audio") { session.replayAudio() }
+            Button(Tr.actionsReplayAudio) { session.replayAudio() }
             Button(Tr.studyingPauseAudio) { session.toggleAudioPause() }
         }
     }
