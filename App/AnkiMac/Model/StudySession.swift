@@ -72,6 +72,8 @@ final class StudySession {
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
     var onDisplayed: ((Phase) -> Void)?
+    /// After each answer, undo or deck change, once the next card is up.
+    var onCountsChanged: (() -> Void)?
 
     private let backend: AnkiBackend
     private let reviewer: ReviewerWebController
@@ -466,6 +468,7 @@ final class StudySession {
         self.undoLabel = undoLabel
         counts = (Int(queue.newCount), Int(queue.learningCount), Int(queue.reviewCount))
         self.card = card
+        defer { onCountsChanged?() }
         guard let card else {
             currentQueue = nil
             phase = .finished
