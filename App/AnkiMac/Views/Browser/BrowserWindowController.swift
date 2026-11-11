@@ -18,6 +18,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     private let errorBar = SearchErrorBar()
     private var presentingAlert = false
     private var promptSheet: NSViewController?
+    private var findDuplicates: FindDuplicatesWindowController?
 
     /// Shows the browser, creating it on first use. The first search starts
     /// before the window is built, so the two overlap.
@@ -148,6 +149,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         return selected == 0 ? shown : "\(selected.formatted()) of \(shown) selected"
     }
 
+    func showFindDuplicates() {
+        let controller = findDuplicates ?? FindDuplicatesWindowController(
+            model: FindDuplicatesModel(browser: model) { [weak self] text in
+                self?.sidebar.clearSelection()
+                self?.model.search(text: text)
+            })
+        findDuplicates = controller
+        controller.show(over: window)
+    }
+
     @objc private func searchSubmitted(_ field: NSSearchField) {
         sidebar.clearSelection()
         model.searchText = field.stringValue
@@ -219,6 +230,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     func windowWillClose(_ notification: Notification) {
         editor?.saveNow()
+        findDuplicates?.close()
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }
         Self.current = nil
     }

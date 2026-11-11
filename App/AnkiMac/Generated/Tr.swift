@@ -849,6 +849,18 @@ nonisolated enum Tr {
     static func browsingNoteCount(count: Int) -> String {
         (count == 1 ? (String(describing: count) + " note") : (String(describing: count) + " notes"))
     }
+    static let browsingFindDuplicates = "Find Duplicates"
+    static let browsingTagDuplicates = "Tag Duplicates"
+    static let browsingDuplicate = "duplicate"
+    static func browsingFoundAsAcrossBs(part: String, whole: String) -> String {
+        ("Found " + String(describing: part) + " across " + String(describing: whole) + ".")
+    }
+    static func browsingGroup(count: Int) -> String {
+        (count == 1 ? (String(describing: count) + " group") : (String(describing: count) + " groups"))
+    }
+    static let browsingSearchIn = "Search in:"
+    static let browsingOptionalFilter = "Optional filter:"
+    static let actionsSearch = "Search"
     static let actionsNewName = "New name:"
     static let actionsReposition = "Reposition"
     static let actionsCardInfo = "Card Info"

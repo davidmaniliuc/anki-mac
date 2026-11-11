@@ -87,6 +87,8 @@ enum Theme {
         /// Sheets for the Cards and Notes actions (set due date, change deck...).
         static let sheetWidth: CGFloat = 420
         static let deckListHeight: CGFloat = 260
+        static let findDuplicatesSize = CGSize(width: 531, height: 345)
+        static let findDuplicatesMinSize = CGSize(width: 420, height: 260)
         static let tagSuggestions = 8
         static let editorMinWidth: CGFloat = 260
         static let editorFraction: CGFloat = 0.4
