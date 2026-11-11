@@ -117,13 +117,16 @@ final class AddCardsModel {
         notetypeID id: Int64, copyFrom: (Anki_Notes_Note, [String])? = nil, sticky: Anki_Notes_Note? = nil,
         copying original: Anki_Notes_Note? = nil
     ) async throws {
+        let originalID = original?.id
         let (notetype, fresh, occlusion) = try await backend.perform { backend in
             var notetypeID = Anki_Notetypes_NotetypeId()
             notetypeID.ntid = id
             let notetype = try backend.getNotetype(notetypeID)
             return (
                 notetype, try backend.newNote(notetypeID),
-                NoteEditorModel.occlusionSetup(notetype: notetype, noteID: nil, backend: backend)
+                // A copy starts from the original's masks, as desktop's
+                // Create Copy reads them by the original's id.
+                NoteEditorModel.occlusionSetup(notetype: notetype, noteID: originalID, backend: backend)
             )
         }
         var note = fresh

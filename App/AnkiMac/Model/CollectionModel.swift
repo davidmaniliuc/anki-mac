@@ -44,17 +44,20 @@ nonisolated struct CollectionPaths: Sendable {
     let backups: URL
 
     /// `-CollectionPath /path/to/collection.anki2` on the command line (or the
-    /// same user default) picks the collection; otherwise the app keeps its
-    /// own profile, separate from the official app's.
-    static func resolve() throws -> CollectionPaths {
-        let collection: URL
-        if let path = UserDefaults.standard.string(forKey: "CollectionPath") {
-            collection = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-        } else {
-            let support = try FileManager.default.url(
-                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            collection = support.appending(path: "AnkiMac/User 1/collection.anki2")
+    /// same user default) opens that collection instead of a profile.
+    static var commandLineCollection: URL? {
+        UserDefaults.standard.string(forKey: "CollectionPath").map {
+            URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath)
         }
+    }
+
+    /// A profile's collection, in the app's own data folder, separate from
+    /// the official app's.
+    static func profile(_ name: String) throws -> CollectionPaths {
+        try resolve(try Profiles.folder(name).appending(path: "collection.anki2"))
+    }
+
+    static func resolve(_ collection: URL) throws -> CollectionPaths {
         let folder = collection.deletingLastPathComponent()
         let media = folder.appending(path: "collection.media")
         let backups = folder.appending(path: "backups")
@@ -78,6 +81,13 @@ final class CollectionModel {
     private(set) var reviewerReady = false
 
     private(set) var paths: CollectionPaths?
+    /// Where the open collection's settings and login are kept.
+    private(set) var scope: SettingsScope?
+    /// The open profile; nil before one is open, or for a collection
+    /// opened with `-CollectionPath`.
+    private(set) var profileName: String?
+    /// The main window shows the profiles instead of the decks.
+    var choosingProfile = false
     private(set) var decks: [DeckNode] = []
     private(set) var isLoaded = false
     private(set) var lastRefresh = Date.distantPast
@@ -126,7 +136,7 @@ final class CollectionModel {
     var maintenanceTool: MaintenanceTool?
 
     // Sync account and progress. SyncAuth is kept in the login Keychain item.
-    var syncAuth: Anki_Sync_SyncAuth? = SyncKeychain.load()
+    var syncAuth: Anki_Sync_SyncAuth?
     var syncStatus: Anki_Sync_SyncStatusResponse.Required = .noChanges
     var syncIsRunning = false
     var syncMediaProgress = ""
@@ -137,8 +147,12 @@ final class CollectionModel {
     var syncServerUsn: Int32 = 0
     var syncAlert: String?
     var syncMediaEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: "syncMedia") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "syncMedia") }
+        get { scope?.bool("syncMedia", default: true) ?? true }
+        set { scope?.set(newValue, for: "syncMedia") }
+    }
+    var autoSync: Bool {
+        get { scope?.bool("autoSync", default: true) ?? true }
+        set { scope?.set(newValue, for: "autoSync") }
     }
 
     /// Started at launch, off the main thread, while SwiftUI builds the window.
@@ -157,12 +171,56 @@ final class CollectionModel {
         Self.find(id, in: decks)
     }
 
-    func open() async {
+    /// Opens the collection named on the command line, or the profile
+    /// desktop would: the only one, or else the one opened last. Otherwise
+    /// the profiles show, to pick one.
+    func start() async {
         do {
             let backend = try await backendStartup.value
             self.backend = backend
             BenchDriver.trace("backend_init")
-            let paths = try CollectionPaths.resolve()
+            if let collection = CollectionPaths.commandLineCollection {
+                await open(try CollectionPaths.resolve(collection), scope: .collection(collection.path))
+                return
+            }
+            Profiles.adoptAppSettings()
+            let names = try Profiles.names()
+            if names.count == 1 {
+                await openProfile(names[0])
+            } else if let last = Profiles.lastLoaded, names.contains(last) {
+                await openProfile(last)
+            } else {
+                choosingProfile = true
+            }
+        } catch {
+            errorMessage = "Could not open the collection: \(error)"
+        }
+    }
+
+    /// Opens a profile; if it can't be, the profiles show again, as desktop does.
+    func openProfile(_ name: String) async {
+        do {
+            let paths = try CollectionPaths.profile(name)
+            choosingProfile = false
+            profileName = name
+            await open(paths, scope: .profile(name))
+            if isLoaded {
+                Profiles.lastLoaded = name
+            } else {
+                profileName = nil
+                choosingProfile = true
+            }
+        } catch {
+            errorMessage = "Could not open the collection: \(error)"
+        }
+    }
+
+    private func open(_ paths: CollectionPaths, scope: SettingsScope) async {
+        guard let backend else { return }
+        self.scope = scope
+        syncAuth = SyncKeychain.load(account: scope.key)
+        syncUsername = scope.string("syncUsername") ?? ""
+        do {
             try await backend.perform { backend in
                 var request = Anki_Collection_OpenCollectionRequest()
                 request.collectionPath = paths.collection.path
@@ -180,8 +238,8 @@ final class CollectionModel {
             isLoaded = true
             refreshWhenActivated()
             startPeriodicBackups()
-            Task { await prepareReviewer() }
-            if UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, syncAuth != nil {
+            if !reviewerReady { Task { await prepareReviewer() } }
+            if autoSync, syncAuth != nil, !backupRestored {
                 await synchronize()
             } else {
                 await updateSyncStatus()
@@ -203,24 +261,80 @@ final class CollectionModel {
 
     /// Called on quit. Closing flushes the WAL and releases the file lock.
     func close() {
+        guard let (backend, closing) = beginClosing() else { return }
+        Self.close(closing, backend: backend)
+        paths = nil
+    }
+
+    /// Closes the profile and shows the profiles, as desktop's Switch
+    /// Profile. The other windows close first; one that asks to keep its
+    /// changes keeps the profile open.
+    func switchProfile() async {
+        guard isLoaded, !syncIsRunning, closeOtherWindows() else { return }
+        guard let (backend, closing) = beginClosing() else { return }
+        isLoaded = false
+        try? await backend.perform { Self.close(closing, backend: $0) }
+        paths = nil
+        scope = nil
+        profileName = nil
+        decks = []
+        selectedDeckID = nil
+        session = nil
+        undoState = UndoState()
+        backupRestored = false
+        syncAuth = nil
+        syncUsername = ""
+        syncStatus = .noChanges
+        choosingProfile = true
+    }
+
+    /// The main window, which stays open across profiles.
+    @ObservationIgnored weak var mainWindow: NSWindow?
+
+    private func closeOtherWindows() -> Bool {
+        let others = NSApp.windows.filter {
+            $0 !== mainWindow && $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil
+        }
+        others.forEach { $0.performClose(nil) }
+        return !others.contains(where: \.isVisible)
+    }
+
+    /// What closing needs, taken from the model before it's reset.
+    private struct Closing: Sendable {
+        let paths: CollectionPaths
+        let scope: SettingsScope?
+        let auth: Anki_Sync_SyncAuth?
+        let syncMedia: Bool
+        let backUp: Bool
+    }
+
+    private func beginClosing() -> (AnkiBackend, Closing)? {
         rolloverTask?.cancel()
         activationTask?.cancel()
         backupTask?.cancel()
         session?.stop()
-        guard let paths, let backend else { return }
+        guard let paths, let backend else { return nil }
+        return (
+            backend,
+            Closing(
+                paths: paths, scope: scope, auth: !backupRestored && autoSync ? syncAuth : nil,
+                syncMedia: syncMediaEnabled, backUp: !backupRestored)
+        )
+    }
+
+    nonisolated private static func close(_ closing: Closing, backend: AnkiBackend) {
         // Desktop's unattended close sync only merges when it can do so safely.
         // A full-sync choice needs a person, so leave it for the next launch.
-        if !backupRestored, UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, let auth = syncAuth {
+        if let auth = closing.auth {
             var request = Anki_Sync_SyncCollectionRequest()
             request.auth = auth
             if let response = try? backend.syncCollection(request) {
-                if response.hasNewEndpoint {
+                if response.hasNewEndpoint, let scope = closing.scope {
                     var updated = auth
                     updated.endpoint = response.newEndpoint
-                    syncAuth = updated
-                    SyncKeychain.save(updated)
+                    SyncKeychain.save(updated, account: scope.key)
                 }
-                if response.required != .fullSync, syncMediaEnabled {
+                if response.required != .fullSync, closing.syncMedia {
                     try? backend.syncMedia(auth)
                     while (try? backend.mediaSyncStatus().active) == true {
                         Thread.sleep(forTimeInterval: 0.25)
@@ -228,9 +342,14 @@ final class CollectionModel {
                 }
             }
         }
-        if !backupRestored { _ = try? backend.backUp(.onClose, to: paths.backups) }
+        if closing.backUp { _ = try? backend.backUp(.onClose, to: closing.paths.backups) }
         try? backend.closeCollection(Anki_Collection_CloseCollectionRequest())
-        self.paths = nil
+    }
+
+    /// Saves a login whose endpoint changed.
+    private func saveAuth(_ auth: Anki_Sync_SyncAuth) {
+        syncAuth = auth
+        if let scope { SyncKeychain.save(auth, account: scope.key) }
     }
 
     func updateSyncStatus() async {
@@ -244,8 +363,7 @@ final class CollectionModel {
             if status.hasNewEndpoint {
                 var updated = auth
                 updated.endpoint = status.newEndpoint
-                syncAuth = updated
-                SyncKeychain.save(updated)
+                saveAuth(updated)
             }
         } catch {
             // Status checks are background hints; explicit sync shows errors.
@@ -260,10 +378,9 @@ final class CollectionModel {
             request.password = password
             let loginRequest = request
             let auth = try await backend.perform { try $0.syncLogin(loginRequest) }
-            syncAuth = auth
+            saveAuth(auth)
             syncUsername = request.username
-            SyncKeychain.save(auth)
-            UserDefaults.standard.set(request.username, forKey: "syncUsername")
+            scope?.set(request.username, for: "syncUsername")
             syncLoginPresented = false
             await synchronize()
         } catch {
@@ -275,8 +392,10 @@ final class CollectionModel {
         syncAuth = nil
         syncUsername = ""
         syncStatus = .noChanges
-        SyncKeychain.delete()
-        UserDefaults.standard.removeObject(forKey: "syncUsername")
+        if let scope {
+            SyncKeychain.delete(account: scope.key)
+            scope.set(nil, for: "syncUsername")
+        }
     }
 
     func cancelSync() {
@@ -292,7 +411,7 @@ final class CollectionModel {
     func synchronize() async {
         guard let backend else { return }
         guard let auth = syncAuth else {
-            syncUsername = UserDefaults.standard.string(forKey: "syncUsername") ?? ""
+            syncUsername = scope?.string("syncUsername") ?? ""
             syncLoginPresented = true
             return
         }
@@ -309,8 +428,7 @@ final class CollectionModel {
             if output.hasNewEndpoint {
                 var updated = auth
                 updated.endpoint = output.newEndpoint
-                syncAuth = updated
-                SyncKeychain.save(updated)
+                saveAuth(updated)
             }
             switch output.required {
             case .noChanges, .normalSync:

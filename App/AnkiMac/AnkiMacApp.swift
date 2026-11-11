@@ -15,11 +15,14 @@ struct AnkiMacApp: App {
         Window("AnkiMac", id: "main") {
             ContentView()
                 .environment(model)
+                // Files opened from Finder wait for a profile to open.
+                .onChange(of: model.isLoaded) { _, loaded in
+                    if loaded { appDelegate.openPendingDocuments() }
+                }
                 .task {
                     BenchDriver.trace("first_task")
                     appDelegate.model = model
-                    await model.open()
-                    appDelegate.openPendingDocuments()
+                    await model.start()
                     if let path = UserDefaults.standard.string(forKey: "BenchEventsPath") {
                         bench = BenchDriver(model: model, path: path)
                         bench?.run()
@@ -66,8 +69,8 @@ struct SyncCommands: Commands {
             }
             Divider()
             Toggle("Automatically Sync on Open and Close", isOn: Binding(
-                get: { UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true },
-                set: { UserDefaults.standard.set($0, forKey: "autoSync") }))
+                get: { model.autoSync }, set: { model.autoSync = $0 }))
+                .disabled(!model.isLoaded)
         }
     }
 }
@@ -101,6 +104,9 @@ struct ImportExportCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
+            Button(Tr.qtAccelSwitchProfile) { Task { await model.switchProfile() } }
+                .disabled(!model.isLoaded || model.profileName == nil || model.packageOperationInProgress || model.syncIsRunning)
+            Divider()
             Button(Tr.actionsImport + "…") { model.promptForImport() }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 .disabled(!model.isLoaded || model.packageOperationInProgress)

@@ -5,6 +5,26 @@ struct ContentView: View {
     @Environment(CollectionModel.self) private var model
 
     var body: some View {
+        Group {
+            if model.choosingProfile {
+                ProfilesView()
+                    .frame(minWidth: Theme.Window.minWidth, minHeight: Theme.Window.minHeight)
+            } else {
+                decks
+            }
+        }
+        .background(WindowReader { model.mainWindow = $0 })
+        .alert(
+            "Something went wrong",
+            isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
+    }
+
+    private var decks: some View {
         NavigationSplitView {
             DeckSidebar()
         } detail: {
@@ -22,6 +42,7 @@ struct ContentView: View {
             }
         }
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
+        .navigationSubtitle(model.profileName ?? "")
         // Undo acts on the card being studied, or else on the deck list.
         .focusedSceneValue(\.cardTarget, model.session.map { $0 as any CardCommandTarget } ?? model)
         .frame(minWidth: Theme.Window.minWidth, minHeight: Theme.Window.minHeight)
@@ -55,13 +76,29 @@ struct ContentView: View {
         } message: {
             Text(model.backupMessage ?? "")
         }
-        .alert(
-            "Something went wrong",
-            isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
-        ) {
-            Button("OK") {}
-        } message: {
-            Text(model.errorMessage ?? "")
+    }
+}
+
+/// Hands over the window a view is in, once it's in one.
+private struct WindowReader: NSViewRepresentable {
+    let found: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView { WindowReaderView(found: found) }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class WindowReaderView: NSView {
+        let found: (NSWindow) -> Void
+
+        init(found: @escaping (NSWindow) -> Void) {
+            self.found = found
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { found(window) }
         }
     }
 }
