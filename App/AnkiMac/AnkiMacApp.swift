@@ -129,24 +129,29 @@ struct StudyCommands: Commands {
             Button("Replay Audio") { session?.replayAudio() }
                 .keyboardShortcut("r", modifiers: [])
                 .disabled(session == nil || session?.phase == .finished)
-            Button("Edit Note…") {
-                guard let session, let noteID = session.card?.queued.card.noteID else { return }
-                BrowserWindowController.show(collection: model)
-                BrowserWindowController.current?.model.search(text: "nid:\(noteID)")
+            Button("Edit Note…") { session?.editCurrentNote() }
+                .keyboardShortcut("e", modifiers: [])
+                .disabled(session?.card == nil)
+            Button(Tr.studyingPauseAudio) { session?.toggleAudioPause() }
+                .keyboardShortcut("5", modifiers: [])
+                .disabled(session == nil || session?.phase == .finished)
+            Divider()
+            // Desktop's single keys; the Cards menu has the same actions with Command shortcuts.
+            Group {
+                Button("Suspend Card") { session?.suspendCurrentCard() }.keyboardShortcut("@", modifiers: [])
+                Button("Suspend Note") { session?.suspendCurrentNote() }.keyboardShortcut("!", modifiers: [])
+                Button("Bury Card") { session?.buryCurrentCard() }.keyboardShortcut("-", modifiers: [])
+                Button("Bury Note") { session?.buryCurrentNote() }.keyboardShortcut("=", modifiers: [])
             }
-            .keyboardShortcut("e", modifiers: [])
             .disabled(session?.card == nil)
             Divider()
-            Button("Suspend Card") { session?.suspendCurrentCard() }.keyboardShortcut("@", modifiers: [])
-            Button("Suspend Note") { session?.suspendCurrentNote() }.keyboardShortcut("!", modifiers: [])
-            Button("Bury Card") { session?.buryCurrentCard() }.keyboardShortcut("-", modifiers: [])
-            Button("Bury Note") { session?.buryCurrentNote() }.keyboardShortcut("=", modifiers: [])
-            Button("Forget Card") { session?.forgetCurrentCard() }.keyboardShortcut("n", modifiers: [.control])
-            Button("Delete Note") { session?.deleteCurrentNote() }.keyboardShortcut(.delete, modifiers: [.command])
-            Button("Card Info…") { session?.showCardInfo() }.keyboardShortcut("i", modifiers: [])
-            if let deck = model.selectedDeck {
-                Button("Options…") { model.showOptions(deck) }.keyboardShortcut("o", modifiers: [])
-            }
+            // Card Info lands with the stats-cardinfo branch; this is the call site to wire.
+            Button("Card Info…") { session?.showCardInfo() }
+                .keyboardShortcut("i", modifiers: [])
+                .disabled(session?.card == nil)
+            Button("\(Tr.actionsOptions)…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
+                .keyboardShortcut("o", modifiers: [])
+                .disabled(model.selectedDeck == nil)
             Button("End Session") { model.stopStudying() }
                 .keyboardShortcut(.escape, modifiers: [])
                 .disabled(session == nil)
@@ -186,25 +191,26 @@ struct CardCommands: Commands {
             Toggle("Suspend Card", isOn: Binding { card?.isSuspended ?? false } set: { _ in target?.toggleSuspend() })
                 .keyboardShortcut("j")
                 .disabled(card?.isSuspended == nil)
-            Toggle("Bury Card", isOn: Binding { card?.isBuried ?? false } set: { _ in browser?.toggleBury() })
+            Toggle("Bury Card", isOn: Binding { card?.isBuried ?? false } set: { _ in target?.toggleBury() })
                 .keyboardShortcut("j", modifiers: [.command, .shift])
                 .disabled(card?.isBuried == nil)
             Toggle("Mark Note", isOn: Binding { card?.isMarked ?? false } set: { _ in target?.toggleMark() })
                 .keyboardShortcut("k")
                 .disabled(card == nil)
             Divider()
-            // The browser's own actions; the study screen doesn't offer them yet.
+            Button("Change Deck…") { browser?.askChangeDeck() }
+                .keyboardShortcut("d")
+                .disabled(!hasBrowserSelection)
+            // Both the browser's selection and the card being studied.
             Group {
-                Button("Change Deck…") { browser?.askChangeDeck() }
-                    .keyboardShortcut("d")
-                Button("Set Due Date…") { browser?.askSetDueDate() }
+                Button("Set Due Date…") { target?.askSetDueDate() }
                     .keyboardShortcut("d", modifiers: [.command, .shift])
-                Button("Reset…") { browser?.askForget() }
+                Button("Reset…") { target?.askForget() }
                     .keyboardShortcut("n", modifiers: [.command, .option])
-                Button("Reposition…") { browser?.askReposition() }
+                Button("Reposition…") { target?.askReposition() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
             }
-            .disabled(!hasBrowserSelection)
+            .disabled(!(target?.canScheduleCards ?? false))
             Divider()
             Button("Delete Notes…") { deleteNotes() }
                 .keyboardShortcut(.delete)

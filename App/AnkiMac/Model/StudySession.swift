@@ -66,7 +66,7 @@ final class StudySession {
     private(set) var undoLabel = ""
     var canUndo: Bool { !undoLabel.isEmpty }
     var errorMessage: String?
-    var feedbackMessage: String?
+    private(set) var audioPaused = false
     /// Called once a question, an answer or the end of the session is on
     /// screen. Used by the bench driver.
     var onDisplayed: ((Phase) -> Void)?
@@ -223,56 +223,211 @@ final class StudySession {
         audio.play(tags, mediaFolder: folder)
     }
 
-    func suspendCurrentCard() { changeScheduling(mode: .suspend, note: false, message: "Card suspended.") }
-    func suspendCurrentNote() { changeScheduling(mode: .suspend, note: true, message: "Note suspended.") }
-    func buryCurrentCard() { changeScheduling(mode: .buryUser, note: false, message: "Card buried.") }
-    func buryCurrentNote() { changeScheduling(mode: .buryUser, note: true, message: "Note buried.") }
+    // MARK: Card actions, as desktop's reviewer offers them
 
-    private func changeScheduling(mode: Anki_Scheduler_BuryOrSuspendCardsRequest.Mode, note: Bool, message: String) {
+    func suspendCurrentCard() { changeCard { try Self.suspend($0, backend: $1, note: false) } }
+    func suspendCurrentNote() { changeCard { try Self.suspend($0, backend: $1, note: true) } }
+    func buryCurrentCard() { changeCard { try Self.bury($0, backend: $1, note: false) } }
+    func buryCurrentNote() { changeCard { try Self.bury($0, backend: $1, note: true) } }
+
+    func deleteCurrentNote() {
+        changeCard { card, backend in
+            var request = Anki_Notes_RemoveNotesRequest()
+            request.noteIds = [card.noteID]
+            return Tr.browsingCardsDeleted(count: Int(try backend.removeNotes(request).count))
+        }
+    }
+
+    /// Runs `change` on the card on screen, then shows the next one with
+    /// the message it returns as feedback. Every such change is undoable.
+    private func changeCard(
+        _ change: @escaping @Sendable (Anki_Cards_Card, AnkiBackend) throws -> String
+    ) {
         guard let card, !busy else { return }
         busy = true
         audio.stop()
         let ids = card.queued.card
         Task {
-            await loadNext { backend in
-                var request = Anki_Scheduler_BuryOrSuspendCardsRequest()
-                request.mode = mode
-                if note { request.noteIds = [ids.noteID] } else { request.cardIds = [ids.id] }
-                _ = try backend.buryOrSuspendCards(request)
-            }
-            if self.errorMessage == nil { self.feedbackMessage = message }
+            let message = Box<String>()
+            await loadNext { backend in message.value = try change(ids, backend) }
+            if let text = message.value { showFeedback(text) }
         }
     }
 
-    func forgetCurrentCard() {
-        guard let card, !busy else { return }
+    nonisolated private static func suspend(_ card: Anki_Cards_Card, backend: AnkiBackend, note: Bool) throws -> String {
+        var request = Anki_Scheduler_BuryOrSuspendCardsRequest()
+        request.mode = .suspend
+        if note { request.noteIds = [card.noteID] } else { request.cardIds = [card.id] }
+        _ = try backend.buryOrSuspendCards(request)
+        return note ? Tr.studyingNoteSuspended : Tr.studyingCardSuspended
+    }
+
+    nonisolated private static func bury(_ card: Anki_Cards_Card, backend: AnkiBackend, note: Bool) throws -> String {
+        var request = Anki_Scheduler_BuryOrSuspendCardsRequest()
+        request.mode = .buryUser
+        if note { request.noteIds = [card.noteID] } else { request.cardIds = [card.id] }
+        return Tr.studyingCardsBuried(count: Int(try backend.buryOrSuspendCards(request).count))
+    }
+
+    /// Integration point for the Card Info window being built on the
+    /// stats-cardinfo branch.
+    func showCardInfo() {
+        // Card Info lands with the stats-cardinfo branch
+    }
+
+    func toggleAudioPause() {
+        audioPaused.toggle()
+        if audioPaused { audio.pause() } else { audio.resume() }
+    }
+
+    // MARK: Prompts: Set Due Date, Reset and Reposition
+
+    /// The question being asked about the card on screen, shown as a sheet.
+    enum Prompt: Identifiable {
+        case setDueDate(days: String)
+        case forget(restorePosition: Bool, resetCounts: Bool)
+        case reposition(queueTop: Int, queueBottom: Int, randomize: Bool, shift: Bool)
+
+        var id: String {
+            switch self {
+            case .setDueDate: "setDueDate"
+            case .forget: "forget"
+            case .reposition: "reposition"
+            }
+        }
+    }
+
+    var prompt: Prompt?
+
+    var canScheduleCards: Bool { card != nil && !busy }
+
+    func askSetDueDate() {
+        guard canScheduleCards else { return }
+        ask { backend in
+            var key = Anki_Config_GetConfigStringRequest()
+            key.key = .setDueReviewer
+            return .setDueDate(days: try backend.getConfigString(key).val)
+        }
+    }
+
+    func askForget() {
+        guard canScheduleCards else { return }
+        ask { backend in
+            var request = Anki_Scheduler_ScheduleCardsAsNewDefaultsRequest()
+            request.context = .reviewer
+            let defaults = try backend.scheduleCardsAsNewDefaults(request)
+            return .forget(restorePosition: defaults.restorePosition, resetCounts: defaults.resetCounts)
+        }
+    }
+
+    /// Only new cards can move, so the item does nothing for the others.
+    func askReposition() {
+        guard canScheduleCards, currentQueue == .new else { return }
+        ask { backend in
+            let defaults = try backend.repositionDefaults()
+            let query: [String: Any] = [
+                "kind": "query", "sql": "select min(due), max(due) from cards where type = 0 and odid = 0",
+                "args": [], "first_row_only": true,
+            ]
+            let reply = try backend.dbCommand(try JSONSerialization.data(withJSONObject: query))
+            let row = (try JSONSerialization.jsonObject(with: reply) as? [[Any]])?.first ?? []
+            return .reposition(
+                queueTop: max(row.first as? Int ?? 0, 0), queueBottom: row.dropFirst().first as? Int ?? 0,
+                randomize: defaults.random, shift: defaults.shift)
+        }
+    }
+
+    private func ask(_ gather: @escaping @Sendable (AnkiBackend) throws -> Prompt) {
+        Task { prompt = await run(gather) }
+    }
+
+    func setDueDate(days: String) {
+        prompt = nil
+        guard days.trimmingCharacters(in: .whitespaces).isEmpty == false else { return }
+        changeCard { card, backend in
+            var request = Anki_Scheduler_SetDueDateRequest()
+            request.cardIds = [card.id]
+            request.days = days
+            request.configKey.key = .setDueReviewer
+            _ = try backend.setDueDate(request)
+            return Tr.schedulingSetDueDateDone(cards: 1)
+        }
+    }
+
+    func forget(restorePosition: Bool, resetCounts: Bool) {
+        prompt = nil
+        changeCard { card, backend in
+            var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
+            request.cardIds = [card.id]
+            request.log = true
+            request.restorePosition = restorePosition
+            request.resetCounts = resetCounts
+            request.context = .reviewer
+            _ = try backend.scheduleCardsAsNew(request)
+            return Tr.schedulingForgotCards(cards: 1)
+        }
+    }
+
+    func reposition(start: Int, step: Int, randomize: Bool, shift: Bool) {
+        prompt = nil
+        changeCard { card, backend in
+            var request = Anki_Scheduler_SortCardsRequest()
+            request.cardIds = [card.id]
+            request.startingFrom = UInt32(max(start, 0))
+            request.stepSize = UInt32(max(step, 1))
+            request.randomize = randomize
+            request.shiftExisting = shift
+            _ = try backend.sortCards(request)
+            return Tr.actionsReposition
+        }
+    }
+
+    // MARK: Editing the note
+
+    /// The note editor sheet, while the current note is being edited.
+    var editor: StudyEditModel?
+
+    func editCurrentNote() {
+        guard let card, editor == nil else { return }
+        audio.stop()
+        let noteID = card.queued.card.noteID
+        let mediaFolder = reviewer.mediaFolder
+        let backend = backend
+        Task {
+            let model = StudyEditModel(backend: backend, mediaFolder: mediaFolder)
+            if await model.load(noteID: noteID) { editor = model }
+        }
+    }
+
+    /// The editor closed: after Save, the card is rendered again from the changed note.
+    func finishEditing(save: Bool) {
+        guard let editor else { return }
+        self.editor = nil
+        guard save, !busy, let note = editor.changedNote() else { return }
         busy = true
-        let id = card.queued.card.id
         Task {
             await loadNext { backend in
-                var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
-                request.cardIds = [id]
-                request.context = .reviewer
-                _ = try backend.scheduleCardsAsNew(request)
+                var request = Anki_Notes_UpdateNotesRequest()
+                request.notes = [note]
+                _ = try backend.updateNotes(request)
             }
         }
     }
 
-    func deleteCurrentNote() {
-        guard let card, !busy else { return }
-        busy = true
-        let id = card.queued.card.noteID
-        Task {
-            await loadNext { backend in
-                var request = Anki_Notes_RemoveNotesRequest()
-                request.noteIds = [id]
-                _ = try backend.removeNotes(request)
-            }
+    // MARK: Feedback
+
+    /// A short message shown over the card for a moment, as desktop's tooltip.
+    private(set) var feedback: String?
+    @ObservationIgnored private var feedbackTask: Task<Void, Never>?
+
+    func showFeedback(_ text: String) {
+        feedback = text
+        feedbackTask?.cancel()
+        feedbackTask = Task {
+            try? await Task.sleep(for: Theme.Study.feedbackDuration)
+            if !Task.isCancelled { feedback = nil }
         }
     }
-
-    /// Integration point for the Card Info window being added by another worker.
-    func showCardInfo() {}
 
     // MARK: -
 
@@ -404,5 +559,16 @@ nonisolated final class DeckOptionsCache: @unchecked Sendable {
 
     func removeAll() {
         lock.withLock { options.removeAll() }
+    }
+}
+
+/// A value the background work hands back to the main actor.
+nonisolated final class Box<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value?
+
+    var value: Value? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

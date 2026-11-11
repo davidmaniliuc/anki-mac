@@ -68,9 +68,24 @@ struct StudyView: View {
         } message: {
             Text(session?.errorMessage ?? "")
         }
-        .alert("", isPresented: Binding { session?.feedbackMessage != nil } set: { if !$0 { session?.feedbackMessage = nil } }) {
-            Button("OK") { session?.feedbackMessage = nil }
-        } message: { Text(session?.feedbackMessage ?? "") }
+        .overlay(alignment: .bottom) {
+            if let feedback = session?.feedback {
+                Text(feedback)
+                    .padding(.horizontal, Theme.Spacing.medium)
+                    .padding(.vertical, Theme.Spacing.small)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, Theme.Study.feedbackBottomInset)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+        .animation(.default, value: session?.feedback)
+        .sheet(item: Binding { session?.prompt } set: { session?.prompt = $0 }) { prompt in
+            if let session { StudyPromptSheet(prompt: prompt, session: session) }
+        }
+        .sheet(item: Binding { session?.editor } set: { if $0 == nil { session?.finishEditing(save: false) } }) { editor in
+            if let session { StudyEditSheet(model: editor, session: session) }
+        }
         .onChange(of: colorScheme, initial: true) { _, scheme in
             model.reviewer.setNightMode(scheme == .dark)
         }
@@ -124,13 +139,13 @@ struct StudyView: View {
             return true
         }
         guard let session else { return false }
-        if modifiers.isEmpty, key == "e" { editCurrentNote(session); return true }
+        if modifiers.isEmpty, key == "e" { session.editCurrentNote(); return true }
         if modifiers.isEmpty, key == "@" { session.suspendCurrentCard(); return true }
         if modifiers.isEmpty, key == "!" { session.suspendCurrentNote(); return true }
         if modifiers.isEmpty, key == "-" { session.buryCurrentCard(); return true }
         if modifiers.isEmpty, key == "=" { session.buryCurrentNote(); return true }
-        if modifiers == .command, key == "\u{8}" { session.deleteCurrentNote(); return true }
-        if modifiers == .control, key == "n" { session.forgetCurrentCard(); return true }
+                if modifiers == [.command, .option], key == "n" { session.askForget(); return true }
+        if modifiers == [.command, .shift], key == "d" { session.askSetDueDate(); return true }
         if modifiers.isEmpty, key == "i" { session.showCardInfo(); return true }
         if modifiers == .command, key == "z" {
             session.undo()
@@ -152,6 +167,8 @@ struct StudyView: View {
             session.answer(Rating(rawValue: Int(key)! - 1)!)
         case (.question, "r"), (.answer, "r"):
             session.replayAudio()
+        case (.question, "5"), (.answer, "5"):
+            session.toggleAudioPause()
         case (.question, "*"), (.answer, "*"):
             session.toggleMark()
         case (_, "\u{1b}"):
@@ -164,25 +181,24 @@ struct StudyView: View {
 
     @ViewBuilder private var reviewerActions: some View {
         if let session {
-            Button("Edit Note…") { editCurrentNote(session) }.keyboardShortcut("e", modifiers: [])
+            Button("Edit Note…") { session.editCurrentNote() }
             Divider()
-            Button("Suspend Card") { session.suspendCurrentCard() }.keyboardShortcut("@", modifiers: [])
-            Button("Suspend Note") { session.suspendCurrentNote() }.keyboardShortcut("!", modifiers: [])
-            Button("Bury Card") { session.buryCurrentCard() }.keyboardShortcut("-", modifiers: [])
-            Button("Bury Note") { session.buryCurrentNote() }.keyboardShortcut("=", modifiers: [])
-            Button("Forget Card") { session.forgetCurrentCard() }.keyboardShortcut("n", modifiers: [.control])
-            Button("Delete Note") { session.deleteCurrentNote() }.keyboardShortcut(.delete, modifiers: [.command])
+            Button("Suspend Card") { session.suspendCurrentCard() }
+            Button("Suspend Note") { session.suspendCurrentNote() }
+            Button("Bury Card") { session.buryCurrentCard() }
+            Button("Bury Note") { session.buryCurrentNote() }
             Divider()
-            Button("Card Info…") { session.showCardInfo() }.keyboardShortcut("i", modifiers: [])
-            Button("Options…") { if let deck = model.selectedDeck { model.showOptions(deck) } }.keyboardShortcut("o", modifiers: [])
-            Button("Replay Audio") { session.replayAudio() }.keyboardShortcut("r", modifiers: [])
+            Button(Tr.actionsSetDueDate + "…") { session.askSetDueDate() }
+            Button(Tr.actionsForgetCard + "…") { session.askForget() }
+            Button(Tr.actionsReposition + "…") { session.askReposition() }
+                .disabled(session.currentQueue != .new)
+            Button(Tr.studyingDeleteNote) { session.deleteCurrentNote() }
+            Divider()
+            Button("Card Info…") { session.showCardInfo() }
+            Button(Tr.actionsOptions + "…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
+            Button("Replay Audio") { session.replayAudio() }
+            Button(Tr.studyingPauseAudio) { session.toggleAudioPause() }
         }
-    }
-
-    private func editCurrentNote(_ session: StudySession) {
-        guard let noteID = session.card?.queued.card.noteID else { return }
-        BrowserWindowController.show(collection: model)
-        BrowserWindowController.current?.model.search(text: "nid:\(noteID)")
     }
 }
 
@@ -219,7 +235,7 @@ private struct AnswerBar: View {
         .padding(.vertical, Theme.Study.barPadding)
         .padding(.horizontal, Theme.Spacing.large)
         .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     @ViewBuilder private var buttons: some View {
