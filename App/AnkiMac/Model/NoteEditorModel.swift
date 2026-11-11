@@ -165,6 +165,15 @@ final class NoteEditorModel {
         return try? backend.addMediaFile(request).val
     }
 
+    /// Copies a file into the media folder, as desktop's Attach does, and
+    /// returns the name the backend chose.
+    func addMedia(fromPath path: String) async throws -> String {
+        var request = Anki_Media_AddMediaFromPathRequest()
+        request.path = path
+        let sent = request
+        return try await backend.perform { try $0.addMediaFromPath(sent).val }
+    }
+
     /// Downloads a pasted image or sound into the media folder, as
     /// desktop's paste does. Returns the file name, or the error to show.
     func addMedia(fromURL url: String) async -> Result<String, MediaDownloadError> {

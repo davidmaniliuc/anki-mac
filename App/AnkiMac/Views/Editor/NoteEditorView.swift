@@ -194,6 +194,25 @@ struct FormatBar: View {
                 Label("Cloze Deletion", systemImage: "ellipsis.curlybraces")
             }
             .help("Cloze Deletion (\u{2318}\u{21E7}C)")
+            Button {
+                send(#selector(FieldTextView.attachMedia(_:)))
+            } label: {
+                Label(Tr.editingAttachPicturesaudiovideo, systemImage: "paperclip")
+            }
+            .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
+            Button {
+                send(#selector(FieldTextView.recordAudio(_:)))
+            } label: {
+                Label(Tr.editingRecordAudio, systemImage: "mic")
+            }
+            .help("\(Tr.editingRecordAudio) (F5)")
+            Menu {
+                EquationButtons(send: { send($0) })
+            } label: {
+                Label(Tr.editingEquations, systemImage: "function")
+            }
+            .menuIndicator(.hidden)
+            .help(Tr.editingEquations)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .labelStyle(.iconOnly)
@@ -242,12 +261,6 @@ struct FormatBar: View {
         field.window?.makeFirstResponder(field)
         NSApp.sendAction(action, to: field, from: sender)
     }
-}
-
-/// "MathJax inline" as a menu item's title: "Inline".
-private func sentenceCase(_ title: String) -> String {
-    let word = title.split(separator: " ").last.map(String.init) ?? title
-    return word.prefix(1).uppercased() + word.dropFirst()
 }
 
 func applyColor(_ kind: ColorKind) {
@@ -308,7 +321,7 @@ struct FormatCommands: Commands {
             format(.subscript, "Subscript", "=")
             Divider()
             Button("Text Color") { applyColor(.text) }
-                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF7FunctionKey)!)), modifiers: [])
+                .keyboardShortcut(functionKey(NSF7FunctionKey), modifiers: [])
             Button("Highlight Color") { applyColor(.highlight) }
             Divider()
             Button("Remove Formatting") { send(#selector(FieldTextView.removeFieldFormatting(_:))) }
@@ -319,15 +332,22 @@ struct FormatCommands: Commands {
             Button("Cloze Deletion, Same Number") { send(#selector(FieldTextView.insertClozeSameNumber(_:))) }
                 .keyboardShortcut("c", modifiers: [.command, .option, .shift])
             Divider()
-            Menu("MathJax") {
-                Button(sentenceCase(Tr.editingMathjaxInline)) { send(#selector(FieldTextView.insertMathInline(_:))) }
-                Button(sentenceCase(Tr.editingMathjaxBlock)) { send(#selector(FieldTextView.insertMathBlock(_:))) }
-                Button(sentenceCase(Tr.editingMathjaxChemistry)) { send(#selector(FieldTextView.insertMathChemistry(_:))) }
+            Button(Tr.editingAttachPicturesaudiovideo) { send(#selector(FieldTextView.attachMedia(_:))) }
+                .keyboardShortcut(functionKey(NSF3FunctionKey), modifiers: [])
+            Button(Tr.editingRecordAudio) { send(#selector(FieldTextView.recordAudio(_:))) }
+                .keyboardShortcut(functionKey(NSF5FunctionKey), modifiers: [])
+            Divider()
+            Menu(Tr.editingEquations) {
+                EquationButtons(send: { send($0) })
             }
             Divider()
             Button("Show HTML") { send(#selector(FieldTextView.toggleHTMLSource(_:))) }
                 .keyboardShortcut("x", modifiers: [.command, .shift])
         }
+    }
+
+    private func functionKey(_ code: Int) -> KeyEquivalent {
+        KeyEquivalent(Character(UnicodeScalar(code)!))
     }
 
     private func format(

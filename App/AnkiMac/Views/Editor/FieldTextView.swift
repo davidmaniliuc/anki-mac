@@ -1,3 +1,4 @@
+import AnkiKit
 import AppKit
 import FieldEditor
 import SwiftUI
@@ -10,6 +11,11 @@ final class FieldTextView: NSTextView {
     weak var editor: NoteEditorModel?
     var mathPopover: NSPopover?
     var mathPendingCommit: (() -> Void)?
+    /// The Control key press that starts a two-key Equations shortcut,
+    /// held until the second key arrives.
+    private var pendingChord: (prefix: Character, event: NSEvent)?
+    private static let chordTimeout: TimeInterval = 1.5
+    private static var isRecording = false
     private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
 
     private var document: FieldDocument { field.document }
@@ -42,6 +48,7 @@ final class FieldTextView: NSTextView {
     func show(_ field: EditorField) {
         guard self.field !== field else { return }
         self.field = field
+        pendingChord = nil
         layoutManager?.replaceTextStorage(field.storage)
         baseWritingDirection = field.rightToLeft ? .rightToLeft : .natural
         typingAttributes = FieldDocument.cleanTypingAttributes(
@@ -53,6 +60,11 @@ final class FieldTextView: NSTextView {
         let became = super.becomeFirstResponder()
         if became { editor?.focusedView = self }
         return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        pendingChord = nil
+        return super.resignFirstResponder()
     }
 
     // MARK: Editing rules
@@ -87,6 +99,7 @@ final class FieldTextView: NSTextView {
     /// Clicking MathJax opens its editor; double-clicking a table or other
     /// chip opens the field's HTML.
     override func mouseDown(with event: NSEvent) {
+        pendingChord = nil
         if event.clickCount == 1, let index = characterIndex(at: convert(event.locationInWindow, from: nil)),
             textStorage?.attribute(.fieldMath, at: index, effectiveRange: nil) != nil
         {
@@ -160,17 +173,54 @@ final class FieldTextView: NSTextView {
     }
 
     private func wrapCloze(number: Int) {
+        wrap("{{c\(number)::", "}}")
+    }
+
+    /// The selection between two tags; with nothing selected, the cursor
+    /// lands between them.
+    private func wrap(_ front: String, _ back: String) {
         let range = selectedRange()
         guard let storage = textStorage else { return }
         let selected = storage.attributedSubstring(from: range)
         let attributes = FieldDocument.cleanTypingAttributes(typingAttributes)
-        let wrapped = NSMutableAttributedString(string: "{{c\(number)::", attributes: attributes)
+        let wrapped = NSMutableAttributedString(string: front, attributes: attributes)
         wrapped.append(selected)
-        wrapped.append(NSAttributedString(string: "}}", attributes: attributes))
+        wrapped.append(NSAttributedString(string: back, attributes: attributes))
         guard shouldChangeText(in: range, replacementString: wrapped.string) else { return }
         storage.replaceCharacters(in: range, with: wrapped)
         didChangeText()
-        setSelectedRange(NSRange(location: range.location + wrapped.length - (range.length == 0 ? 2 : 0), length: 0))
+        setSelectedRange(
+            NSRange(location: range.location + wrapped.length - (range.length == 0 ? back.utf16.count : 0), length: 0))
+    }
+
+    @objc func insertLatex(_ sender: Any?) { wrap("[latex]", "[/latex]") }
+    @objc func insertLatexEquation(_ sender: Any?) { wrap("[$]", "[/$]") }
+    @objc func insertLatexMathEnv(_ sender: Any?) { wrap("[$$]", "[/$$]") }
+
+    /// Desktop's Control-M and Control-T shortcuts take a second key within
+    /// a moment. Any other key, or a late one, drops the shortcut. Control-T
+    /// and Control-M still do what they do in any text field when no chord
+    /// follows, so the held press is replayed.
+    override func keyDown(with event: NSEvent) {
+        let key = event.charactersIgnoringModifiers?.lowercased().first
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control])
+        if let held = pendingChord {
+            pendingChord = nil
+            if event.timestamp - held.event.timestamp <= Self.chordTimeout {
+                if modifiers.isEmpty,
+                    let item = EquationItem.allCases.first(where: { $0.chord.prefix == held.prefix && $0.chord.key == key })
+                {
+                    NSApp.sendAction(item.action, to: self, from: nil)
+                    return
+                }
+                super.keyDown(with: held.event)
+            }
+        }
+        if modifiers == .control, let key, EquationItem.chordPrefixes.contains(key) {
+            pendingChord = (key, event)
+            return
+        }
+        super.keyDown(with: event)
     }
 
     @objc func toggleHTMLSource(_ sender: Any?) {
@@ -285,8 +335,7 @@ final class FieldTextView: NSTextView {
         Task {
             switch await editor.addMedia(fromURL: url) {
             case .success(let name):
-                let image = UTType(filenameExtension: (name as NSString).pathExtension)?.conforms(to: .image) ?? false
-                insertHTML(image ? "<img src=\"\(Self.escapeAttribute(name))\">" : "[sound:\(escapeHTMLText(name))]")
+                insertHTML(Self.mediaTag(forFile: name) ?? "")
             case .failure(let error):
                 showError(error.message)
                 insertHTML(link)
@@ -300,11 +349,13 @@ final class FieldTextView: NSTextView {
         if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
     }
 
-    /// Desktop's image and audio suffixes for pasted links.
-    private static let mediaSuffixes = [
-        "jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif", "3gp", "aac", "avi", "flac", "flv", "m4a", "mkv",
-        "mov", "mp3", "mp4", "mpeg", "mpg", "oga", "ogg", "ogv", "ogx", "opus", "spx", "swf", "wav", "webm",
+    /// Desktop's image and audio suffixes, for pasted links and Attach.
+    private static let imageSuffixes = ["jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif"]
+    private static let audioSuffixes = [
+        "3gp", "aac", "avi", "flac", "flv", "m4a", "mkv", "mov", "mp3", "mp4", "mpeg", "mpg", "oga", "ogg", "ogv", "ogx",
+        "opus", "spx", "swf", "wav", "webm",
     ]
+    private static let mediaSuffixes = imageSuffixes + audioSuffixes
 
     private static func isRemote(_ src: String) -> Bool {
         let lower = src.lowercased()
@@ -319,10 +370,81 @@ final class FieldTextView: NSTextView {
     private func mediaReference(_ url: URL) -> String? {
         guard let data = try? Data(contentsOf: url), let name = editor?.addMedia(data, preferredName: url.lastPathComponent)
         else { return nil }
-        let type = UTType(filenameExtension: url.pathExtension)
-        if type?.conforms(to: .image) ?? false { return "<img src=\"\(Self.escapeAttribute(name))\">" }
-        if type?.conforms(to: .audiovisualContent) ?? false { return "[sound:\(name)]" }
+        return Self.mediaTag(forFile: name)
+    }
+
+    /// An image's `<img>` or a sound's `[sound:]`, as desktop's `filenameToLink`.
+    private static func mediaTag(forFile name: String) -> String? {
+        let ext = (name as NSString).pathExtension.lowercased()
+        let type = UTType(filenameExtension: ext)
+        if imageSuffixes.contains(ext) || type?.conforms(to: .image) ?? false {
+            return "<img src=\"\(escapeAttribute(name))\">"
+        }
+        if audioSuffixes.contains(ext) || type?.conforms(to: .audiovisualContent) ?? false {
+            return "[sound:\(escapeHTMLText(name))]"
+        }
         return nil
+    }
+
+    /// F3 and the paperclip: pick a picture, sound or video and put it in
+    /// the field at the cursor.
+    @objc func attachMedia(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.title = Tr.editingAddMedia
+        panel.allowedContentTypes = Self.mediaSuffixes.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let path = panel.url?.path else { return }
+            guard let self else { return }
+            let field = self.field!
+            Task { await self.insertMedia(fromPath: path, into: field) }
+        }
+    }
+
+    /// Copies a file into the media folder and inserts its tag, unless the
+    /// view has moved on to another note's field meanwhile.
+    private func insertMedia(fromPath path: String, into target: EditorField) async {
+        guard let editor else { return }
+        do {
+            let name = try await editor.addMedia(fromPath: path)
+            guard field === target else { return }
+            window?.makeFirstResponder(self)
+            if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
+        } catch {
+            showError((error as? AnkiError)?.message ?? String(describing: error))
+        }
+    }
+
+    /// F5 and the microphone: record to a file, then insert it as a sound.
+    /// One recording at a time. The sound goes into the field that was
+    /// focused when recording began; if the view shows another note's field
+    /// by the time the microphone is ready, the recording is dropped.
+    @objc func recordAudio(_ sender: Any?) {
+        guard let window, !Self.isRecording else { return }
+        Self.isRecording = true
+        let target = field!
+        Task { [weak self] in
+            do {
+                let recording = try await AudioRecording.start()
+                guard let self, self.field === target else {
+                    recording.discard()
+                    Self.isRecording = false
+                    return
+                }
+                RecordingSheet.present(recording, over: window) { [weak self] url in
+                    Self.isRecording = false
+                    guard let url else { return }
+                    Task {
+                        await self?.insertMedia(fromPath: url.path, into: target)
+                        recording.cleanUp()
+                    }
+                }
+            } catch {
+                Self.isRecording = false
+                self?.showError(Tr.qtMiscUnableToRecord(error: error.localizedDescription))
+            }
+        }
     }
 
     private func insertHTML(_ html: String) {
