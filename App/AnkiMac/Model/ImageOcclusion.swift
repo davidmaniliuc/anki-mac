@@ -30,6 +30,9 @@ struct OcclusionShape: Hashable {
         if case .text = geometry { true } else { false }
     }
 
+    /// The colour it's drawn in.
+    var shownFill: String { fill ?? (isText ? Self.textColor : Self.maskColor) }
+
     var kind: String {
         switch geometry {
         case .rect: "rect"

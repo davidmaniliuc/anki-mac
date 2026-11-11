@@ -285,6 +285,18 @@ EXTRA = [
     "actions-set-due-date",
     "actions-forget-card",
     "actions-options",
+    "profiles-open",
+    "profiles-open-backup",
+    "profiles-profiles",
+    "profiles-quit",
+    "profiles-user-1",
+    "profiles-downgrade-and-quit",
+    "profiles-anki-could-not-rename-your-profile",
+    "qt-misc-name-exists",
+    "qt-misc-there-must-be-at-least-one",
+    "qt-misc-all-cards-notes-and-media-for2",
+    "qt-misc-the-following-character-can-not-be",
+    "qt-accel-switch-profile",
     "profiles-backup-created",
     "profiles-backup-unchanged",
     "profiles-backup-creation-failed",
@@ -339,6 +351,14 @@ EXTRA = [
     "editing-image-occlusion-group",
     "editing-image-occlusion-ungroup",
     "editing-image-occlusion-select-all",
+    "editing-image-occlusion-fill-tool",
+    "editing-image-occlusion-alignment",
+    "editing-image-occlusion-align-left",
+    "editing-image-occlusion-align-h-center",
+    "editing-image-occlusion-align-right",
+    "editing-image-occlusion-align-top",
+    "editing-image-occlusion-align-v-center",
+    "editing-image-occlusion-align-bottom",
     "editing-no-image-found-on-clipboard",
     "notetypes-occlusion-mask",
     "notetypes-occlusion-note",
@@ -520,6 +540,7 @@ class Compiler:
         name = camel(key)
         if key.startswith("qt-accel-"):
             expr = expr.replace("&", "", 1)  # the Qt menu mnemonic
+        expr = expr.replace("&&", "&")  # Qt's escaped ampersand on a button
         if not all_vars:
             return f"    static let {name} = {expr}"
         params = ", ".join(f"{camel(v)}: {'some TrNumber' if v in plural_vars else 'String'}" for v in all_vars)

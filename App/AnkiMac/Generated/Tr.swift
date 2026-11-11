@@ -1328,6 +1328,22 @@ nonisolated enum Tr {
     static let actionsSetDueDate = "Set Due Date"
     static let actionsForgetCard = "Reset Card"
     static let actionsOptions = "Options"
+    static let profilesOpen = "Open"
+    static let profilesOpenBackup = "Open Backup..."
+    static let profilesProfiles = "Profiles"
+    static let profilesQuit = "Quit"
+    static let profilesUser1 = "User 1"
+    static let profilesDowngradeAndQuit = "Downgrade & Quit"
+    static let profilesAnkiCouldNotRenameYourProfile = "Anki could not rename your profile because it could not rename the profile folder on disk. Please ensure you have permission to write to Documents/Anki and no other programs are accessing your profile folders, then try again."
+    static let qtMiscNameExists = "Name exists."
+    static let qtMiscThereMustBeAtLeastOne = "There must be at least one profile."
+    static func qtMiscAllCardsNotesAndMediaFor2(name: String) -> String {
+        ("All cards, notes, and media for the profile \"" + name + "\" will be deleted. Are you sure?")
+    }
+    static func qtMiscTheFollowingCharacterCanNotBe(val: String) -> String {
+        ("The following character can not be used: " + val)
+    }
+    static let qtAccelSwitchProfile = "Switch Profile"
     static let profilesBackupCreated = "Backup created."
     static let profilesBackupUnchanged = "No changes since latest backup."
     static func profilesBackupCreationFailed(reason: String) -> String {
@@ -1384,6 +1400,14 @@ nonisolated enum Tr {
     static let editingImageOcclusionGroup = "Group Selection"
     static let editingImageOcclusionUngroup = "Ungroup Selection"
     static let editingImageOcclusionSelectAll = "Select All"
+    static let editingImageOcclusionFillTool = "Fill with colour"
+    static let editingImageOcclusionAlignment = "Alignment"
+    static let editingImageOcclusionAlignLeft = "Align Left"
+    static let editingImageOcclusionAlignHCenter = "Align Horizontal Centers"
+    static let editingImageOcclusionAlignRight = "Align Right"
+    static let editingImageOcclusionAlignTop = "Align Top"
+    static let editingImageOcclusionAlignVCenter = "Align Vertical Centers"
+    static let editingImageOcclusionAlignBottom = "Align Bottom"
     static let editingNoImageFoundOnClipboard = "No image found on clipboard."
     static let notetypesOcclusionMask = "Mask"
     static let notetypesOcclusionNote = "Note"

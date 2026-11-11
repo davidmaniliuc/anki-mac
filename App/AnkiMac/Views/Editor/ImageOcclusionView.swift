@@ -44,6 +44,12 @@ struct ImageOcclusionView: View {
         }
         .controlSize(.large)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first(where: \.isImageFile) else { return false }
+            editor.useImage(at: url)
+            return true
+        }
     }
 
     private func chooseImage() {
@@ -66,6 +72,9 @@ struct ImageOcclusionView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
+            ColorPicker(Tr.editingImageOcclusionFillTool, selection: fillColor, supportsOpacity: false)
+                .labelsHidden()
+                .help(Tr.editingImageOcclusionFillTool)
             ControlGroup {
                 button(Tr.undoUndo, "arrow.uturn.backward", "\u{2318}Z", disabled: editor.undoStack.isEmpty) {
                     editor.undo()
@@ -104,6 +113,20 @@ struct ImageOcclusionView: View {
                 button(Tr.editingImageOcclusionSelectAll, "checkmark.rectangle.stack", "A") { editor.selectAll() }
             }
             .fixedSize()
+            Menu {
+                ForEach(MaskCanvasView.Alignment.allCases, id: \.self) { alignment in
+                    // The canvas takes the Shift shortcuts, so typing in a field never aligns.
+                    Button("\(alignment.title) (\u{21E7}\(alignment.key.uppercased()))", systemImage: alignment.symbol) {
+                        editor.canvas?.align(alignment)
+                    }
+                }
+            } label: {
+                Label(Tr.editingImageOcclusionAlignment, systemImage: "align.horizontal.center")
+            }
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(editor.selection.isEmpty)
+            .help(Tr.editingImageOcclusionAlignment)
             Spacer(minLength: 0)
             Picker(Tr.editingImageOcclusionMode, selection: Binding { editor.occludeInactive } set: { editor.setOccludeInactive($0) }) {
                 Text(Tr.notetypesHideAllGuessOne).tag(true)
@@ -117,11 +140,30 @@ struct ImageOcclusionView: View {
         .controlSize(.small)
     }
 
+    /// The fill colour; picking one takes up the fill tool, as desktop's
+    /// colour picker opens from it.
+    private var fillColor: Binding<Color> {
+        Binding {
+            Color(nsColor: MaskCanvasView.color(editor.fillColor) ?? .systemYellow)
+        } set: { color in
+            let (red, green, blue) = EditorColors.components(color)
+            editor.fillColor = String(format: "#%02x%02x%02x", red, green, blue)
+            editor.tool = .fill
+        }
+    }
+
     private func button(
         _ title: String, _ symbol: String, _ shortcut: String, disabled: Bool = false, action: @escaping () -> Void
     ) -> some View {
         Button(title, systemImage: symbol, action: action)
             .help("\(title) (\(shortcut))")
             .disabled(disabled)
+    }
+}
+
+extension URL {
+    /// A file the picker takes, as desktop's drop onto Select Image.
+    fileprivate var isImageFile: Bool {
+        isFileURL && (UTType(filenameExtension: pathExtension)?.conforms(to: .image) ?? false)
     }
 }

@@ -147,7 +147,7 @@ final class MaskCanvasView: NSView {
         guard let (_, shape) = resizable(in: occlusions) else { return }
         let side = Theme.ImageOcclusion.handleSize * line
         for handle in Handle.all {
-            let point = handlePoint(handle, of: pixelRect(shape))
+            let point = handlePoint(handle, of: shape)
             let square = NSBezierPath(rect: NSRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side))
             NSColor.white.setFill()
             square.fill()
@@ -296,8 +296,13 @@ final class MaskCanvasView: NSView {
 
     /// Hit-tests from the topmost mask down.
     private func occlusion(at point: NSPoint) -> Occlusion? {
-        editor.occlusions.last { occlusion in
-            occlusion.shapes.contains { shape in
+        hit(at: point)?.occlusion
+    }
+
+    /// The topmost mask under the point, and which of its shapes was hit.
+    private func hit(at point: NSPoint) -> (occlusion: Occlusion, shape: Int)? {
+        for occlusion in editor.occlusions.reversed() {
+            let index = occlusion.shapes.lastIndex { shape in
                 if shape.isText {
                     var inverse = rotation(shape)
                     inverse.invert()
@@ -305,19 +310,24 @@ final class MaskCanvasView: NSView {
                 }
                 return path(shape).contains(point)
             }
+            if let index { return (occlusion, index) }
         }
+        return nil
     }
 
-    /// The selection's one shape when it can be resized: a single
-    /// unrotated mask, not a label or a group.
+    /// The selection's one shape when it can be resized: a single mask,
+    /// not a label or a group.
     private func resizable(in occlusions: [Occlusion]) -> (Occlusion.ID, OcclusionShape)? {
         guard occlusions.count == 1, occlusions[0].shapes.count == 1 else { return nil }
         let shape = occlusions[0].shapes[0]
-        return shape.isText || shape.angle != 0 ? nil : (occlusions[0].id, shape)
+        return shape.isText ? nil : (occlusions[0].id, shape)
     }
 
-    private func handlePoint(_ handle: Handle, of rect: NSRect) -> NSPoint {
-        NSPoint(x: rect.minX + handle.x * rect.width, y: rect.minY + handle.y * rect.height)
+    /// A handle's place on the shape as drawn, turned with it.
+    private func handlePoint(_ handle: Handle, of shape: OcclusionShape) -> NSPoint {
+        let rect = pixelRect(shape)
+        let point = NSPoint(x: rect.minX + handle.x * rect.width, y: rect.minY + handle.y * rect.height)
+        return shape.drawnAngle == 0 ? point : rotation(shape).transform(point)
     }
 
     private func handle(at point: NSPoint) -> (Occlusion.ID, OcclusionShape, Handle)? {
@@ -325,35 +335,145 @@ final class MaskCanvasView: NSView {
             return nil
         }
         let reach = Theme.ImageOcclusion.handleSize / zoom
-        let rect = pixelRect(shape)
         return Handle.all.first { handle in
-            let center = handlePoint(handle, of: rect)
+            let center = handlePoint(handle, of: shape)
             return abs(center.x - point.x) <= reach && abs(center.y - point.y) <= reach
         }.map { (id, shape, $0) }
     }
 
-    /// The shape with the handle's edges moved by the drag.
+    /// The shape with the handle's edges moved by the drag. A rotated shape
+    /// is stretched along its own sides, keeping the opposite ones still,
+    /// as desktop's canvas does.
     private func resized(_ shape: OcclusionShape, handle: Handle, by delta: CGSize) -> OcclusionShape {
         let old = pixelRect(shape)
-        var minX = old.minX, maxX = old.maxX, minY = old.minY, maxY = old.maxY
+        let angle = shape.drawnAngle
+        let along = AffineTransform(rotationByDegrees: -angle).transform(NSPoint(x: delta.width, y: delta.height))
+        var minX: CGFloat = 0, maxX = old.width, minY: CGFloat = 0, maxY = old.height
         if handle.x == 0 {
-            minX = min(minX + delta.width, maxX - 1)
+            minX = min(along.x, maxX - 1)
         } else if handle.x == 1 {
-            maxX = max(maxX + delta.width, minX + 1)
+            maxX = max(maxX + along.x, 1)
         }
         if handle.y == 0 {
-            minY = min(minY + delta.height, maxY - 1)
+            minY = min(along.y, maxY - 1)
         } else if handle.y == 1 {
-            maxY = max(maxY + delta.height, minY + 1)
+            maxY = max(maxY + along.y, 1)
         }
-        let new = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        // The shape turns about its corner, so a moved corner moves along
+        // the turned sides.
+        let corner = AffineTransform(rotationByDegrees: angle).transform(NSPoint(x: minX, y: minY))
+        let new = NSRect(x: old.minX + corner.x, y: old.minY + corner.y, width: maxX - minX, height: maxY - minY)
         return shape.fitted(from: old, to: new, in: size)
+    }
+
+    // MARK: Alignment
+
+    enum Alignment: CaseIterable {
+        case left, horizontalCenter, right, top, verticalCenter, bottom
+
+        var title: String {
+            switch self {
+            case .left: Tr.editingImageOcclusionAlignLeft
+            case .horizontalCenter: Tr.editingImageOcclusionAlignHCenter
+            case .right: Tr.editingImageOcclusionAlignRight
+            case .top: Tr.editingImageOcclusionAlignTop
+            case .verticalCenter: Tr.editingImageOcclusionAlignVCenter
+            case .bottom: Tr.editingImageOcclusionAlignBottom
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .left: "align.horizontal.left"
+            case .horizontalCenter: "align.horizontal.center"
+            case .right: "align.horizontal.right"
+            case .top: "align.vertical.top"
+            case .verticalCenter: "align.vertical.center"
+            case .bottom: "align.vertical.bottom"
+            }
+        }
+
+        /// Desktop's Shift shortcuts.
+        var key: Character {
+            switch self {
+            case .left: "l"
+            case .horizontalCenter: "h"
+            case .right: "r"
+            case .top: "t"
+            case .verticalCenter: "v"
+            case .bottom: "b"
+            }
+        }
+    }
+
+    /// Lines up the selection, as desktop's Alignment tools: one mask
+    /// against the image's edges or middle, several against each other.
+    func align(_ alignment: Alignment) {
+        let selected = editor.occlusions.filter { editor.selection.contains($0.id) }
+        guard !selected.isEmpty else { return }
+        // Desktop measures a lone shape by its unturned box, from the
+        // corner it turns about, and a group by the box around it.
+        let boxes = selected.map { $0.shapes.count == 1 ? pixelRect($0.shapes[0]) : bounds($0) }
+        let targets: [NSPoint]
+        if boxes.count == 1 {
+            let box = boxes[0]
+            var target = box.origin
+            switch alignment {
+            case .left: target.x = 0
+            case .horizontalCenter: target.x = size.width / 2 - box.width / 2
+            case .right: target.x = size.width - box.width
+            case .top: target.y = 0
+            case .verticalCenter: target.y = size.height / 2 - box.height / 2
+            case .bottom: target.y = size.height - box.height
+            }
+            targets = [target]
+        } else {
+            targets = Self.aligned(boxes, alignment)
+        }
+        let moves = Dictionary(
+            uniqueKeysWithValues: zip(selected, zip(boxes, targets)).map { occlusion, pair in
+                (occlusion.id, normalized(pair.1 - pair.0.origin))
+            })
+        editor.commit(editor.occlusions.map { occlusion in
+            guard let (dx, dy) = moves[occlusion.id] else { return occlusion }
+            var moved = occlusion
+            moved.shapes = occlusion.shapes.map { $0.offset(dx: dx, dy: dy) }
+            return moved
+        })
+    }
+
+    /// Several boxes' new corners, ported from upstream's tool-aligns.ts,
+    /// which picks the extreme shapes by their left or top edge.
+    private static func aligned(_ boxes: [NSRect], _ alignment: Alignment) -> [NSPoint] {
+        let leftmost = boxes.min { $0.minX < $1.minX }!
+        let rightmost = boxes.reduce(boxes[0]) { $1.minX > $0.minX ? $1 : $0 }
+        let topmost = boxes.min { $0.minY < $1.minY }!
+        let lowest = boxes.reduce(boxes[0]) { $1.minY > $0.minY ? $1 : $0 }
+        let bottommost = boxes.reduce(boxes[0]) { $1.maxY > $0.maxY ? $1 : $0 }
+        return boxes.map { box in
+            var target = box.origin
+            switch alignment {
+            case .left: target.x = leftmost.minX
+            case .horizontalCenter: target.x = (leftmost.minX + rightmost.maxX) / 2 - box.width / 2
+            case .right: target.x = rightmost.maxX - box.width
+            case .top: target.y = topmost.minY
+            case .verticalCenter: target.y = (topmost.minY + lowest.maxY) / 2 - box.height / 2
+            case .bottom: target.y = bottommost.maxY - box.height
+            }
+            return target
+        }
     }
 
     // MARK: Mouse
 
     override func resetCursorRects() {
-        addCursorRect(visibleRect, cursor: editor.tool == .select ? .arrow : editor.tool == .text ? .iBeam : .crosshair)
+        let cursor: NSCursor = switch editor.tool {
+        case .select: .arrow
+        case .text: .iBeam
+        case .fill: .pointingHand
+        default: .crosshair
+        }
+        addCursorRect(visibleRect, cursor: cursor)
     }
 
     override func updateTrackingAreas() {
@@ -383,6 +503,8 @@ final class MaskCanvasView: NSView {
             polygonDown(at: point, event: event)
         case .text:
             beginTextEditing(at: point, existing: nil)
+        case .fill:
+            if let (occlusion, shape) = hit(at: point) { editor.fill(occlusion.id, shape: shape) }
         }
         needsDisplay = true
     }
@@ -591,8 +713,12 @@ final class MaskCanvasView: NSView {
         default:
             break
         }
-        guard flags.subtracting(.capsLock).isEmpty, let key = event.charactersIgnoringModifiers?.lowercased().first
-        else {
+        let key = event.charactersIgnoringModifiers?.lowercased().first
+        if flags.subtracting(.capsLock) == .shift, let alignment = Alignment.allCases.first(where: { $0.key == key }) {
+            align(alignment)
+            return
+        }
+        guard flags.subtracting(.capsLock).isEmpty, let key else {
             super.keyDown(with: event)
             return
         }
@@ -633,7 +759,7 @@ final class MaskCanvasView: NSView {
         Self.color(hex) ?? Self.color(fallback) ?? .systemYellow
     }
 
-    private static func color(_ hex: String?) -> NSColor? {
+    static func color(_ hex: String?) -> NSColor? {
         guard let hex, hex.count == 7, hex.hasPrefix("#"), let value = Int(hex.dropFirst(), radix: 16) else { return nil }
         return NSColor(
             srgbRed: CGFloat(value >> 16) / 255, green: CGFloat(value >> 8 & 0xff) / 255, blue: CGFloat(value & 0xff) / 255,
@@ -642,6 +768,11 @@ final class MaskCanvasView: NSView {
 }
 
 extension OcclusionShape {
+    /// The angle it's drawn at: the reviewer doesn't turn polygons.
+    fileprivate var drawnAngle: Double {
+        if case .polygon = geometry { 0 } else { angle }
+    }
+
     /// The shape stretched from one pixel box to another.
     fileprivate func fitted(from old: NSRect, to new: NSRect, in size: CGSize) -> OcclusionShape {
         var shape = self

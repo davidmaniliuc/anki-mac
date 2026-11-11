@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 @Observable
 final class ImageOcclusionEditor {
     enum Tool: CaseIterable {
-        case select, rectangle, ellipse, polygon, text
+        case select, rectangle, ellipse, polygon, text, fill
 
         var title: String {
             switch self {
@@ -21,6 +21,7 @@ final class ImageOcclusionEditor {
             case .ellipse: Tr.editingImageOcclusionEllipseTool
             case .polygon: Tr.editingImageOcclusionPolygonTool
             case .text: Tr.editingImageOcclusionTextTool
+            case .fill: Tr.editingImageOcclusionFillTool
             }
         }
 
@@ -31,6 +32,7 @@ final class ImageOcclusionEditor {
             case .ellipse: "oval"
             case .polygon: "pentagon"
             case .text: "textformat"
+            case .fill: "paintbrush.pointed"
             }
         }
 
@@ -42,6 +44,7 @@ final class ImageOcclusionEditor {
             case .ellipse: "e"
             case .polygon: "p"
             case .text: "t"
+            case .fill: "c"
             }
         }
     }
@@ -55,6 +58,8 @@ final class ImageOcclusionEditor {
     private(set) var occlusions: [Occlusion] = []
     var selection: Set<Occlusion.ID> = []
     var tool: Tool = .select
+    /// The fill tool's colour, as desktop's starts from the mask colour.
+    var fillColor = OcclusionShape.maskColor
     var tab: Tab = .masks
     /// Desktop's "Hide All, Guess One"; off is "Hide One, Guess One".
     private(set) var occludeInactive: Bool
@@ -242,6 +247,18 @@ final class ImageOcclusionEditor {
 
     func replace(_ id: Occlusion.ID, shapes: [OcclusionShape]) {
         commit(occlusions.map { $0.id == id ? Occlusion(id: id, shapes: shapes, ordinal: $0.ordinal) : $0 })
+    }
+
+    /// Paints one shape, of a group too, as desktop's fill tool.
+    func fill(_ id: Occlusion.ID, shape index: Int) {
+        commit(occlusions.map { occlusion in
+            guard occlusion.id == id, occlusion.shapes.indices.contains(index),
+                occlusion.shapes[index].shownFill != fillColor
+            else { return occlusion }
+            var filled = occlusion
+            filled.shapes[index].fill = fillColor
+            return filled
+        })
     }
 
     func deleteSelection() {
