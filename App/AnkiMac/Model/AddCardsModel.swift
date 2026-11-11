@@ -78,6 +78,14 @@ final class AddCardsModel {
         try await load(notetypeID: defaults.notetypeID)
     }
 
+    /// Desktop's `set_note`, for Create Copy: the note's type, fields and
+    /// tags, in the given deck.
+    func setNote(_ original: Anki_Notes_Note, deckID: Int64) async throws {
+        try await load(notetypeID: original.notetypeID, copying: original)
+        self.deckID = deckID
+        lastAdded = nil
+    }
+
     // MARK: Note type
 
     /// Changing the note type keeps what was written: fields with the same
@@ -105,9 +113,10 @@ final class AddCardsModel {
         }
     }
 
-    private func load(notetypeID id: Int64, copyFrom: (Anki_Notes_Note, [String])? = nil, sticky: Anki_Notes_Note? = nil)
-        async throws
-    {
+    private func load(
+        notetypeID id: Int64, copyFrom: (Anki_Notes_Note, [String])? = nil, sticky: Anki_Notes_Note? = nil,
+        copying original: Anki_Notes_Note? = nil
+    ) async throws {
         let (notetype, fresh) = try await backend.perform { backend in
             var notetypeID = Anki_Notetypes_NotetypeId()
             notetypeID.ntid = id
@@ -118,6 +127,10 @@ final class AddCardsModel {
         if let (old, oldNames) = copyFrom {
             note.fields = Self.copyFields(old.fields, from: oldNames, to: names, into: note.fields)
             note.tags = old.tags
+        }
+        if let original {
+            note.fields = original.fields
+            note.tags = original.tags
         }
         if let sticky {
             for (index, field) in notetype.fields.enumerated()
@@ -183,7 +196,7 @@ final class AddCardsModel {
 
     // MARK: Checks and adding
 
-    private var currentNote: Anki_Notes_Note {
+    var currentNote: Anki_Notes_Note {
         var note = self.note
         note.fields = editor.values
         note.tags = tags

@@ -43,6 +43,12 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         webView.load(URLRequest(url: AnkiSchemeHandler.reviewerURL))
     }
 
+    /// Desktop's `onCopy`: copies the selected text with its formatting.
+    func copySelection() {
+        guard let webView else { return }
+        NSApp.sendAction(#selector(NSText.copy(_:)), to: webView, from: nil)
+    }
+
     func showQuestion(_ question: String, answer: String, bodyClass: String) {
         call("_showQuestion", question, answer, "\(bodyClass) \(themeClasses)")
     }
@@ -129,6 +135,11 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         const isText = (el) => el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
         document.addEventListener("focusin", (e) => { if (isText(e.target)) pycmd("_editing:1"); });
         document.addEventListener("focusout", (e) => { if (isText(e.target)) pycmd("_editing:0"); });
+        let hadSelection = false;
+        document.addEventListener("selectionchange", () => {
+            const has = !getSelection().isCollapsed;
+            if (has !== hadSelection) { hadSelection = has; pycmd("_selection:" + (has ? 1 : 0)); }
+        });
         """
 
     // MARK: Script calls

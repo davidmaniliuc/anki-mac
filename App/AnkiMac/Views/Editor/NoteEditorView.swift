@@ -10,10 +10,12 @@ struct NoteEditorView: View {
     var sticky: (isOn: (Int) -> Bool, toggle: (Int) -> Void)?
     /// The field shown as a duplicate of an existing note's.
     var duplicateField: Int?
+    /// Opens the card layout editor for this note; nil hides the Cards button.
+    var cardLayout: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
-            FormatBar(editor: editor)
+            FormatBar(editor: editor, cardLayout: cardLayout)
                 .padding(.horizontal, Theme.Spacing.medium)
                 .padding(.vertical, Theme.Spacing.small)
             Divider()
@@ -158,10 +160,16 @@ extension FieldTextView {
 /// toolbar. The same commands are in the Format menu.
 struct FormatBar: View {
     let editor: NoteEditorModel
+    let cardLayout: (() -> Void)?
 
     var body: some View {
         // Wraps onto more lines in a narrow pane rather than clipping buttons.
         FlowLayout(spacing: Theme.Spacing.small) {
+            if let cardLayout {
+                Button("\(Tr.editingCards)…", action: cardLayout)
+                    .keyboardShortcut("l")
+                    .help("\(Tr.editingCustomizeCardTemplates) (\u{2318}L)")
+            }
             ControlGroup {
                 formatButton(.bold, "bold", "Bold", "\u{2318}B")
                 formatButton(.italic, "italic", "Italic", "\u{2318}I")

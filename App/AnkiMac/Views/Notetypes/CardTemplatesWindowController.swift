@@ -9,15 +9,39 @@ final class CardTemplatesWindowController: NSWindowController, NSWindowDelegate 
     private let model: CardTemplatesModel
     private var closing = false
 
-    static func show(manager: NotetypeManager, notetype: Anki_Notetypes_Notetype, useCount: UInt32, mediaFolder: URL?) {
+    static func show(
+        manager: NotetypeManager, notetype: Anki_Notetypes_Notetype, useCount: UInt32, mediaFolder: URL?,
+        ord: Int = 0, note: Anki_Notes_Note? = nil
+    ) {
         if let existing = open[notetype.id] {
+            if let note { existing.model.preview(note: note, ord: ord) }
             existing.window?.makeKeyAndOrderFront(nil)
             return
         }
-        let model = CardTemplatesModel(manager: manager, notetype: notetype, useCount: useCount)
+        let model = CardTemplatesModel(manager: manager, notetype: notetype, useCount: useCount, ord: ord, note: note)
         let controller = CardTemplatesWindowController(model: model, mediaFolder: mediaFolder)
         open[notetype.id] = controller
         controller.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Desktop's "Cards..." button in the editors: the note's own type,
+    /// showing the template of the card the editor is on, previewed with the
+    /// note as it stands (saved or not).
+    static func show(collection: CollectionModel, note: Anki_Notes_Note, ord: Int) {
+        guard let backend = collection.backend else { return }
+        let manager = NotetypeManager(backend: backend)
+        manager.onChange = { Task { await collection.refreshDecks() } }
+        let mediaFolder = collection.paths?.mediaFolder
+        Task {
+            await manager.refresh(select: note.notetypeID)
+            guard let useCount = manager.entries.first(where: { $0.id == note.notetypeID })?.useCount,
+                  let notetype = try? await manager.notetype(note.notetypeID)
+            else {
+                collection.errorMessage = manager.errorMessage ?? "Could not open the card types."
+                return
+            }
+            show(manager: manager, notetype: notetype, useCount: useCount, mediaFolder: mediaFolder, ord: ord, note: note)
+        }
     }
 
     private init(model: CardTemplatesModel, mediaFolder: URL?) {

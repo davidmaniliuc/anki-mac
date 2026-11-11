@@ -8,6 +8,9 @@ import Observation
 final class BrowserEditorModel {
     let editor: NoteEditorModel
     private(set) var noteID: Int64?
+    /// The card type of the selected card, for the card layout editor; the
+    /// first one when rows are notes.
+    private(set) var cardOrd = 0
     var tags: [String] = [] {
         didSet { if tags != oldValue, noteID != nil { scheduleSave() } }
     }
@@ -40,16 +43,23 @@ final class BrowserEditorModel {
         }
         Task {
             do {
-                let (note, notetype) = try await backend.perform { backend in
+                let (note, notetype, ord) = try await backend.perform { backend in
                     var noteID = Anki_Notes_NoteId()
                     noteID.nid = try BrowserModel.noteIDs(selection, backend: backend).first ?? 0
                     let note = try backend.getNote(noteID)
                     var notetypeID = Anki_Notetypes_NotetypeId()
                     notetypeID.ntid = note.notetypeID
-                    return (note, try backend.getNotetype(notetypeID))
+                    var ord: UInt32 = 0
+                    if selection.mode == .cards {
+                        var cardID = Anki_Cards_CardId()
+                        cardID.cid = selection.ids[0]
+                        ord = try backend.getCard(cardID).templateIdx
+                    }
+                    return (note, try backend.getNotetype(notetypeID), Int(ord))
                 }
                 // A newer selection won while this one loaded.
                 guard generation == loadGeneration else { return }
+                cardOrd = ord
                 guard note.id != noteID else { return }
                 self.note = note
                 noteID = note.id
@@ -93,6 +103,14 @@ final class BrowserEditorModel {
             request.notes = [updated]
             _ = try backend.updateNotes(request)
         }
+    }
+
+    /// The note as the editor shows it now, for previewing its cards.
+    var currentNote: Anki_Notes_Note {
+        var current = note
+        current.fields = editor.values
+        current.tags = tags
+        return current
     }
 
     func completeTags(_ prefix: String) -> [String] {
