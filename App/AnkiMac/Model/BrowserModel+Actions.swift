@@ -7,6 +7,12 @@ nonisolated struct DeckChoice: Identifiable, Hashable, Sendable {
     let name: String
 }
 
+/// A note type the selection can change to.
+nonisolated struct NotetypeChoice: Identifiable, Hashable, Sendable {
+    let id: Int64
+    let name: String
+}
+
 /// Where Find and Replace looks: every field, the tags, or one field by name.
 nonisolated enum ReplaceTarget: Hashable, Sendable {
     case allFields, tags
@@ -22,6 +28,7 @@ nonisolated enum BrowserPrompt: Identifiable, Sendable {
     case changeDeck(cards: Int, decks: [DeckChoice], current: Int64?)
     case tags(adding: Bool, notes: Int, known: [String])
     case findAndReplace(notes: Int, fields: [String])
+    case changeNotetype(noteIDs: [Int64], notetypes: [NotetypeChoice], info: Anki_Notetypes_ChangeNotetypeInfo)
 
     var id: String {
         switch self {
@@ -31,6 +38,7 @@ nonisolated enum BrowserPrompt: Identifiable, Sendable {
         case .changeDeck: "changeDeck"
         case .tags(let adding, _, _): adding ? "addTags" : "removeTags"
         case .findAndReplace: "findAndReplace"
+        case .changeNotetype: "changeNotetype"
         }
     }
 }
@@ -213,6 +221,38 @@ extension BrowserModel {
                 _ = try backend.findAndReplace(request)
             }
         }
+    }
+
+    /// A selection of mixed note types is refused with the backend's message, as desktop does.
+    func askChangeNotetype() {
+        ask { selection, backend in
+            var notes = Anki_Notes_NoteIds()
+            notes.noteIds = try Self.noteIDs(selection, backend: backend)
+            let current = try backend.getSingleNotetypeOfNotes(notes).ntid
+            var request = Anki_Notetypes_GetChangeNotetypeInfoRequest()
+            request.oldNotetypeID = current
+            request.newNotetypeID = current
+            return .changeNotetype(
+                noteIDs: notes.noteIds,
+                notetypes: try backend.getNotetypeNames().entries.map { NotetypeChoice(id: $0.id, name: $0.name) },
+                info: try backend.getChangeNotetypeInfo(request))
+        }
+    }
+
+    /// Applies the sheet's mapping. The sheet stays up if the change fails.
+    func changeNotetype(_ request: Anki_Notetypes_ChangeNotetypeRequest) async {
+        guard await confirmSchemaChange(),
+            await perform(searchAgain: true, { backend in _ = try backend.changeNotetype(request) })
+        else { return }
+        cancelPrompt()
+    }
+
+    /// Desktop's `confirm_schema_modification`: asks unless a full sync is already due.
+    private func confirmSchemaChange() async -> Bool {
+        guard let backend = collection.backend,
+            !((try? await backend.perform { $0.schemaAlreadyChanged() }) ?? false)
+        else { return true }
+        return await NotetypeAlerts.confirm(NotetypeAlerts.schemaChange)
     }
 
     // MARK: Plumbing

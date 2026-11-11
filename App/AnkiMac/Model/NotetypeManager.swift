@@ -170,11 +170,16 @@ final class NotetypeManager {
     /// so another schema change costs nothing more (desktop's `schema_changed`).
     func schemaAlreadyChanged() async -> Bool {
         let backend = backend
-        return (try? await backend.perform { backend in
-            let query: [String: Any] = ["kind": "query", "sql": "select scm > ls from col", "args": [], "first_row_only": true]
-            let reply = try backend.dbCommand(try JSONSerialization.data(withJSONObject: query))
-            let row = (try JSONSerialization.jsonObject(with: reply) as? [[Any]])?.first
-            return (row?.first as? Int ?? 0) != 0
-        }) ?? false
+        return (try? await backend.perform { $0.schemaAlreadyChanged() }) ?? false
+    }
+}
+
+extension AnkiBackend {
+    nonisolated func schemaAlreadyChanged() -> Bool {
+        let query: [String: Any] = ["kind": "query", "sql": "select scm > ls from col", "args": [], "first_row_only": true]
+        guard let reply = try? dbCommand(try JSONSerialization.data(withJSONObject: query)),
+            let row = (try? JSONSerialization.jsonObject(with: reply) as? [[Any]])?.first
+        else { return false }
+        return (row.first as? Int ?? 0) != 0
     }
 }

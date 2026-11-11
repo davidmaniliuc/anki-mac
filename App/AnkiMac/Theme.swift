@@ -87,6 +87,8 @@ enum Theme {
         /// Sheets for the Cards and Notes actions (set due date, change deck...).
         static let sheetWidth: CGFloat = 420
         static let deckListHeight: CGFloat = 260
+        static let changeNotetypeSheetWidth: CGFloat = 480
+        static let changeNotetypeFormHeight: CGFloat = 380
         static let tagSuggestions = 8
         static let editorMinWidth: CGFloat = 260
         static let editorFraction: CGFloat = 0.4
