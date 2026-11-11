@@ -21,6 +21,9 @@ struct StudyView: View {
                 if model.reviewerReady, let webView = model.reviewer.webView {
                     CardWebView(webView: webView)
                         .frame(minHeight: Theme.Study.cardMinHeight)
+                        .contextMenu {
+                            reviewerActions
+                        }
                 } else {
                     Color.clear
                 }
@@ -65,6 +68,9 @@ struct StudyView: View {
         } message: {
             Text(session?.errorMessage ?? "")
         }
+        .alert("", isPresented: Binding { session?.feedbackMessage != nil } set: { if !$0 { session?.feedbackMessage = nil } }) {
+            Button("OK") { session?.feedbackMessage = nil }
+        } message: { Text(session?.feedbackMessage ?? "") }
         .onChange(of: colorScheme, initial: true) { _, scheme in
             model.reviewer.setNightMode(scheme == .dark)
         }
@@ -118,6 +124,14 @@ struct StudyView: View {
             return true
         }
         guard let session else { return false }
+        if modifiers.isEmpty, key == "e" { editCurrentNote(session); return true }
+        if modifiers.isEmpty, key == "@" { session.suspendCurrentCard(); return true }
+        if modifiers.isEmpty, key == "!" { session.suspendCurrentNote(); return true }
+        if modifiers.isEmpty, key == "-" { session.buryCurrentCard(); return true }
+        if modifiers.isEmpty, key == "=" { session.buryCurrentNote(); return true }
+        if modifiers == .command, key == "\u{8}" { session.deleteCurrentNote(); return true }
+        if modifiers == .control, key == "n" { session.forgetCurrentCard(); return true }
+        if modifiers.isEmpty, key == "i" { session.showCardInfo(); return true }
         if modifiers == .command, key == "z" {
             session.undo()
             return true
@@ -146,6 +160,29 @@ struct StudyView: View {
             return false
         }
         return true
+    }
+
+    @ViewBuilder private var reviewerActions: some View {
+        if let session {
+            Button("Edit Note…") { editCurrentNote(session) }.keyboardShortcut("e", modifiers: [])
+            Divider()
+            Button("Suspend Card") { session.suspendCurrentCard() }.keyboardShortcut("@", modifiers: [])
+            Button("Suspend Note") { session.suspendCurrentNote() }.keyboardShortcut("!", modifiers: [])
+            Button("Bury Card") { session.buryCurrentCard() }.keyboardShortcut("-", modifiers: [])
+            Button("Bury Note") { session.buryCurrentNote() }.keyboardShortcut("=", modifiers: [])
+            Button("Forget Card") { session.forgetCurrentCard() }.keyboardShortcut("n", modifiers: [.control])
+            Button("Delete Note") { session.deleteCurrentNote() }.keyboardShortcut(.delete, modifiers: [.command])
+            Divider()
+            Button("Card Info…") { session.showCardInfo() }.keyboardShortcut("i", modifiers: [])
+            Button("Options…") { if let deck = model.selectedDeck { model.showOptions(deck) } }.keyboardShortcut("o", modifiers: [])
+            Button("Replay Audio") { session.replayAudio() }.keyboardShortcut("r", modifiers: [])
+        }
+    }
+
+    private func editCurrentNote(_ session: StudySession) {
+        guard let noteID = session.card?.queued.card.noteID else { return }
+        BrowserWindowController.show(collection: model)
+        BrowserWindowController.current?.model.search(text: "nid:\(noteID)")
     }
 }
 
