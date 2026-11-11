@@ -90,14 +90,10 @@ struct MaintenanceToolView: View {
         do {
             switch tool {
             case .database:
-                let folder = model.paths?.collection.deletingLastPathComponent().appending(path: "backups").path ?? ""
+                let folder = model.paths?.backups
                 let problems = try await backend.perform { backend in
                     // Desktop backs up first; the check can't be undone.
-                    var request = Anki_Collection_CreateBackupRequest()
-                    request.backupFolder = folder
-                    request.force = true
-                    request.waitForCompletion = true
-                    _ = try? backend.createBackup(request)
+                    if let folder { _ = try? backend.backUp(.manual, to: folder) }
                     return try backend.checkDatabase().problems
                 }
                 lines = (problems + [Tr.databaseCheckRebuilt]).map { ReportLine(text: $0) }

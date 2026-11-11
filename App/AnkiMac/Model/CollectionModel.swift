@@ -38,6 +38,7 @@ nonisolated struct CollectionPaths: Sendable {
     let collection: URL
     let mediaFolder: URL
     let mediaDB: URL
+    let backups: URL
 
     /// `-CollectionPath /path/to/collection.anki2` on the command line (or the
     /// same user default) picks the collection; otherwise the app keeps its
@@ -53,11 +54,14 @@ nonisolated struct CollectionPaths: Sendable {
         }
         let folder = collection.deletingLastPathComponent()
         let media = folder.appending(path: "collection.media")
+        let backups = folder.appending(path: "backups")
         try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true)
         return CollectionPaths(
             collection: collection,
             mediaFolder: media,
-            mediaDB: folder.appending(path: "collection.media.db2"))
+            mediaDB: folder.appending(path: "collection.media.db2"),
+            backups: backups)
     }
 }
 
@@ -76,6 +80,7 @@ final class CollectionModel {
     private var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
     private var activationTask: Task<Void, Never>?
+    var backupTask: Task<Void, Never>?
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
     var errorMessage: String?
@@ -102,6 +107,11 @@ final class CollectionModel {
     var packageOperationInProgress = false
     /// True while the backend has the collection closed for a package export or replacement.
     var collectionClosed = false
+    /// A backup was restored, so for the rest of the session there are no
+    /// periodic or close backups and no sync on close, as on desktop.
+    var backupRestored = false
+    /// The outcome of File > Create Backup and Revert to Backup.
+    var backupMessage: String?
 
     var maintenanceTool: MaintenanceTool?
 
@@ -159,6 +169,7 @@ final class CollectionModel {
             }
             isLoaded = true
             refreshWhenActivated()
+            startPeriodicBackups()
             Task { await prepareReviewer() }
             if UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, syncAuth != nil {
                 await synchronize()
@@ -184,11 +195,12 @@ final class CollectionModel {
     func close() {
         rolloverTask?.cancel()
         activationTask?.cancel()
+        backupTask?.cancel()
         session?.stop()
-        guard paths != nil, let backend else { return }
+        guard let paths, let backend else { return }
         // Desktop's unattended close sync only merges when it can do so safely.
         // A full-sync choice needs a person, so leave it for the next launch.
-        if UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, let auth = syncAuth {
+        if !backupRestored, UserDefaults.standard.object(forKey: "autoSync") as? Bool ?? true, let auth = syncAuth {
             var request = Anki_Sync_SyncCollectionRequest()
             request.auth = auth
             if let response = try? backend.syncCollection(request) {
@@ -206,8 +218,9 @@ final class CollectionModel {
                 }
             }
         }
+        if !backupRestored { _ = try? backend.backUp(.onClose, to: paths.backups) }
         try? backend.closeCollection(Anki_Collection_CloseCollectionRequest())
-        paths = nil
+        self.paths = nil
     }
 
     func updateSyncStatus() async {

@@ -48,6 +48,14 @@ struct ContentView: View {
         .modifier(ImportExportPrompts())
         .modifier(SyncPrompts())
         .alert(
+            Tr.preferencesBackups,
+            isPresented: Binding { model.backupMessage != nil } set: { if !$0 { model.backupMessage = nil } }
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(model.backupMessage ?? "")
+        }
+        .alert(
             "Something went wrong",
             isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
         ) {

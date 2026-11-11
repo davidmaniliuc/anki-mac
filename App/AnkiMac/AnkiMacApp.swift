@@ -111,6 +111,11 @@ struct ImportExportCommands: Commands {
             }
             .keyboardShortcut("e", modifiers: [.command, .shift])
             .disabled(!model.isLoaded || model.packageOperationInProgress)
+            Divider()
+            Button(Tr.qtAccelCreateBackup) { model.createBackup() }
+                .disabled(!model.isLoaded || model.packageOperationInProgress)
+            Button(Tr.qtAccelLoadBackup + "…") { model.promptForBackupRestore() }
+                .disabled(!model.isLoaded || model.packageOperationInProgress)
         }
     }
 }

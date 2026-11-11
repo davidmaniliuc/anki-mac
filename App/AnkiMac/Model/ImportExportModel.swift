@@ -72,7 +72,8 @@ extension CollectionModel {
         }
     }
 
-    private func replaceCollection(from url: URL) {
+    /// `isBackup` for Revert to Backup, which also ends backups and sync on close.
+    func replaceCollection(from url: URL, isBackup: Bool = false) {
         guard let backend, let paths, isLoaded, !packageOperationInProgress else { return }
         packageOperationInProgress = true
         Task {
@@ -91,7 +92,12 @@ extension CollectionModel {
                 }
                 collectionClosed = false
                 await refreshDecks()
-                importMessage = Tr.importingImportingComplete
+                if isBackup {
+                    backupRestored = true
+                    backupMessage = Tr.qtMiscAutomaticSyncingAndBackupsHaveBeen
+                } else {
+                    importMessage = Tr.importingImportingComplete
+                }
             } catch {
                 collectionClosed = false
                 await refreshDecks()
