@@ -109,9 +109,12 @@ final class BrowserPreviewModel {
         }
         _ = browser.rowsVersion
         _ = browser.idsVersion
-        refreshButtons()
-        guard let id = browser.currentCardID else { return }
+        guard let id = browser.currentCardID else {
+            refreshButtons()
+            return
+        }
         position.follow(id)
+        refreshButtons()
         render()
     }
 

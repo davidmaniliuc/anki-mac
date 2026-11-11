@@ -171,10 +171,12 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         if let previewer {
             previewer.close()
         } else if model.singleSelectedRow != nil {
-            previewer = BrowserPreviewWindowController(browser: model) { [weak self] in
+            let controller = BrowserPreviewWindowController(browser: model) { [weak self] in
                 self?.previewer = nil
                 self?.showPreviewState()
             }
+            previewer = controller
+            controller.showWindow(nil)
             showPreviewState()
         }
     }
