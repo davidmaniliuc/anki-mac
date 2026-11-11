@@ -23,16 +23,19 @@ final class StudyEditModel: Identifiable {
     /// False when the note can't be read, in which case there is nothing to show.
     func load(noteID: Int64) async -> Bool {
         do {
-            let (note, notetype) = try await backend.perform { backend in
+            let (note, notetype, occlusion) = try await backend.perform { backend in
                 var id = Anki_Notes_NoteId()
                 id.nid = noteID
                 let note = try backend.getNote(id)
                 var notetypeID = Anki_Notetypes_NotetypeId()
                 notetypeID.ntid = note.notetypeID
-                return (note, try backend.getNotetype(notetypeID))
+                let notetype = try backend.getNotetype(notetypeID)
+                return (
+                    note, notetype, NoteEditorModel.occlusionSetup(notetype: notetype, noteID: note.id, backend: backend)
+                )
             }
             self.note = note
-            editor.load(notetype: notetype, values: note.fields)
+            editor.load(notetype: notetype, values: note.fields, occlusion: occlusion)
             tags = note.tags
             return true
         } catch {
@@ -50,6 +53,7 @@ final class StudyEditModel: Identifiable {
 
     /// The note with the editor's fields and tags; nil when nothing changed.
     func changedNote() -> Anki_Notes_Note? {
+        editor.commitPendingEdits()
         let updated = currentNote
         return updated.fields != note.fields || updated.tags != note.tags ? updated : nil
     }

@@ -34,6 +34,7 @@ final class BrowserEditorModel {
     /// Shows the selected row's note, or nothing when no row or several
     /// rows are selected. Pending edits to the previous note are saved first.
     func show(_ selection: BrowserModel.Selection?) {
+        editor.commitPendingEdits()
         saveNow()
         loadGeneration += 1
         let generation = loadGeneration
@@ -43,7 +44,7 @@ final class BrowserEditorModel {
         }
         Task {
             do {
-                let (note, notetype, ord) = try await backend.perform { backend in
+                let (note, notetype, ord, occlusion) = try await backend.perform { backend in
                     var noteID = Anki_Notes_NoteId()
                     noteID.nid = try BrowserModel.noteIDs(selection, backend: backend).first ?? 0
                     let note = try backend.getNote(noteID)
@@ -55,7 +56,11 @@ final class BrowserEditorModel {
                         cardID.cid = selection.ids[0]
                         ord = try backend.getCard(cardID).templateIdx
                     }
-                    return (note, try backend.getNotetype(notetypeID), Int(ord))
+                    let notetype = try backend.getNotetype(notetypeID)
+                    return (
+                        note, notetype, Int(ord),
+                        NoteEditorModel.occlusionSetup(notetype: notetype, noteID: note.id, backend: backend)
+                    )
                 }
                 // A newer selection won while this one loaded.
                 guard generation == loadGeneration else { return }
@@ -63,7 +68,7 @@ final class BrowserEditorModel {
                 guard note.id != noteID else { return }
                 self.note = note
                 noteID = note.id
-                editor.load(notetype: notetype, values: note.fields, focus: false)
+                editor.load(notetype: notetype, values: note.fields, occlusion: occlusion, focus: false)
                 tags = note.tags
             } catch {
                 guard generation == loadGeneration else { return }

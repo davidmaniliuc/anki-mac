@@ -265,6 +265,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     func windowWillClose(_ notification: Notification) {
         previewer?.close()
+        editor?.editor.commitPendingEdits()
         editor?.saveNow()
         findDuplicates?.close()
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }

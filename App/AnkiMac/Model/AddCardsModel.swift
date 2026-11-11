@@ -117,10 +117,14 @@ final class AddCardsModel {
         notetypeID id: Int64, copyFrom: (Anki_Notes_Note, [String])? = nil, sticky: Anki_Notes_Note? = nil,
         copying original: Anki_Notes_Note? = nil
     ) async throws {
-        let (notetype, fresh) = try await backend.perform { backend in
+        let (notetype, fresh, occlusion) = try await backend.perform { backend in
             var notetypeID = Anki_Notetypes_NotetypeId()
             notetypeID.ntid = id
-            return (try backend.getNotetype(notetypeID), try backend.newNote(notetypeID))
+            let notetype = try backend.getNotetype(notetypeID)
+            return (
+                notetype, try backend.newNote(notetypeID),
+                NoteEditorModel.occlusionSetup(notetype: notetype, noteID: nil, backend: backend)
+            )
         }
         var note = fresh
         let names = notetype.fields.map(\.name)
@@ -144,7 +148,7 @@ final class AddCardsModel {
         self.note = note
         tags = note.tags
         problem = nil
-        editor.load(notetype: notetype, values: note.fields)
+        editor.load(notetype: notetype, values: note.fields, occlusion: occlusion)
     }
 
     /// Desktop's rule: same-named non-empty fields, then the remaining
@@ -234,12 +238,13 @@ final class AddCardsModel {
     /// Adds the note, unless a check stops it. `confirmedCloze` is set once
     /// the user agreed to add a cloze note without clozes.
     func add(confirmedCloze: Bool = false) async -> Bool {
+        editor.commitPendingEdits()
         let note = currentNote
         do {
             let state = try await backend.perform { try $0.noteFieldsCheck(note).state }
             switch state {
             case .empty:
-                message = Tr.addingTheFirstFieldIsEmpty
+                message = editor.occlusion == nil ? Tr.addingTheFirstFieldIsEmpty : Tr.notetypesNoOcclusionCreated2
                 return false
             case .notetypeNotCloze:
                 message = Tr.addingClozeOutsideClozeNotetype

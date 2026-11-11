@@ -14,6 +14,35 @@ struct NoteEditorView: View {
     var cardLayout: (() -> Void)?
 
     var body: some View {
+        if let occlusion = editor.occlusion {
+            // Desktop's Mask and Note tabs: the masks, or the remaining fields.
+            VStack(spacing: 0) {
+                Picker(
+                    Tr.notetypesImageOcclusionName,
+                    selection: Binding { occlusion.tab } set: {
+                        editor.commitPendingEdits()
+                        occlusion.tab = $0
+                    }
+                ) {
+                    Text(Tr.notetypesOcclusionMask).tag(ImageOcclusionEditor.Tab.masks)
+                    Text(Tr.notetypesOcclusionNote).tag(ImageOcclusionEditor.Tab.note)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .padding(.vertical, Theme.Spacing.small)
+                Divider()
+                switch occlusion.tab {
+                case .masks: ImageOcclusionView(editor: occlusion)
+                case .note: fieldEditors(hiding: occlusion.hiddenFields)
+                }
+            }
+        } else {
+            fieldEditors(hiding: [])
+        }
+    }
+
+    private func fieldEditors(hiding hidden: Set<Int>) -> some View {
         VStack(spacing: 0) {
             FormatBar(editor: editor, cardLayout: cardLayout)
                 .padding(.horizontal, Theme.Spacing.medium)
@@ -21,7 +50,7 @@ struct NoteEditorView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                    ForEach(editor.fields) { field in
+                    ForEach(editor.fields.filter { !hidden.contains($0.index) }) { field in
                         FieldRow(
                             field: field, editor: editor, sticky: sticky,
                             duplicate: duplicateField == field.index)
