@@ -1281,12 +1281,11 @@ nonisolated enum Tr {
     static let importingTagUpdatedNotes = "Tag updated notes"
     static let importingTagUpdatedNotesHelp = "These tags will be added to any updated notes."
     static func importingNewDeckWillBeCreated(name: String) -> String {
-        ("A new deck will be created: " + String(describing: name))
+        ("A new deck will be created: " + name)
     }
-    static func importingPreviewTruncated(count: Int) -> String {
-        (count == 1 ? ("Only the first " + String(describing: count) + " columns are shown. If this doesn't seem right, try changing the field separator.") : ("Only the first " + String(describing: count) + " columns are shown. If this doesn't seem right, try changing the field separator."))
+    static func importingPreviewTruncated(count: some TrNumber) -> String {
+        ("Only the first " + Tr.number(count) + " columns are shown. If this doesn't seem right, try changing the field separator.")
     }
-    static let changeNotetypeNothing = "(Nothing)"
     static let notetypesNotetype = "Note Type"
     static func importingAllSupportedFormats(val: String) -> String {
         ("All supported formats " + val)
