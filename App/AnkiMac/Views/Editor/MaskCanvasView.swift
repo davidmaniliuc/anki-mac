@@ -9,7 +9,7 @@ final class MaskCanvasView: NSView {
 
     private enum Drag {
         case move(start: NSPoint, current: NSPoint)
-        case resize(Occlusion.ID, original: OcclusionShape, handle: Handle, current: NSPoint)
+        case resize(Occlusion.ID, original: OcclusionShape, handle: Handle, start: NSPoint, current: NSPoint)
         case marquee(start: NSPoint, current: NSPoint, adding: Set<Occlusion.ID>)
         case draw(start: NSPoint, current: NSPoint)
     }
@@ -33,6 +33,7 @@ final class MaskCanvasView: NSView {
     /// The label being retyped; nil while typing a new one.
     private var editingText: Occlusion.ID?
     private var needsFit = true
+    private var escapeMonitor: Any?
 
     init(editor: ImageOcclusionEditor) {
         self.editor = editor
@@ -72,11 +73,18 @@ final class MaskCanvasView: NSView {
 
     /// The whole image in view, never enlarged, as desktop's Reset Zoom.
     func fit() {
-        guard let scrollView = enclosingScrollView, size.width > 0, size.height > 0 else { return }
-        let available = scrollView.contentSize
-        guard available.width > 0, available.height > 0 else { return }
+        guard let scrollView = enclosingScrollView, let scale = fitScale else { return }
         needsFit = false
-        scrollView.magnification = min(1, available.width / size.width, available.height / size.height)
+        scrollView.magnification = min(1, scale)
+    }
+
+    /// The zoom at which the whole image fills the view, as desktop sizes
+    /// its canvas.
+    private var fitScale: CGFloat? {
+        guard let scrollView = enclosingScrollView, size.width > 0, size.height > 0 else { return nil }
+        let available = scrollView.contentSize
+        guard available.width > 0, available.height > 0 else { return nil }
+        return min(available.width / size.width, available.height / size.height)
     }
 
     fileprivate func fitIfNeeded() {
@@ -119,8 +127,8 @@ final class MaskCanvasView: NSView {
                 moved.shapes = occlusion.shapes.map { $0.offset(dx: dx, dy: dy) }
                 return moved
             }
-        case .resize(let id, let original, let handle, let current):
-            let resized = self.resized(original, handle: handle, to: current)
+        case .resize(let id, let original, let handle, let start, let current):
+            let resized = self.resized(original, handle: handle, by: current - start)
             return editor.occlusions.map { $0.id == id ? Occlusion(id: id, shapes: [resized], ordinal: $0.ordinal) : $0 }
         default:
             return editor.occlusions
@@ -324,12 +332,20 @@ final class MaskCanvasView: NSView {
         }.map { (id, shape, $0) }
     }
 
-    /// The shape with the handle's edges dragged to a point.
-    private func resized(_ shape: OcclusionShape, handle: Handle, to point: NSPoint) -> OcclusionShape {
+    /// The shape with the handle's edges moved by the drag.
+    private func resized(_ shape: OcclusionShape, handle: Handle, by delta: CGSize) -> OcclusionShape {
         let old = pixelRect(shape)
         var minX = old.minX, maxX = old.maxX, minY = old.minY, maxY = old.maxY
-        if handle.x == 0 { minX = min(point.x, maxX - 1) } else if handle.x == 1 { maxX = max(point.x, minX + 1) }
-        if handle.y == 0 { minY = min(point.y, maxY - 1) } else if handle.y == 1 { maxY = max(point.y, minY + 1) }
+        if handle.x == 0 {
+            minX = min(minX + delta.width, maxX - 1)
+        } else if handle.x == 1 {
+            maxX = max(maxX + delta.width, minX + 1)
+        }
+        if handle.y == 0 {
+            minY = min(minY + delta.height, maxY - 1)
+        } else if handle.y == 1 {
+            maxY = max(maxY + delta.height, minY + 1)
+        }
         let new = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
         return shape.fitted(from: old, to: new, in: size)
     }
@@ -374,7 +390,7 @@ final class MaskCanvasView: NSView {
     private func selectDown(at point: NSPoint, event: NSEvent) {
         let extending = event.modifierFlags.contains(.shift)
         if !extending, let (id, shape, handle) = handle(at: point) {
-            drag = .resize(id, original: shape, handle: handle, current: point)
+            drag = .resize(id, original: shape, handle: handle, start: point, current: point)
             return
         }
         guard let hit = occlusion(at: point) else {
@@ -410,7 +426,8 @@ final class MaskCanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         switch drag {
         case .move(let start, _): drag = .move(start: start, current: point)
-        case .resize(let id, let original, let handle, _): drag = .resize(id, original: original, handle: handle, current: point)
+        case .resize(let id, let original, let handle, let start, _):
+            drag = .resize(id, original: original, handle: handle, start: start, current: point)
         case .marquee(let start, _, let adding):
             drag = .marquee(start: start, current: point, adding: adding)
             let rect = NSRect(points: start, point)
@@ -431,8 +448,8 @@ final class MaskCanvasView: NSView {
         case .move(let start, let current) where start != current:
             let (dx, dy) = normalized(current - start)
             editor.moveSelection(dx: dx, dy: dy)
-        case .resize(let id, let original, let handle, let current):
-            editor.replace(id, shapes: [resized(original, handle: handle, to: current)])
+        case .resize(let id, let original, let handle, let start, let current) where start != current:
+            editor.replace(id, shapes: [resized(original, handle: handle, by: current - start)])
         case .draw(let start, let current):
             let rect = NSRect(points: start, current).intersection(bounds)
             guard rect.width >= Theme.ImageOcclusion.minShapeSize, rect.height >= Theme.ImageOcclusion.minShapeSize
@@ -468,7 +485,7 @@ final class MaskCanvasView: NSView {
     private func beginTextEditing(at point: NSPoint, existing: Occlusion?) {
         let shape = existing?.shapes.first
         var text = ""
-        var fontSize = Theme.ImageOcclusion.textFontSize / zoom / (window?.backingScaleFactor ?? 1)
+        var fontSize = Theme.ImageOcclusion.textFontSize / (fitScale ?? 1)
         if let shape, case .text(let current, let scale, let size) = shape.geometry {
             text = current
             fontSize = (size.map { $0 * self.size.height } ?? Theme.ImageOcclusion.textFontSize) * scale
@@ -498,7 +515,7 @@ final class MaskCanvasView: NSView {
     }
 
     /// Adds or retypes the label being edited; an emptied one is removed.
-    private func endTextEditing() {
+    func endTextEditing() {
         guard let field = textField else { return }
         textField = nil
         let text = field.stringValue
@@ -529,20 +546,43 @@ final class MaskCanvasView: NSView {
 
     // MARK: Keys
 
+    /// Escape is caught before the window sees it, so a sheet's Cancel
+    /// only takes it when the canvas has nothing to cancel.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
+        escapeMonitor = nil
+        guard window != nil else { return }
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53, let self, event.window === window, cancelInProgress() else { return event }
+            return nil
+        }
+    }
+
+    /// Ends the label being typed, drops the polygon being drawn, or else
+    /// clears the selection; false when there's none of those.
+    private func cancelInProgress() -> Bool {
+        let focused = window?.firstResponder === self
+        if textField?.currentEditor() != nil {
+            endTextEditing()
+            window?.makeFirstResponder(self)
+        } else if focused, !polygon.isEmpty {
+            polygon = []
+            pointer = nil
+        } else if focused, !editor.selection.isEmpty {
+            editor.selection = []
+        } else {
+            return false
+        }
+        needsDisplay = true
+        return true
+    }
+
     override func keyDown(with event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch Int(event.keyCode) {
         case 51, 117:  // delete, forward delete
             editor.deleteSelection()
-            return
-        case 53:  // escape
-            if polygon.isEmpty {
-                editor.selection = []
-            } else {
-                polygon = []
-                pointer = nil
-            }
-            needsDisplay = true
             return
         case 36, 76:  // return, enter
             finishPolygon()
@@ -677,13 +717,23 @@ struct MaskCanvas: NSViewRepresentable {
         scrollView.minMagnification = Theme.ImageOcclusion.minZoom
         scrollView.maxMagnification = Theme.ImageOcclusion.maxZoom
         scrollView.backgroundColor = Theme.ImageOcclusion.canvasBackground
-        let canvas = MaskCanvasView(editor: editor)
-        scrollView.documentView = canvas
-        editor.canvas = canvas
+        showCanvas(in: scrollView)
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        (scrollView.documentView as? MaskCanvasView)?.refresh()
+        // The browser keeps this view when it moves to another note, which
+        // brings another editor.
+        guard let canvas = scrollView.documentView as? MaskCanvasView, canvas.editor === editor else {
+            showCanvas(in: scrollView)
+            return
+        }
+        canvas.refresh()
+    }
+
+    private func showCanvas(in scrollView: NSScrollView) {
+        let canvas = MaskCanvasView(editor: editor)
+        scrollView.documentView = canvas
+        editor.canvas = canvas
     }
 }

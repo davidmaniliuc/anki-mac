@@ -209,7 +209,8 @@ enum Theme {
         static let border = NSColor(srgbRed: 0x21 / 255, green: 0x21 / 255, blue: 0x21 / 255, alpha: 1)
         static let textBackground = NSColor.white
         static let textFont = "Arial"
-        /// A new label's size, in screen pixels as it's typed.
+        /// A new label's size, in points on the image fitted to the view, as
+        /// desktop sizes it on its canvas.
         static let textFontSize: CGFloat = 40
         static let textPadding: CGFloat = 5
         static let selection = NSColor.controlAccentColor
