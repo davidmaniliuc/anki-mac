@@ -1,7 +1,9 @@
 import AnkiKit
 import AppKit
 import CryptoKit
+import ImageIO
 import Observation
+import UniformTypeIdentifiers
 
 /// The mask editor of an image occlusion note, as desktop's editor shows
 /// for that note type (ts/routes/image-occlusion): the image, its masks,
@@ -121,11 +123,46 @@ final class ImageOcclusionEditor {
     /// Adds the picked image to the media folder and shows it, as desktop's
     /// Select Image.
     func useImage(at url: URL) {
-        guard let data = try? Data(contentsOf: url), let image = NSImage(data: data) else {
+        guard let data = try? Data(contentsOf: url) else {
             message = Tr.notetypesErrorLoadingImageOcclusion
             return
         }
-        useImage(image, data: data, name: url.lastPathComponent)
+        if Self.backendImageExtensions.contains(url.pathExtension.lowercased()), let image = NSImage(data: data) {
+            useImage(image, data: data, name: url.lastPathComponent)
+            return
+        }
+        guard let png = Self.uprightPNG(data), let image = NSImage(data: png) else {
+            message = Tr.notetypesErrorLoadingImageOcclusion
+            return
+        }
+        useImage(image, data: png, name: url.deletingPathExtension().lastPathComponent + ".png")
+    }
+
+    /// The image types the backend reads an occlusion note's image back
+    /// from (rslib's image_occlusion/imagedata.rs). Others, such as an
+    /// iPhone's HEIC photos, go in as PNG.
+    private static let backendImageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "svg", "webp", "ico", "avif"]
+
+    /// The image as a PNG, turned upright as its orientation tag says, since
+    /// a PNG keeps no such tag.
+    private static func uprightPNG(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int,
+            let image = CGImageSourceCreateThumbnailAtIndex(
+                source, 0,
+                [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+                ] as CFDictionary)
+        else { return nil }
+        let png = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(png, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? png as Data : nil
     }
 
     /// Desktop's Paste Image from Clipboard, named as a pasted image.
