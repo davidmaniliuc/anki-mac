@@ -30,6 +30,7 @@ struct AnkiMacApp: App {
             StudyCommands(model: model)
             CardCommands()
             DeckOptionsCommands(model: model)
+            ToolsCommands(model: model)
             FormatCommands()
             CommandGroup(before: .windowList) {
                 Button("Browse") { BrowserWindowController.show(collection: model) }
@@ -37,6 +38,10 @@ struct AnkiMacApp: App {
                     .disabled(!model.isLoaded)
                 Divider()
             }
+        }
+        Settings {
+            PreferencesView(model: model)
+                .environment(model)
         }
     }
 }
@@ -102,6 +107,25 @@ struct DeckOptionsCommands: Commands {
                 .disabled(deck?.filtered != true)
             Button(Tr.studyingEmpty) { if let deck { model.emptyFilteredDeck(deck.id) } }
                 .disabled(deck?.filtered != true)
+        }
+    }
+}
+
+enum MaintenanceTool: String, Identifiable {
+    case database, media, emptyCards
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .database: "Check Database"; case .media: "Check Media"; case .emptyCards: "Empty Cards" }
+    }
+}
+
+struct ToolsCommands: Commands {
+    let model: CollectionModel
+    var body: some Commands {
+        CommandMenu("Tools") {
+            Button("Check Database") { model.maintenanceTool = .database }.disabled(!model.isLoaded)
+            Button("Check Media") { model.maintenanceTool = .media }.disabled(!model.isLoaded)
+            Button("Empty Cards") { model.maintenanceTool = .emptyCards }.disabled(!model.isLoaded)
         }
     }
 }

@@ -41,6 +41,9 @@ struct ContentView: View {
                     BrowserWindowController.current?.model.search(text: search)
                 })
         }
+        .sheet(item: Binding { model.maintenanceTool } set: { model.maintenanceTool = $0 }) { tool in
+            MaintenanceToolView(model: model, tool: tool)
+        }
         .modifier(DeckPrompts())
         .alert(
             "Something went wrong",

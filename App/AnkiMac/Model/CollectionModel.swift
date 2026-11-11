@@ -90,6 +90,7 @@ final class CollectionModel {
     var unburyPrompt: Int64?
     /// The filtered deck dialog, while it's open.
     var filteredDeck: FilteredDeckModel?
+    var maintenanceTool: MaintenanceTool?
 
     /// Started at launch, off the main thread, while SwiftUI builds the window.
     private let backendStartup = Task.detached(priority: .userInitiated) { try AnkiBackend() }
