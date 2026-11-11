@@ -433,7 +433,7 @@ def main() -> None:
     keys: list[str] = []
     for name in WHOLE_FILES:
         keys += [k for k in parse(FTL / name) if not k.startswith("-") and k not in keys]
-    keys += [k for k in EXTRA if k not in keys]
+    keys += [k for k in dict.fromkeys(EXTRA) if k not in keys]
     compiler = Compiler(messages)
     body = "\n".join(compiler.emit(k) for k in keys)
     OUT.parent.mkdir(parents=True, exist_ok=True)

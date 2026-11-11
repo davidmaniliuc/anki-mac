@@ -1075,7 +1075,7 @@ nonisolated enum Tr {
     static let actionsPreview = "Preview"
     static let actionsReplayAudio = "Replay Audio"
     static func actionsShortcutKey(val: String) -> String {
-        ("Shortcut key: " + String(describing: val))
+        ("Shortcut key: " + val)
     }
     static func actionsOptionsFor(val: String) -> String {
         ("Options for " + val)
@@ -1150,7 +1150,6 @@ nonisolated enum Tr {
     static let actionsPreviousCardInfo = "Previous Card Info"
     static let actionsCopy = "Copy"
     static let actionsCreateCopy = "Create Copy"
-    static let actionsReplayAudio = "Replay Audio"
     static func actionsWithEllipsis(action: String) -> String {
         (action + "...")
     }
