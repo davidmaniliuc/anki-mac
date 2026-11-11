@@ -80,6 +80,37 @@ extension CollectionModel {
         }
     }
 
+    // MARK: Study Deck
+
+    /// Every deck, filtered ones included, by full name, for the Study Deck picker.
+    func studyDeckChoices() async -> [DeckChoice] {
+        guard let backend else { return [] }
+        return (try? await backend.perform { backend in
+            var request = Anki_Decks_GetDeckNamesRequest()
+            request.skipEmptyDefault = true
+            request.includeFiltered = true
+            return try backend.getDeckNames(request).entries.map { DeckChoice(id: $0.id, name: $0.name) }
+        }) ?? []
+    }
+
+    /// Desktop's Study Deck choice: leaves any session and shows the deck's overview.
+    func showOverview(of deckID: Int64) {
+        studyDeckPresented = false
+        if session != nil { stopStudying() }
+        selectedDeckID = deckID
+    }
+
+    /// The picker's Add: creates the deck and shows its overview.
+    func addDeckAndShow(named name: String) {
+        deckOp { backend in
+            var deck = try backend.newDeck()
+            deck.name = name
+            return try backend.addDeck(deck).id
+        } then: { id in
+            self.showOverview(of: id)
+        }
+    }
+
     // MARK: Description
 
     /// The deck's description, rendered from Markdown by the backend when the

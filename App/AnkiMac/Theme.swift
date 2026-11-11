@@ -68,6 +68,10 @@ enum Theme {
         static let descriptionSheetSize = CGSize(width: 480, height: 360)
     }
 
+    enum StudyDeck {
+        static let sheetHeight: CGFloat = 420
+    }
+
     enum CustomStudy {
         static let sheetWidth: CGFloat = 480
         static let sheetHeight: CGFloat = 520

@@ -203,6 +203,7 @@ EXTRA = [
     "actions-forget-card",
     "actions-options",
     "scheduling-description",
+    "decks-study-deck",
     "decks-new-deck-name",
     "studying-this-is-a-special-deck-for",
     "studying-cards-will-be-automatically-returned-to",

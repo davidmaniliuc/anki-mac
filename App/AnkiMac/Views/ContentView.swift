@@ -127,6 +127,9 @@ private struct DeckPrompts: ViewModifier {
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
             }
+            .sheet(isPresented: Binding { model.studyDeckPresented } set: { model.studyDeckPresented = $0 }) {
+                StudyDeckSheet().environment(model)
+            }
             .sheet(item: Binding { model.descriptionEdit } set: { model.descriptionEdit = $0 }) { edit in
                 DeckDescriptionSheet(edit: edit, cancel: { model.descriptionEdit = nil }, save: model.saveDescription)
             }

@@ -952,6 +952,7 @@ nonisolated enum Tr {
     static let actionsForgetCard = "Reset Card"
     static let actionsOptions = "Options"
     static let schedulingDescription = "Description"
+    static let decksStudyDeck = "Study Deck"
     static let decksNewDeckName = "New deck name:"
     static let studyingThisIsASpecialDeckFor = "This is a special deck for studying outside of the normal schedule."
     static let studyingCardsWillBeAutomaticallyReturnedTo = "Cards will be automatically returned to their original decks after you review them."

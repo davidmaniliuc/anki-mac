@@ -89,6 +89,8 @@ final class CollectionModel {
     var selectedBuried = BuriedCards()
     /// The selected deck's description, which the overview loads.
     var selectedDescription: DeckDescription?
+    /// Whether the Study Deck picker is open.
+    var studyDeckPresented = false
     /// The Description sheet's text, while it's open.
     var descriptionEdit: DeckDescription?
     /// The deck whose Unbury asks which kind, while it asks.

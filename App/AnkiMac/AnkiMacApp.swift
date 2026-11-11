@@ -202,6 +202,9 @@ struct StudyCommands: Commands {
             Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
                 .keyboardShortcut("t", modifiers: [])
                 .disabled(!model.isLoaded)
+            Button("\(Tr.decksStudyDeck)…") { model.studyDeckPresented = true }
+                .keyboardShortcut("/", modifiers: [])
+                .disabled(!model.isLoaded)
             Divider()
             let session = model.session
             Button("Study Now") { model.startStudying() }
