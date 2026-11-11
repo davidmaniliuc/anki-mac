@@ -53,7 +53,7 @@ final class BrowserEditorModel {
                 guard note.id != noteID else { return }
                 self.note = note
                 noteID = note.id
-                editor.load(notetype: notetype, values: note.fields, focus: false)
+                editor.load(notetype: notetype, values: note.fields, noteID: note.id, focus: false)
                 tags = note.tags
             } catch {
                 guard generation == loadGeneration else { return }

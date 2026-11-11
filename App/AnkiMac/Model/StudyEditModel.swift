@@ -32,7 +32,7 @@ final class StudyEditModel: Identifiable {
                 return (note, try backend.getNotetype(notetypeID))
             }
             self.note = note
-            editor.load(notetype: notetype, values: note.fields)
+            editor.load(notetype: notetype, values: note.fields, noteID: note.id)
             tags = note.tags
             return true
         } catch {

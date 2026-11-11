@@ -226,7 +226,7 @@ final class AddCardsModel {
             let state = try await backend.perform { try $0.noteFieldsCheck(note).state }
             switch state {
             case .empty:
-                message = Tr.addingTheFirstFieldIsEmpty
+                message = editor.occlusion == nil ? Tr.addingTheFirstFieldIsEmpty : Tr.notetypesNoOcclusionCreated2
                 return false
             case .notetypeNotCloze:
                 message = Tr.addingClozeOutsideClozeNotetype

@@ -101,6 +101,9 @@ final class EditorField: Identifiable {
 @Observable
 final class NoteEditorModel {
     private(set) var fields: [EditorField] = []
+    /// Desktop's mask editor, for an image occlusion note. It owns the
+    /// occlusion and image fields, which the field list leaves out.
+    private(set) var occlusion: ImageOcclusionEditor?
     let mediaFolder: URL?
     private let backend: AnkiBackend
     /// Called after every edit, so the owner can save or check the note.
@@ -122,8 +125,9 @@ final class NoteEditorModel {
         self.mediaFolder = mediaFolder
     }
 
-    /// Shows a note type's fields with these values.
-    func load(notetype: Anki_Notetypes_Notetype, values: [String], focus: Bool = true) {
+    /// Shows a note type's fields with these values. `noteID` is the note
+    /// being edited, nil for a new one.
+    func load(notetype: Anki_Notetypes_Notetype, values: [String], noteID: Int64? = nil, focus: Bool = true) {
         notetypeID = notetype.id
         let collapsed = collapsedByNotetype[notetype.id] ?? notetype.fields.map(\.config.collapsed)
         fields = notetype.fields.enumerated().map { index, field in
@@ -136,7 +140,28 @@ final class NoteEditorModel {
             editorField.collapsed = index < collapsed.count && collapsed[index]
             return editorField
         }
-        focusRequest = focus ? fields.first { !$0.collapsed }?.index : nil
+        occlusion = occlusionEditor(notetype: notetype, noteID: noteID)
+        let hidden = occlusion?.hiddenFields ?? []
+        focusRequest = focus ? fields.first { !$0.collapsed && !hidden.contains($0.index) }?.index : nil
+    }
+
+    private func occlusionEditor(notetype: Anki_Notetypes_Notetype, noteID: Int64?) -> ImageOcclusionEditor? {
+        guard notetype.config.originalStockKind == .imageOcclusion else { return nil }
+        var fieldsRequest = Anki_ImageOcclusion_GetImageOcclusionFieldsRequest()
+        fieldsRequest.notetypeID = notetype.id
+        guard let indexes = try? backend.getImageOcclusionFields(fieldsRequest).fields else { return nil }
+        let editor = ImageOcclusionEditor(fields: indexes, isNew: noteID == nil) { [weak self] data, name in
+            self?.addMedia(data, preferredName: name)
+        }
+        if let noteID {
+            var request = Anki_ImageOcclusion_GetImageOcclusionNoteRequest()
+            request.noteID = noteID
+            if case .note(let note)? = try? backend.getImageOcclusionNote(request).value {
+                editor.load(note)
+            }
+        }
+        editor.onChange = { [weak self] in self?.edited() }
+        return editor
     }
 
     /// Collapses or expands a field; an expanded field takes focus.
@@ -148,9 +173,10 @@ final class NoteEditorModel {
 
     func clear() {
         fields = []
+        occlusion = nil
     }
 
-    var values: [String] { fields.map(\.html) }
+    var values: [String] { fields.map { occlusion?.value(forField: $0.index) ?? $0.html } }
 
     func edited() {
         onChange?()
