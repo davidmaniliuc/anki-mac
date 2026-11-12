@@ -12,7 +12,7 @@ extension BrowserModel {
     // MARK: Decks and tags
 
     func renameDeck(_ deckID: Int64, to fullName: String) {
-        change(sidebar: SidebarChange(reveal: .deck(deckID))) { backend in
+        change(failing: "Couldn’t rename the deck", sidebar: SidebarChange(reveal: .deck(deckID))) { backend in
             var request = Anki_Decks_RenameDeckRequest()
             request.deckID = deckID
             request.newName = fullName
@@ -22,7 +22,7 @@ extension BrowserModel {
 
     func deleteDecks(_ deckIDs: [Int64]) {
         collection.stopStudying(deleting: deckIDs)
-        change(searchAgain: true, sidebar: SidebarChange()) { backend in
+        change(failing: (deckIDs.count == 1 ? "Couldn’t delete the deck" : "Couldn’t delete the decks"), searchAgain: true, sidebar: SidebarChange()) { backend in
             var request = Anki_Decks_DeckIds()
             request.dids = deckIDs
             _ = try backend.removeDecks(request)
@@ -32,7 +32,7 @@ extension BrowserModel {
     /// Renames the tag and its children. A tag no note uses cannot be renamed.
     func renameTag(_ name: String, to newName: String) {
         let change = SidebarChange(reveal: .tag(newName), tagRename: (name, newName))
-        self.change(sidebar: change) { backend in
+        self.change(failing: "Couldn’t rename the tag", sidebar: change) { backend in
             var request = Anki_Tags_RenameTagsRequest()
             request.currentPrefix = name
             request.newPrefix = newName
@@ -43,7 +43,7 @@ extension BrowserModel {
     }
 
     func removeTags(_ names: [String]) {
-        change(sidebar: SidebarChange()) { backend in
+        change(failing: (names.count == 1 ? "Couldn’t remove the tag" : "Couldn’t remove the tags"), sidebar: SidebarChange()) { backend in
             var request = Anki_Generic_String()
             request.val = names.joined(separator: " ")
             return Int(try backend.removeTags(request).count)
@@ -53,7 +53,7 @@ extension BrowserModel {
     }
 
     func clearUnusedTags() {
-        change(sidebar: SidebarChange()) { backend in
+        change(failing: "Couldn’t clear unused tags", sidebar: SidebarChange()) { backend in
             Int(try backend.clearUnusedTags().count)
         } then: { count in
             self.showToast(Tr.browsingRemovedUnusedTagsCount(count: count))
@@ -77,6 +77,7 @@ extension BrowserModel {
     func saveCurrentSearch(as name: String, update: Bool, confirmOverwrite: @escaping (String) -> Bool) {
         guard let backend = collection.backend else { return }
         let text = searchText
+        let title = "Couldn’t save the search"
         Task {
             do {
                 let search = try await backend.perform { backend in
@@ -87,36 +88,36 @@ extension BrowserModel {
                 if !update, let existing = savedSearch(named: name) {
                     if existing == search || !confirmOverwrite(name) { return }
                 }
-                editConfig(Self.savedSearchesKey, reveal: .savedSearch(name)) { $0[name] = search }
+                editConfig(failing: title, Self.savedSearchesKey, reveal: .savedSearch(name)) { $0[name] = search }
             } catch {
-                errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+                failure = ActionFailure(title, error: error)
             }
         }
     }
 
     func renameSavedSearch(_ name: String, to newName: String, confirmOverwrite: (String) -> Bool) {
         if savedSearch(named: newName) != nil && !confirmOverwrite(newName) { return }
-        editConfig(Self.savedSearchesKey, reveal: .savedSearch(newName)) { searches in
+        editConfig(failing: "Couldn’t rename the saved search", Self.savedSearchesKey, reveal: .savedSearch(newName)) { searches in
             guard let search = searches.removeValue(forKey: name) else { return }
             searches[newName] = search
         }
     }
 
     func deleteSavedSearches(_ names: [String]) {
-        editConfig(Self.savedSearchesKey) { searches in names.forEach { searches[$0] = nil } }
+        editConfig(failing: (names.count == 1 ? "Couldn’t delete the saved search" : "Couldn’t delete the saved searches"), Self.savedSearchesKey) { searches in names.forEach { searches[$0] = nil } }
     }
 
     // MARK: Flags
 
     /// An empty name brings back the flag's default one.
     func renameFlag(_ flag: CardFlag, to name: String) {
-        editConfig(Self.flagLabelsKey) { labels in
+        editConfig(failing: "Couldn’t rename the flag", Self.flagLabelsKey) { labels in
             labels[String(flag.rawValue)] = name.isEmpty ? nil : name
         }
     }
 
     private func editConfig(
-        _ key: String, reveal: SidebarItem.ID? = nil, _ edit: @escaping @Sendable (inout [String: String]) -> Void
+        failing title: String, _ key: String, reveal: SidebarItem.ID? = nil, _ edit: @escaping @Sendable (inout [String: String]) -> Void
     ) {
         guard let backend = collection.backend else { return }
         Task {
@@ -124,7 +125,7 @@ extension BrowserModel {
                 try await backend.perform { try $0.editConfigStrings(key, edit) }
                 await loadSidebar(SidebarChange(reveal: reveal))
             } catch {
-                errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+                failure = ActionFailure(title, error: error)
             }
         }
     }

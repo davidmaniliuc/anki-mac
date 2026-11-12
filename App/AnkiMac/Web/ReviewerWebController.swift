@@ -119,6 +119,11 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         html { font-family: -apple-system, "Helvetica Neue", sans-serif; }
         </style>
         <link rel="stylesheet" href="/_anki/css/reviewer.css">
+        <style>
+        /* The main window's card surface, so the page meets it seamlessly. */
+        html:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.light)); }
+        html.night-mode:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.dark)); }
+        </style>
         </head>
         <body class="\(themeBodyClasses(nightMode: nightMode))">
         <script src="/_anki/js/webview.js"></script>

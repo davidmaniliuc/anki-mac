@@ -1300,6 +1300,15 @@ nonisolated enum Tr {
     }
     static let studyingDeleteNote = "Delete Note"
     static let studyingPauseAudio = "Pause Audio"
+    static let studyingAudio5s = "Audio -5s"
+    static let studyingAudioAnd5s = "Audio +5s"
+    static let studyingRecordOwnVoice = "Record Own Voice"
+    static let studyingReplayOwnVoice = "Replay Own Voice"
+    static let studyingYouHaventRecordedYourVoiceYet = "You haven't recorded your voice yet."
+    static let studyingQuestionTimeElapsed = "Question time elapsed"
+    static let studyingAnswerTimeElapsed = "Answer time elapsed"
+    static let actionsAutoAdvanceActivated = "Auto Advance enabled"
+    static let actionsAutoAdvanceDeactivated = "Auto Advance disabled"
     static func studyingCardStudiedInMinute(cards: some TrNumber, minutes: some TrNumber) -> String {
         ((cards.trValue == 1 ? (Tr.number(cards) + " card") : (Tr.number(cards) + " cards")) + " studied in " + (minutes.trValue == 1 ? (Tr.number(minutes) + " minute.") : (Tr.number(minutes) + " minutes.")))
     }

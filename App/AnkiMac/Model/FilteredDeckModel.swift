@@ -113,7 +113,7 @@ final class FilteredDeckModel: Identifiable {
             let request = deck
             return try await backend.perform { try $0.addOrUpdateFilteredDeck(request).id }
         } catch {
-            self.error = Self.message(error)
+            self.error = ActionFailure.reason(error)
             return nil
         }
     }
@@ -156,9 +156,5 @@ final class FilteredDeckModel: Identifiable {
         var node = Anki_Search_SearchNode()
         node.parsableText = search
         return try backend.buildSearchString(node).val
-    }
-
-    static func message(_ error: Error) -> String {
-        (error as? AnkiError)?.message ?? String(describing: error)
     }
 }

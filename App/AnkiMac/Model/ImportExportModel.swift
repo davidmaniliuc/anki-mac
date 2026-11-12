@@ -81,7 +81,9 @@ extension CollectionModel {
         case "csv", "txt", "tsv":
             presentCsvImport(url)
         default:
-            errorMessage = "Unsupported file type. Choose an .apkg or .colpkg file."
+            failure = ActionFailure(
+                "Couldn’t import this file",
+                detail: "AnkiMac imports .apkg, .colpkg, .zip, .csv, .tsv and .txt files.")
         }
     }
 
@@ -114,7 +116,7 @@ extension CollectionModel {
             } catch {
                 collectionClosed = false
                 await refreshDecks()
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t import the collection", error: error)
             }
         }
     }
@@ -135,7 +137,7 @@ extension CollectionModel {
                 await refreshDecks()
             } catch {
                 packageImportPresented = false
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t import the deck package", error: error)
             }
         }
     }
@@ -148,7 +150,7 @@ extension CollectionModel {
             do {
                 csvImport = try await CsvImportModel.load(url: url, backend: backend)
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t read this file", error: error)
             }
         }
     }
@@ -166,7 +168,7 @@ extension CollectionModel {
                 await refreshDecks()
             } catch {
                 csvImport = nil
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t import the file", error: error)
             }
         }
     }
@@ -231,7 +233,7 @@ extension CollectionModel {
                 }
             } catch {
                 collectionClosed = false
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t export", error: error)
             }
         }
     }

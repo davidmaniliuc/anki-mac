@@ -20,17 +20,23 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.delegate = self
     }
 
+    /// Something is playing or paused, as desktop's `current_player`.
+    private(set) var isPlaying = false
+    /// Called when everything `play` queued has played to the end, not when it is stopped.
+    var onFinished: (() -> Void)?
+    /// Counts `play` and `stop` calls, so a stopped run doesn't report finishing.
+    private var generation = 0
+
     func play(_ tags: [Anki_CardRendering_AVTag], mediaFolder: URL) {
-        stop()
-        guard !tags.isEmpty else { return }
-        playback = Task {
+        guard !tags.isEmpty else { return stop() }
+        start {
             for tag in tags {
                 if Task.isCancelled { return }
                 switch tag.value {
                 case .soundOrVideo(let file):
-                    await playFile(mediaFolder.appending(path: file))
+                    await self.playFile(mediaFolder.appending(path: file))
                 case .tts(let tts):
-                    await speak(tts)
+                    await self.speak(tts)
                 case nil:
                     continue
                 }
@@ -38,7 +44,27 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    /// One file outside the collection, such as the reviewer's recorded voice.
+    func play(file url: URL) {
+        start { await self.playFile(url) }
+    }
+
+    private func start(_ body: @escaping @MainActor () async -> Void) {
+        stop()
+        let current = generation
+        isPlaying = true
+        playback = Task {
+            await body()
+            guard generation == current else { return }
+            isPlaying = false
+            playback = nil
+            onFinished?()
+        }
+    }
+
     func stop() {
+        generation += 1
+        isPlaying = false
         playback?.cancel()
         playback = nil
         player?.pause()
@@ -51,6 +77,15 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
     func pause() { player?.pause(); synthesizer.pauseSpeaking(at: .immediate) }
 
     func resume() { player?.play(); synthesizer.continueSpeaking() }
+
+    /// Desktop's 6 and 7: jumps back or forward in the file playing, within
+    /// its length. Speech has no position to move.
+    func seek(by seconds: Double) {
+        guard let player, let item = player.currentItem else { return }
+        var target = max(0, player.currentTime().seconds + seconds)
+        if item.duration.isNumeric { target = min(target, item.duration.seconds) }
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+    }
 
     private func playFile(_ url: URL) async {
         log.notice("play file \(url.lastPathComponent, privacy: .public)")

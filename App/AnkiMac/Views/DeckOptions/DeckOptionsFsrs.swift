@@ -149,12 +149,12 @@ struct FsrsSection: View {
         let job = model.fsrsJob
         HStack {
             Button(job == .optimizing ? Tr.actionsCancel : Tr.deckConfigOptimizeButton) {
-                job == .optimizing ? model.cancelFsrsJob() : run(model.optimize)
+                job == .optimizing ? model.cancelFsrsJob() : run(failing: "Couldn’t optimize the FSRS parameters", model.optimize)
             }
             .disabled(job != nil && job != .optimizing)
             if model.legacyEvaluate {
                 Button(job == .evaluating ? Tr.actionsCancel : Tr.deckConfigEvaluateButton) {
-                    job == .evaluating ? model.cancelFsrsJob() : run(model.evaluate)
+                    job == .evaluating ? model.cancelFsrsJob() : run(failing: "Couldn’t evaluate the FSRS parameters", model.evaluate)
                 }
                 .disabled(job != nil && job != .evaluating)
             }
@@ -201,7 +201,7 @@ struct FsrsSection: View {
         simulator = FsrsSimulator(options: model, workload: workload)
     }
 
-    private func run(_ job: @escaping () async throws -> String?) {
+    private func run(failing title: String, _ job: @escaping () async throws -> String?) {
         if model.presetAssignmentsChanged {
             message = Tr.deckConfigPleaseSaveYourChangesFirst
             return
@@ -210,7 +210,7 @@ struct FsrsSection: View {
             do {
                 message = try await job()
             } catch {
-                actions.showError(String(describing: error))
+                actions.showError(ActionFailure(title, error: error))
             }
         }
     }
@@ -220,7 +220,7 @@ struct FsrsSection: View {
             do {
                 if try await model.saveAndOptimizeAll() { actions.close() }
             } catch {
-                actions.showError(String(describing: error))
+                actions.showError(ActionFailure("Couldn’t optimize all presets", error: error))
             }
         }
     }

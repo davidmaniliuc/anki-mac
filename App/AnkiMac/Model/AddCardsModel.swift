@@ -109,7 +109,7 @@ final class AddCardsModel {
             }
             lastAdded = nil
         } catch {
-            message = String(describing: error)
+            message = ActionFailure.reason(error)
         }
     }
 
@@ -196,7 +196,7 @@ final class AddCardsModel {
             do {
                 _ = try await backend.perform { try $0.updateNotetype(updated) }
             } catch {
-                message = String(describing: error)
+                message = ActionFailure.reason(error)
             }
         }
     }
@@ -279,7 +279,7 @@ final class AddCardsModel {
             try await load(notetypeID: notetypeID, sticky: added)
             return true
         } catch {
-            message = String(describing: error)
+            message = ActionFailure.reason(error)
             return false
         }
     }

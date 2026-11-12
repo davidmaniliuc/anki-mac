@@ -7,14 +7,80 @@ import SwiftUI
 /// sizes. Views read from `Theme` instead of hard-coding values, so the app
 /// can be restyled from this one file.
 enum Theme {
+    /// The main window's own palette: warm neutrals in place of the system
+    /// greys, one electric accent, and muted queue colours. Each colour has
+    /// a light and a dark value and follows the system appearance.
+    enum Palette {
+        static let canvas = dynamic(0xFAF9F6, 0x1D1C1A)
+        static let sidebar = dynamic(0xF1EFEA, 0x161513)
+        static let surface = dynamic(cardSurface.light, cardSurface.dark)
+        static let raised = dynamic(0xF6F4F0, 0x2D2C29)
+        static let hover = dynamic(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
+        static let selection = dynamic(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
+        static let hairline = dynamic(0x000000, 0xFFFFFF, alpha: (0.08, 0.07))
+
+        static let text = dynamic(0x1D1C1A, 0xEEECE8)
+        static let secondary = dynamic(0x6B675F, 0xA29E97)
+        static let tertiary = dynamic(0x9E9A92, 0x6E6A64)
+
+        static let accent = dynamic(0x2F6BFF, 0x4C8BFF)
+        static let blue = dynamic(0x1A5CFF, 0x6AA2FF)
+        static let coral = dynamic(0xCA342A, 0xF2786D)
+        static let green = dynamic(0x247C47, 0x6CC78E)
+        static let amber = dynamic(0x936113, 0xE9AE52)
+        static let violet = dynamic(0x7C5CE6, 0xA78BFA)
+        static let teal = dynamic(0x1E9AAE, 0x5CC8D8)
+        /// Anki's own star blue, for Today.
+        static let star = dynamic(0x2E9BEA, 0x55B8F7)
+
+        /// Behind the card while studying. The card's web page paints the
+        /// same values (ReviewerWebController), so the two meet seamlessly.
+        static let cardSurface = (light: UInt32(0xFFFFFF), dark: UInt32(0x252421))
+
+        static func css(_ hex: UInt32) -> String { String(format: "#%06X", hex) }
+
+        private static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: (CGFloat, CGFloat) = (1, 1)) -> Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                let hex = isDark ? dark : light
+                let alpha = isDark ? alpha.1 : alpha.0
+                return NSColor(
+                    srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
+            })
+        }
+    }
+
     enum Colors {
         /// Anki's colour coding for the three queues, kept so long-time users
-        /// recognise the counts at a glance. System colours adapt to dark mode.
-        static let newCards = Color.blue
-        static let learnCards = Color.red
-        static let reviewCards = Color.green
+        /// recognise the counts at a glance, in the palette's softer shades.
+        static let newCards = Palette.blue
+        static let learnCards = Palette.coral
+        static let reviewCards = Palette.green
         /// A count of zero is shown, but recedes.
-        static let zeroCount = Color.secondary.opacity(0.5)
+        static let zeroCount = Palette.tertiary
+    }
+
+    /// The main window's frame: the strip under the traffic lights, the
+    /// sidebar, and the width below which everything tightens up.
+    enum Layout {
+        static let sidebarWidth: CGFloat = 248
+        /// Below this window width the sidebar floats over the content
+        /// instead of pushing it aside.
+        static let compactWidth: CGFloat = 720
+        static let radius: CGFloat = 12
+        static let rowRadius: CGFloat = 7
+        static let rowHeight: CGFloat = 30
+        /// Each level of a deck tree steps in this far.
+        static let indent: CGFloat = 14
+        static let pageWidth: CGFloat = 680
+        static let pageMargin: CGFloat = 56
+        static let compactPageMargin: CGFloat = 18
+        /// A list row's content keeps to the page's edge; its hover wash
+        /// reaches this far past it on both sides, as in Things.
+        static let washOutset: CGFloat = 12
+        /// How far two fingers travel sideways before the sidebar moves.
+        static let swipeDistance: CGFloat = 60
     }
 
     enum Spacing {
@@ -26,29 +92,60 @@ enum Theme {
         static let xLarge: CGFloat = 32
     }
 
+    /// SF Pro for the interface, with rounded figures for numbers.
     enum Fonts {
-        static let sidebarCount = Font.callout.monospacedDigit()
-        static let overviewTitle = Font.largeTitle.weight(.semibold)
-        static let overviewCount = Font.system(size: 34, weight: .medium).monospacedDigit()
-        static let overviewCountLabel = Font.callout
-        static let studyCounts = Font.body.monospacedDigit()
-        static let intervalCaption = Font.caption.monospacedDigit()
+        static let title = Font.system(size: 30, weight: .bold)
+        /// Sized for the title bar, where it sits beside the session's counts.
+        static let studyTitle = Font.system(size: 13, weight: .semibold)
+        static let compactTitle = Font.system(size: 24, weight: .bold)
+        static let eyebrow = Font.system(size: 11, weight: .semibold)
+        static let eyebrowTracking: CGFloat = 0.8
+        /// Sidebar rows: regular, so only the selected row (semibold) steps
+        /// forward.
+        static let row = Font.system(size: 13.5)
+        static let listRow = Font.system(size: 14.5, weight: .medium)
+        static let body = Font.system(size: 14)
+        static let lead = Font.system(size: 15)
+        static let caption = Font.system(size: 12)
+        static let panelTitle = Font.system(size: 17, weight: .semibold)
+        static let button = Font.system(size: 14, weight: .semibold)
+        static let chip = Font.system(size: 12.5, weight: .medium)
+        static let keyCap = Font.system(size: 10.5, weight: .semibold, design: .rounded)
+        static let sidebarCount = Font.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()
+        /// The page's one big count: how many are due.
+        static let bigNumber = Font.system(size: 44, weight: .semibold, design: .rounded).monospacedDigit()
+        static let queueCount = Font.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit()
+        static let studyCounts = Font.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit()
+        static let intervalCaption = Font.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()
     }
 
+    /// The card browser's sidebar; the main window's is in Layout.
     enum Sidebar {
         static let minWidth: CGFloat = 200
-        static let idealWidth: CGFloat = 260
-        /// Around the New Deck button at the bottom, lined up with the rows.
-        static let footerPadding = EdgeInsets(top: 8, leading: 18, bottom: 12, trailing: 18)
     }
 
     enum Study {
-        /// Answer buttons share one width so none looks more important by
-        /// size; they shrink towards the minimum in narrow windows.
-        static let answerButtonWidth: CGFloat = 96
-        static let answerButtonMinWidth: CGFloat = 52
-        static let barPadding: CGFloat = 12
-        static let cardMinHeight: CGFloat = 200
+        /// Answer buttons share the width evenly up to this, so none looks
+        /// more important by size; in a small window they shrink together.
+        static let answerButtonMaxWidth: CGFloat = 140
+        /// Show Answer is one line, so it is smaller than the grades and
+        /// sits in the middle of their row.
+        static let showAnswerWidth: CGFloat = 200
+        static let showAnswerHeight: CGFloat = 38
+        static let answerButtonHeight: CGFloat = 58
+        static let compactAnswerButtonHeight: CGFloat = 48
+        static let cardMinHeight: CGFloat = 120
+        static let cardMaxWidth: CGFloat = 860
+        /// The study page's one side edge: the card, the answer bar and the
+        /// deck name in the title bar all keep to it.
+        static let margin: CGFloat = 40
+        static let compactMargin: CGFloat = 12
+        /// Keeps the title bar's deck name and counts clear of the actions
+        /// at its right.
+        static let titleActionsInset: CGFloat = 110
+        /// Past the window controls and the sidebar button.
+        static let titleControlsInset: CGFloat = 132
+        static let cardRadius: CGFloat = 18
         /// How long the message after a card action stays over the card.
         static let feedbackDuration: Duration = .seconds(2.5)
         /// Keeps the message above the answer bar.
@@ -58,8 +155,9 @@ enum Theme {
     }
 
     enum Window {
-        static let minWidth: CGFloat = 720
-        static let minHeight: CGFloat = 480
+        /// Small enough to study in a corner of the screen.
+        static let minWidth: CGFloat = 360
+        static let minHeight: CGFloat = 340
     }
 
     enum Profiles {

@@ -37,7 +37,7 @@ final class CardTemplatesWindowController: NSWindowController, NSWindowDelegate 
             guard let useCount = manager.entries.first(where: { $0.id == note.notetypeID })?.useCount,
                   let notetype = try? await manager.notetype(note.notetypeID)
             else {
-                collection.errorMessage = manager.errorMessage ?? "Could not open the card types."
+                collection.failure = manager.failure ?? ActionFailure("Couldn’t open the card types", detail: "")
                 return
             }
             show(manager: manager, notetype: notetype, useCount: useCount, mediaFolder: mediaFolder, ord: ord, note: note)

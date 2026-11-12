@@ -18,10 +18,21 @@ nonisolated struct StudyCard: Sendable {
 nonisolated struct DeckOptions: Sendable {
     let autoplay: Bool
     let maxAnswerMillis: UInt32
+    /// Auto Advance: 0 seconds leaves that side to the user.
+    let secondsToShowQuestion: Double
+    let secondsToShowAnswer: Double
+    let questionAction: Anki_DeckConfig_DeckConfig.Config.QuestionAction
+    let answerAction: Anki_DeckConfig_DeckConfig.Config.AnswerAction
+    let waitForAudio: Bool
 
     init(_ config: Anki_DeckConfig_DeckConfig.Config) {
         autoplay = !config.disableAutoplay
         maxAnswerMillis = config.capAnswerTimeToSecs * 1000
+        secondsToShowQuestion = Double(config.secondsToShowQuestion)
+        secondsToShowAnswer = Double(config.secondsToShowAnswer)
+        questionAction = config.questionAction
+        answerAction = config.answerAction
+        waitForAudio = config.waitForAudio
     }
 }
 
@@ -81,7 +92,7 @@ final class StudySession {
     private(set) var currentQueue: Anki_Scheduler_QueuedCards.Queue?
     private(set) var undoState = UndoState()
     /// What failed and why, for the alert.
-    var failure: StudyFailure?
+    var failure: ActionFailure?
     private(set) var audioPaused = false
     /// The time is up: the alert's text, until Continue or Finish.
     private(set) var timeboxMessage: String?
@@ -111,6 +122,7 @@ final class StudySession {
     func start() async {
         BenchDriver.trace("session_start")
         reviewer.onCommand = { [weak self] command in self?.handle(command) }
+        audio.onFinished = { [weak self] in self?.advanceIfDue() }
         let deckID = deckID
         busy = true
         await loadNext(failing: "Couldn’t load this deck’s cards") { backend in
@@ -121,7 +133,10 @@ final class StudySession {
     }
 
     func stop() {
+        cancelAutoAdvance()
         audio.stop()
+        recordedVoice?.cleanUp()
+        recordedVoice = nil
         reviewer.onCommand = nil
         reviewer.clear()
     }
@@ -156,6 +171,7 @@ final class StudySession {
         if card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.answerAV, mediaFolder: folder)
         }
+        scheduleAutoAdvance()
     }
 
     func answer(_ rating: Rating) {
@@ -195,6 +211,7 @@ final class StudySession {
         if phase == .question, let card, card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)
         }
+        scheduleAutoAdvance()
     }
 
     func undo() {
@@ -342,6 +359,114 @@ final class StudySession {
     func toggleAudioPause() {
         audioPaused.toggle()
         if audioPaused { audio.pause() } else { audio.resume() }
+    }
+
+    /// Desktop's 6 and 7 move by five seconds.
+    func seekAudio(by seconds: Double) { audio.seek(by: seconds) }
+
+    // MARK: Own voice
+
+    /// The last Record Own Voice, which V plays again.
+    @ObservationIgnored private var recordedVoice: AudioRecording?
+    @ObservationIgnored private var isRecordingVoice = false
+
+    /// Desktop's Shift+V: the recording sheet, then the recording played back.
+    func recordVoice() {
+        guard !isRecordingVoice, let window = reviewer.webView?.window else { return }
+        isRecordingVoice = true
+        audio.stop()
+        Task { [weak self] in
+            do {
+                let recording = try await AudioRecording.start()
+                RecordingSheet.present(recording, over: window) { [weak self] url in
+                    guard let self else { return recording.cleanUp() }
+                    isRecordingVoice = false
+                    guard url != nil else { return }
+                    recordedVoice?.cleanUp()
+                    recordedVoice = recording
+                    replayVoice()
+                }
+            } catch {
+                self?.isRecordingVoice = false
+                self?.failure = ActionFailure(
+                    "Couldn’t record your voice", detail: Tr.qtMiscUnableToRecord(error: error.localizedDescription))
+            }
+        }
+    }
+
+    func replayVoice() {
+        guard let url = recordedVoice?.url else { return showFeedback(Tr.studyingYouHaventRecordedYourVoiceYet) }
+        audio.play(file: url)
+    }
+
+    // MARK: Auto Advance
+
+    /// Desktop's Shift+A: after the deck options' seconds, the question
+    /// shows its answer and the answer is acted on. Off in each new session.
+    private(set) var autoAdvance = false
+    @ObservationIgnored private var advanceTimer: Task<Void, Never>?
+    /// The time ran out while the deck waits for audio still playing.
+    @ObservationIgnored private var advanceDue = false
+
+    func toggleAutoAdvance() {
+        autoAdvance.toggle()
+        showFeedback(autoAdvance ? Tr.actionsAutoAdvanceActivated : Tr.actionsAutoAdvanceDeactivated)
+        scheduleAutoAdvance()
+    }
+
+    /// Starts the timer for the side on screen.
+    private func scheduleAutoAdvance() {
+        cancelAutoAdvance()
+        guard autoAdvance, let options = card?.options else { return }
+        let seconds = switch phase {
+        case .question: options.secondsToShowQuestion
+        case .answer: options.secondsToShowAnswer
+        case .loading, .finished: 0.0
+        }
+        guard seconds > 0 else { return }
+        advanceTimer = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            advanceDue = true
+            advanceIfDue()
+        }
+    }
+
+    private func cancelAutoAdvance() {
+        advanceTimer?.cancel()
+        advanceTimer = nil
+        advanceDue = false
+    }
+
+    /// The timer ran out, and any audio the deck waits for has ended.
+    private func advanceIfDue() {
+        guard advanceDue, let options = card?.options else { return }
+        if options.waitForAudio, audio.isPlaying { return }
+        advanceDue = false
+        // As desktop, Auto Advance turns itself off when the study window has
+        // lost focus: an editor, a dialog or another window is in front.
+        guard reviewer.webView?.window?.isKeyWindow == true else {
+            autoAdvance = false
+            return
+        }
+        switch (phase, options.questionAction, options.answerAction) {
+        case (.question, .showReminder, _):
+            showFeedback(Tr.studyingQuestionTimeElapsed)
+        case (.question, _, _):
+            showAnswer()
+        case (.answer, _, .answerAgain):
+            answer(.again)
+        case (.answer, _, .answerHard):
+            answer(.hard)
+        case (.answer, _, .answerGood):
+            answer(.good)
+        case (.answer, _, .showReminder):
+            showFeedback(Tr.studyingAnswerTimeElapsed)
+        case (.answer, _, _):
+            buryCurrentCard()
+        case (.loading, _, _), (.finished, _, _):
+            break
+        }
     }
 
     // MARK: Prompts: Set Due Date, Reset and Reposition
@@ -507,6 +632,7 @@ final class StudySession {
         answered: Bool = false, failing title: String, recovery: String? = nil,
         after change: @escaping @Sendable (AnkiBackend) throws -> Void
     ) async {
+        cancelAutoAdvance()
         defer { busy = timeboxMessage != nil }
         let configCache = self.configCache
         let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32)? = await run(
@@ -559,6 +685,7 @@ final class StudySession {
         if card.options.autoplay, timeboxMessage == nil, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)
         }
+        if timeboxMessage == nil { scheduleAutoAdvance() }
     }
 
     nonisolated static let markedTag = "marked"
@@ -626,8 +753,7 @@ final class StudySession {
         do {
             return try await backend.perform(work)
         } catch {
-            let reason = (error as? AnkiError)?.message ?? error.localizedDescription
-            failure = StudyFailure(title: title, detail: [reason, recovery].compactMap { $0 }.joined(separator: "\n\n"))
+            failure = ActionFailure(title, error: error, recovery: recovery)
             return nil
         }
     }
@@ -657,11 +783,4 @@ nonisolated final class Box<Value: Sendable>: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
-}
-
-/// A study action that didn't happen: what it was, for the alert's title,
-/// and why, with what to do next when that's known.
-struct StudyFailure: Equatable {
-    let title: String
-    let detail: String
 }

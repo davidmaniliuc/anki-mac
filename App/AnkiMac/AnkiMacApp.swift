@@ -30,7 +30,7 @@ struct AnkiMacApp: App {
                 }
         }
         .commands {
-            SidebarCommands()
+            LayoutCommands()
             StudyCommands(model: model)
             CardCommands(model: model)
             DeckOptionsCommands(model: model)
@@ -236,9 +236,21 @@ struct StudyCommands: Commands {
             Button("Edit Note…") { session?.editCurrentNote() }
                 .keyboardShortcut("e", modifiers: [])
                 .disabled(session?.card == nil)
-            Button(Tr.studyingPauseAudio) { session?.toggleAudioPause() }
-                .keyboardShortcut("5", modifiers: [])
-                .disabled(session == nil || session?.phase == .finished)
+            Group {
+                Button(Tr.studyingPauseAudio) { session?.toggleAudioPause() }
+                    .keyboardShortcut("5", modifiers: [])
+                Button(Tr.studyingAudio5s) { session?.seekAudio(by: -5) }
+                    .keyboardShortcut("6", modifiers: [])
+                Button(Tr.studyingAudioAnd5s) { session?.seekAudio(by: 5) }
+                    .keyboardShortcut("7", modifiers: [])
+                Button(Tr.studyingRecordOwnVoice + "…") { session?.recordVoice() }
+                    .keyboardShortcut("v", modifiers: .shift)
+                Button(Tr.studyingReplayOwnVoice) { session?.replayVoice() }
+                    .keyboardShortcut("v", modifiers: [])
+                Toggle(Tr.actionsAutoAdvance, isOn: Binding { session?.autoAdvance ?? false } set: { _ in session?.toggleAutoAdvance() })
+                    .keyboardShortcut("a", modifiers: .shift)
+            }
+            .disabled(session == nil || session?.phase == .finished)
             Divider()
             // Desktop's single keys; the Cards menu has the same actions with Command shortcuts.
             Group {
@@ -251,6 +263,9 @@ struct StudyCommands: Commands {
             Divider()
             Button("Card Info…") { session?.showCardInfo(in: model) }
                 .keyboardShortcut("i", modifiers: [])
+                .disabled(session?.card == nil)
+            Button(Tr.actionsWithEllipsis(action: Tr.actionsCreateCopy)) { session?.createCopy(in: model) }
+                .keyboardShortcut("e", modifiers: [.command, .option])
                 .disabled(session?.card == nil)
             Button("\(Tr.actionsOptions)…") { if let deck = model.selectedDeck { model.showOptions(deck) } }
                 .keyboardShortcut("o", modifiers: [])

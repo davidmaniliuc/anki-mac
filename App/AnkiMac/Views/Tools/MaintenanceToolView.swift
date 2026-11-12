@@ -106,7 +106,7 @@ struct MaintenanceToolView: View {
                 lines = emptyCards.notes.isEmpty ? [ReportLine(text: Tr.emptyCardsNotFound)] : ReportLine.parse(emptyCards.report)
             }
         } catch {
-            lines = [ReportLine(text: "\(error)")]
+            lines = [ReportLine(text: ActionFailure.reason(error))]
         }
         busy = false
     }
@@ -161,7 +161,7 @@ struct MaintenanceToolView: View {
                 status = done
             } catch {
                 busy = false
-                status = "\(error)"
+                status = ActionFailure.reason(error)
             }
         }
     }

@@ -89,6 +89,9 @@ final class CollectionModel {
     /// The main window shows the profiles instead of the decks.
     var choosingProfile = false
     private(set) var decks: [DeckNode] = []
+    /// Cards answered today in each deck and its subdecks, for the progress
+    /// rings; read after the counts, and not while studying.
+    var studiedToday: [Int64: Int] = [:]
     private(set) var isLoaded = false
     private(set) var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
@@ -96,7 +99,8 @@ final class CollectionModel {
     var backupTask: Task<Void, Never>?
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
-    var errorMessage: String?
+    /// What failed and why, for the main window's alert.
+    var failure: ActionFailure?
     /// What Undo and Redo would act on in the main window, while not studying.
     private(set) var undoState = UndoState()
     /// The deck whose name is being edited in the sidebar.
@@ -193,7 +197,7 @@ final class CollectionModel {
                 choosingProfile = true
             }
         } catch {
-            errorMessage = "Could not open the collection: \(error)"
+            failure = ActionFailure("Couldn’t open the collection", error: error)
         }
     }
 
@@ -211,7 +215,7 @@ final class CollectionModel {
                 choosingProfile = true
             }
         } catch {
-            errorMessage = "Could not open the collection: \(error)"
+            failure = ActionFailure("Couldn’t open the collection", error: error)
         }
     }
 
@@ -245,7 +249,7 @@ final class CollectionModel {
                 await updateSyncStatus()
             }
         } catch {
-            errorMessage = "Could not open the collection: \(error)"
+            failure = ActionFailure("Couldn’t open the collection", error: error)
         }
     }
 
@@ -384,7 +388,7 @@ final class CollectionModel {
             syncLoginPresented = false
             await synchronize()
         } catch {
-            syncAlert = String(describing: error)
+            syncAlert = ActionFailure.reason(error)
         }
     }
 
@@ -449,7 +453,7 @@ final class CollectionModel {
             if let ankiError = error as? AnkiError, ankiError.backend?.kind == .syncAuthError {
                 logOut()
             }
-            syncAlert = String(describing: error)
+            syncAlert = ActionFailure.reason(error)
         }
     }
 
@@ -473,7 +477,7 @@ final class CollectionModel {
             if syncMediaEnabled { await monitorMediaSync(backend) }
             await updateSyncStatus()
         } catch {
-            syncAlert = String(describing: error)
+            syncAlert = ActionFailure.reason(error)
         }
     }
 
@@ -493,7 +497,7 @@ final class CollectionModel {
             syncMediaProgress = Tr.syncMediaComplete
         } catch {
             syncMediaProgress = Tr.syncMediaFailed
-            syncAlert = String(describing: error)
+            syncAlert = ActionFailure.reason(error)
         }
     }
 
@@ -515,9 +519,10 @@ final class CollectionModel {
             }
             lastRefresh = Date()
             scheduleRollover(at: nextDayAt)
+            if session == nil { Task { await refreshStudiedToday() } }
             BenchDriver.trace("deck_tree")
         } catch {
-            errorMessage = "Could not load decks: \(error)"
+            failure = ActionFailure("Couldn’t load your decks", error: error)
         }
     }
 
@@ -616,7 +621,7 @@ final class CollectionModel {
         do {
             filteredDeck = try FilteredDeckModel(deckID: deckID, currentDeck: selectedDeckID, backend: backend)
         } catch {
-            errorMessage = FilteredDeckModel.message(error)
+            failure = ActionFailure("Couldn’t open the filtered deck’s options", error: error)
         }
     }
 
@@ -631,7 +636,7 @@ final class CollectionModel {
     }
 
     func rebuildFilteredDeck(_ deckID: Int64) {
-        filteredDeckOp { backend in
+        filteredDeckOp(failing: "Couldn’t rebuild this filtered deck") { backend in
             var request = Anki_Decks_DeckId()
             request.did = deckID
             _ = try backend.rebuildFilteredDeck(request)
@@ -640,21 +645,21 @@ final class CollectionModel {
 
     /// Returns the deck's cards to their home decks.
     func emptyFilteredDeck(_ deckID: Int64) {
-        filteredDeckOp { backend in
+        filteredDeckOp(failing: "Couldn’t empty this filtered deck") { backend in
             var request = Anki_Decks_DeckId()
             request.did = deckID
             _ = try backend.emptyFilteredDeck(request)
         }
     }
 
-    private func filteredDeckOp(_ op: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    private func filteredDeckOp(failing title: String, _ op: @escaping @Sendable (AnkiBackend) throws -> Void) {
         guard let backend else { return }
         if session != nil { stopStudying() }
         Task {
             do {
                 try await backend.perform(op)
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure(title, error: error)
             }
             await refreshDecks()
         }

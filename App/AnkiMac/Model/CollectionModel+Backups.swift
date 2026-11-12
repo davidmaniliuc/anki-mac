@@ -56,7 +56,9 @@ extension CollectionModel {
         do {
             return try await backend.perform { try $0.backUp(kind, to: paths.backups) }
         } catch {
-            errorMessage = Tr.profilesBackupCreationFailed(reason: FilteredDeckModel.message(error))
+            failure = ActionFailure(
+                "Couldn’t back up the collection",
+                detail: Tr.profilesBackupCreationFailed(reason: ActionFailure.reason(error)))
             return nil
         }
     }

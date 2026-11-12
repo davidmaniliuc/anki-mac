@@ -58,8 +58,8 @@ struct ChangeNotetypeSheet: View {
             .disabled(saving)
         }
         .alert(
-            "Something went wrong", isPresented: Binding { model.errorMessage != nil } set: { _ in model.errorMessage = nil },
-            actions: {}, message: { Text(model.errorMessage ?? "") })
+            model.failure?.title ?? "", isPresented: Binding { model.failure != nil } set: { _ in model.failure = nil },
+            actions: {}, message: { Text(verbatim: model.failure?.detail ?? "") })
     }
 
     /// One new field or card type, and the current one it takes its content from.

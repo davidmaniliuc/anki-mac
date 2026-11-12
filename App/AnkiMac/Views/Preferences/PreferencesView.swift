@@ -8,7 +8,7 @@ struct PreferencesView: View {
     @State private var preferences = Anki_Config_Preferences()
     @State private var saved = Anki_Config_Preferences()
     @State private var loaded = false
-    @State private var errorMessage: String?
+    @State private var failure: ActionFailure?
 
     var body: some View {
         Group {
@@ -22,12 +22,12 @@ struct PreferencesView: View {
         .task(id: model.isLoaded) { await load() }
         .onChange(of: preferences) { _, new in save(new) }
         .alert(
-            Tr.preferencesPreferences,
-            isPresented: Binding { errorMessage != nil } set: { if !$0 { errorMessage = nil } }
+            failure?.title ?? "",
+            isPresented: Binding { failure != nil } set: { if !$0 { failure = nil } }
         ) {
             Button("OK") {}
         } message: {
-            Text(errorMessage ?? "")
+            Text(verbatim: failure?.detail ?? "")
         }
     }
 
@@ -117,7 +117,7 @@ struct PreferencesView: View {
             preferences = current
             loaded = true
         } catch {
-            errorMessage = "\(error)"
+            failure = ActionFailure("Couldn’t load the preferences", error: error)
         }
     }
 
@@ -129,7 +129,7 @@ struct PreferencesView: View {
                 _ = try await backend.perform { try $0.setPreferences(new) }
                 model.deckOptionsChanged()
             } catch {
-                errorMessage = "\(error)"
+                failure = ActionFailure("Couldn’t save the preferences", error: error)
             }
         }
     }

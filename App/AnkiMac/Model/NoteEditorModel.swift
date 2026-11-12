@@ -173,7 +173,7 @@ final class NoteEditorModel {
             case nil: return OcclusionSetup(fields: fields, note: .unreadable(""))
             }
         } catch {
-            return OcclusionSetup(fields: fields, note: .unreadable((error as? AnkiError)?.message ?? "\(error)"))
+            return OcclusionSetup(fields: fields, note: .unreadable(ActionFailure.reason(error)))
         }
     }
 
@@ -230,7 +230,7 @@ final class NoteEditorModel {
             if response.hasFilename { return .success(response.filename) }
             return .failure(MediaDownloadError(message: response.error))
         } catch {
-            return .failure(MediaDownloadError(message: (error as? AnkiError)?.message ?? String(describing: error)))
+            return .failure(MediaDownloadError(message: ActionFailure.reason(error)))
         }
     }
 

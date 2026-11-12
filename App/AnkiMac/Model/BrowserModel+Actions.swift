@@ -51,7 +51,7 @@ extension BrowserModel {
 
     func toggleBury() {
         guard let selection, let buried = commandCard?.isBuried else { return }
-        change { backend in
+        change(failing: (buried ? "Couldn’t unbury the cards" : "Couldn’t bury the cards")) { backend in
             let cardIDs = try Self.cardIDs(selection, backend: backend)
             if buried {
                 var request = Anki_Cards_CardIds()
@@ -69,7 +69,7 @@ extension BrowserModel {
     // MARK: Card prompts
 
     func askSetDueDate() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Set Due Date") { selection, backend in
             var key = Anki_Config_GetConfigStringRequest()
             key.key = .setDueBrowser
             let days = try backend.getConfigString(key).val
@@ -81,7 +81,7 @@ extension BrowserModel {
     /// interval, "3-7" a random day in the range. Remembered for next time.
     func setDueDate(days: String) {
         guard let selection = answer(), !days.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        change { backend in
+        change(failing: "Couldn’t set the due date") { backend in
             var request = Anki_Scheduler_SetDueDateRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.days = days
@@ -91,7 +91,7 @@ extension BrowserModel {
     }
 
     func askForget() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Reset") { selection, backend in
             var request = Anki_Scheduler_ScheduleCardsAsNewDefaultsRequest()
             request.context = .browser
             let defaults = try backend.scheduleCardsAsNewDefaults(request)
@@ -105,7 +105,7 @@ extension BrowserModel {
     /// as the defaults for next time.
     func forget(restorePosition: Bool, resetCounts: Bool) {
         guard let selection = answer() else { return }
-        change { backend in
+        change(failing: "Couldn’t reset the cards") { backend in
             var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.log = true
@@ -117,7 +117,7 @@ extension BrowserModel {
     }
 
     func askReposition() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Reposition") { selection, backend in
             let defaults = try backend.repositionDefaults()
             let (top, bottom) = try Self.newQueueBounds(backend)
             return .reposition(
@@ -129,7 +129,7 @@ extension BrowserModel {
     /// Only new cards move; the backend leaves the rest of the selection alone.
     func reposition(start: Int, step: Int, randomize: Bool, shift: Bool) {
         guard let selection = answer() else { return }
-        change(searchAgain: true) { backend in
+        change(failing: "Couldn’t reposition the cards", searchAgain: true) { backend in
             var request = Anki_Scheduler_SortCardsRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.startingFrom = UInt32(max(start, 0))
@@ -141,7 +141,7 @@ extension BrowserModel {
     }
 
     func askChangeDeck() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Change Deck") { selection, backend in
             var request = Anki_Decks_GetDeckNamesRequest()
             request.skipEmptyDefault = true
             request.includeFiltered = false
@@ -159,7 +159,7 @@ extension BrowserModel {
 
     func changeDeck(to deckID: Int64) {
         guard let selection = answer() else { return }
-        change(searchAgain: true) { backend in
+        change(failing: "Couldn’t move the cards", searchAgain: true) { backend in
             var request = Anki_Cards_SetDeckRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.deckID = deckID
@@ -170,7 +170,7 @@ extension BrowserModel {
     // MARK: Note prompts
 
     func askTags(adding: Bool) {
-        ask { selection, backend in
+        ask(failing: (adding ? "Couldn’t open Add Tags" : "Couldn’t open Remove Tags")) { selection, backend in
             let notes = try Self.noteIDs(selection, backend: backend).count
             return .tags(adding: adding, notes: notes, known: try backend.allTags().vals)
         }
@@ -184,7 +184,7 @@ extension BrowserModel {
 
     func changeTags(of selection: Selection, adding: Bool, tags: String) {
         guard !tags.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        change(searchAgain: true) { backend in
+        change(failing: (adding ? "Couldn’t add the tags" : "Couldn’t remove the tags"), searchAgain: true) { backend in
             var request = Anki_Tags_NoteIdsAndTagsRequest()
             request.noteIds = try Self.noteIDs(selection, backend: backend)
             request.tags = tags
@@ -193,7 +193,7 @@ extension BrowserModel {
     }
 
     func askFindAndReplace() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Find and Replace") { selection, backend in
             var request = Anki_Notes_FieldNamesForNotesRequest()
             request.nids = try Self.noteIDs(selection, backend: backend)
             return .findAndReplace(notes: request.nids.count, fields: try backend.fieldNamesForNotes(request).fields)
@@ -205,7 +205,7 @@ extension BrowserModel {
         find: String, replacement: String, in target: ReplaceTarget, selectedOnly: Bool, regex: Bool, matchCase: Bool
     ) {
         guard let selection = answer() else { return }
-        change(searchAgain: true) { backend in
+        change(failing: "Couldn’t find and replace", searchAgain: true) { backend in
             let noteIDs = selectedOnly ? try Self.noteIDs(selection, backend: backend) : []
             if target == .tags {
                 var request = Anki_Tags_FindAndReplaceTagRequest()
@@ -230,7 +230,7 @@ extension BrowserModel {
 
     /// A selection of mixed note types is refused with the backend's message, as desktop does.
     func askChangeNotetype() {
-        ask { selection, backend in
+        ask(failing: "Couldn’t open Change Notetype") { selection, backend in
             var notes = Anki_Notes_NoteIds()
             notes.noteIds = try Self.noteIDs(selection, backend: backend)
             let current = try backend.getSingleNotetypeOfNotes(notes).ntid
@@ -247,7 +247,7 @@ extension BrowserModel {
     /// Applies the sheet's mapping. The sheet stays up if the change fails.
     func changeNotetype(_ request: Anki_Notetypes_ChangeNotetypeRequest) async {
         guard await confirmSchemaChange(),
-            await perform(searchAgain: true, { backend in _ = try backend.changeNotetype(request) })
+            await perform(failing: "Couldn’t change the note type", searchAgain: true, { backend in _ = try backend.changeNotetype(request) })
         else { return }
         cancelPrompt()
     }
@@ -264,7 +264,7 @@ extension BrowserModel {
 
     /// Builds a prompt for the current selection off the main thread, then
     /// shows it. The selection is kept, so the answer acts on the same rows.
-    private func ask(_ build: @escaping @Sendable (Selection, AnkiBackend) throws -> BrowserPrompt) {
+    private func ask(failing title: String, _ build: @escaping @Sendable (Selection, AnkiBackend) throws -> BrowserPrompt) {
         guard let selection, let backend = collection.backend, prompt == nil else { return }
         Task {
             do {
@@ -272,7 +272,7 @@ extension BrowserModel {
                 promptSelection = selection
                 prompt = built
             } catch {
-                errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+                failure = ActionFailure(title, error: error)
             }
         }
     }

@@ -169,7 +169,7 @@ extension CsvMetadata {
             } catch {
                 guard mine == generation else { return }
                 metadata = before
-                refreshError = FilteredDeckModel.message(error)
+                refreshError = ActionFailure.reason(error)
             }
             isRefreshing = false
         }

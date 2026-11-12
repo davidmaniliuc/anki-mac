@@ -83,7 +83,7 @@ struct ProfilesView: View {
         do {
             names = try Profiles.names()
         } catch {
-            warning = "\(error)"
+            warning = ActionFailure.reason(error)
         }
         selection = name.flatMap { names.contains($0) ? $0 : nil } ?? names.first
     }
@@ -119,7 +119,7 @@ struct ProfilesView: View {
             }
             reload(selecting: name)
         } catch {
-            warning = "\(error)"
+            warning = ActionFailure.reason(error)
         }
     }
 
@@ -137,7 +137,7 @@ struct ProfilesView: View {
         do {
             try Profiles.remove(name)
         } catch {
-            warning = "\(error)"
+            warning = ActionFailure.reason(error)
         }
         reload(selecting: nil)
     }

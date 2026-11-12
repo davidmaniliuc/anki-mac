@@ -103,7 +103,7 @@ final class BrowserEditorModel {
         updated.tags = tags
         guard updated.fields != note.fields || updated.tags != note.tags else { return }
         note = updated
-        browser.change { [updated] backend in
+        browser.change(failing: "Couldn’t save your changes to the note") { [updated] backend in
             var request = Anki_Notes_UpdateNotesRequest()
             request.notes = [updated]
             _ = try backend.updateNotes(request)

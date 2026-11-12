@@ -13,10 +13,10 @@ colors:
   ink: "#1D1C1A"
   pencil: "#6B675F"
   faded-pencil: "#9E9A92"
-  queue-new-blue: "#2F6BFF"
-  queue-learn-coral: "#D9534A"
-  queue-review-green: "#2E9E5B"
-  grade-hard-amber: "#C7841A"
+  queue-new-blue: "#1A5CFF"
+  queue-learn-coral: "#CA342A"
+  queue-review-green: "#247C47"
+  grade-hard-amber: "#936113"
   place-violet: "#7C5CE6"
   place-teal: "#1E9AAE"
   anki-star-blue: "#2E9BEA"
@@ -44,7 +44,7 @@ typography:
     letterSpacing: "0.8px"
   numeral:
     fontFamily: "SF Pro Rounded, ui-rounded, system-ui"
-    fontSize: "30px"
+    fontSize: "44px"
     fontWeight: 600
     fontFeature: "tnum"
   count:
@@ -91,11 +91,9 @@ components:
   button-quiet-hover:
     backgroundColor: "{colors.hover-wash}"
     textColor: "{colors.ink}"
-  stat-tile:
-    backgroundColor: "{colors.card-white}"
+  due-summary:
+    backgroundColor: "transparent"
     textColor: "{colors.ink}"
-    rounded: "{rounded.panel}"
-    padding: "14px"
   sidebar-row:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
@@ -147,8 +145,8 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 - **Electric Pen Blue** (accent-blue): the one prominent action on a page (Study Now), the play button on a hovered deck row, the selected deck's ring, and the window's tint. Its rarity is what makes it findable.
 
 ### Secondary
-- **Queue New Blue / Learning Coral / Review Green** (queue-new-blue, queue-learn-coral, queue-review-green): Anki's new, learning and review counts in softer shades. They appear wherever counts appear: sidebar, Today, overview tiles, the study title bar, statistics.
-- **Grade colours:** Again uses Learning Coral, Hard uses Ochre Amber (grade-hard-amber), Good uses Review Green, Easy uses Queue New Blue. They appear as soft washes on the answer buttons.
+- **Queue New Blue / Learning Coral / Review Green** (queue-new-blue, queue-learn-coral, queue-review-green): Anki's new, learning and review counts in Anki's hues. In light mode they are deep enough (4.5:1 on the canvas) to read as text; dark mode uses lighter shades. They appear wherever counts appear: sidebar, the due summary on Today and the overview, the study title bar, statistics.
+- **Grade colours:** Again uses Learning Coral, Hard uses Ochre Amber (grade-hard-amber), Good uses Review Green, Easy uses Queue New Blue. They colour the answer buttons' labels, and wash the button only under the pointer.
 
 ### Tertiary
 - **Places violet and teal** (place-violet, place-teal): only the sidebar's Statistics and Browse icons.
@@ -157,7 +155,7 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 ### Neutral
 - **Canvas Paper** (canvas-paper): the main content and study background.
 - **Sidebar Linen** (sidebar-linen): the sidebar, a step darker than the canvas (darker still in dark mode).
-- **Card White** (card-white): panels, stat tiles, and behind the card. The card's web page paints the same value so the two meet seamlessly.
+- **Card White** (card-white): panels and behind the card. The card's web page paints the same value so the two meet seamlessly.
 - **Raised Oat** (raised-oat): chip button fill.
 - **Ink / Pencil / Faded Pencil** (ink, pencil, faded-pencil): primary text, secondary text and icons, tertiary text and zero counts.
 - **Hover, Selection, Hairline washes**: translucent black in light mode, translucent white in dark mode, so they work on any of the neutral layers.
@@ -180,10 +178,12 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 ### Hierarchy
 - **Display** (bold 700, 30px; 24px in a small window): page titles, Today and the deck name, beside their icon.
 - **Headline** (semibold 600, 17px): panel and sheet titles.
-- **Title** (medium 500, 14.5px; sidebar rows 13.5px): deck names in lists and the sidebar.
+- **Title** (medium 500, 14.5px): deck names in page lists.
+- **Sidebar row** (regular 400, 13.5px; semibold 600 on the selected row only): places and decks in the sidebar, so only the selection steps forward.
 - **Body** (regular 400, 14px; lead 15px; caption 12px): descriptions, paths under deck names, secondary lines.
 - **Label / Eyebrow** (semibold 600, 11px, 0.8px tracking, uppercase): section names and the path over a title, in Pencil.
-- **Numeral** (rounded semibold 600, 30px, tabular): the big counts in stat tiles.
+- **Numeral** (rounded semibold 600, 44px, tabular): the one big due count on a page.
+- **Queue count** (rounded semibold 600, 14px, tabular): the new / learning / review line under it.
 - **Count** (rounded semibold 600, 12px, tabular): due counts in rows and the study title bar; interval captions under the grades are 12px medium.
 - **Button** (semibold 600, 14px), **Chip** (medium 500, 12.5px), **KeyCap** (rounded semibold 600, 10.5px).
 
@@ -195,8 +195,8 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 ## Layout
 
 - **Main window:** a 248px sidebar beside the content. Below 720px window width it becomes compact: the sidebar floats over the content behind a 30% black scrim and closes once something is picked, type shrinks, margins tighten, and rows drop to a single total count. The minimum window is 360 × 340, small enough to study in a corner of the screen.
-- **Pages** (Today, deck overview): a single reading column capped at 680px, centred, with 56px side margins (18px compact) and 26px between blocks (20px compact). Stat tiles sit in an adaptive grid with a 128px minimum and 12px gaps.
-- **Study:** the card is capped at 860px wide on the canvas, the answer bar sits at the bottom (24px side padding, 18px vertical), and the deck name and counts sit in the title bar. The sidebar is put away while studying and comes back when the session ends.
+- **Pages** (Today, deck overview): a single reading column capped at 680px, centred, with 56px side margins (18px compact) and 20px between blocks (12px compact). A named list (`PageSection`: an eyebrow over rows) sits a further 12px down, so the page reads in groups.
+- **Study:** the card is capped at 860px wide on the canvas, the answer bar sits at the bottom (18px vertical), and the deck name and counts sit in the title bar. The card, the answer bar and the deck name share one side edge: 40px from the window (12px compact), or the centred card's edge when the window is wider than the card; no grade button reaches past the card. The sidebar is put away while studying and comes back when the session ends.
 - **Spacing rhythm:** 2 / 4 / 8 / 12 / 20 / 32px. Sidebar rows are 30px with 14px of indent per deck level; list rows are 50px.
 - **Gestures:** a two-finger sideways swipe of 60px shows or hides the sidebar.
 
@@ -213,28 +213,28 @@ Liquid Glass and materials are for things that float over the flat desk: the stu
 
 ## Shapes
 
-Gently rounded throughout, with radius growing with the size of the element: 4px key caps, 7px sidebar rows and quiet buttons, 9px primary button, 10px list rows, 11px grade buttons, 12px panels and tiles, 18px card. Chips and toasts are full capsules. Panels and tiles carry a 1px hairline border inside their edge. Icons are SF Symbols, plus two drawn shapes: the Anki star (an outlined, plump-pointed star tilted -14°) and the deck ring.
+Gently rounded throughout, with radius growing with the size of the element: 4px key caps, 7px sidebar rows and quiet buttons, 9px primary button, 10px list rows, 11px grade buttons, 12px panels, 18px card. Chips and toasts are full capsules. Panels carry a 1px hairline border inside their edge. Icons are SF Symbols, plus two drawn shapes: the Anki star (an outlined, plump-pointed star tilted -14°) and the deck ring.
 
 ## Components
 
 ### Buttons
 - **Primary** (`PrimaryButtonStyle`): Electric Pen Blue fill, white 14px semibold label, 36px tall, 16px side padding, 9px radius. Darkens by 8% when pressed. One per page.
-- **Chip** (`ChipButtonStyle`): Raised Oat capsule with a hairline border, 12.5px medium ink label, 28px tall. Selection wash when pressed. Used for a page's secondary actions.
+- **Chip** (`ChipButtonStyle`): Raised Oat capsule with a hairline border, 12.5px medium ink label, 28px tall. Hover wash under the pointer, selection wash when pressed, 40% when disabled. Used for a page's secondary actions.
 - **Quiet** (`QuietButtonStyle`, `IconButton`): no fill at rest, Pencil foreground. On hover the foreground brightens to Ink with a hover wash; pressed shows the selection wash. Disabled drops to 40% opacity. Used for toolbar icons (30 × 28) and the sidebar footer.
 
 ### Grade Buttons (signature)
-Again / Hard / Good / Easy (`GradeButtonStyle`). Each is a soft wash of its grade colour (11% at rest, 18% on hover, 26% pressed) with the label in that colour, the next interval underneath in a rounded caption, and its number key in a KeyCap. They share the bar evenly up to 140px each and are 58px tall (48px compact). Good is the one outlined (1.5px, its colour at 55%), because it's the most common answer. Show Answer uses the same style in Ink, 200 × 38, with a Space KeyCap.
+Again / Hard / Good / Easy (`GradeButtonStyle`). At rest each is a neutral hover wash with its label in the grade colour; the grade colour fills in only on hover (12%) and when pressed (22%), so the four read as one quiet row. Its number key follows the label in a KeyCap, and the next interval sits underneath in a rounded caption. They share the bar evenly up to 140px each and are 58px tall (48px compact). Good is the one outlined (1.5px, its colour at 55%), because it's the most common answer. Show Answer uses the same style in Ink, 200 × 38, with a Space KeyCap.
 
 ### Cards / Containers
-- **Stat tile:** Card White, 12px radius, hairline border, 14px padding. A 7px dot in the queue colour, a 12px Pencil label, and a 30px rounded numeral (faded when zero).
+- **Due summary** (`DueSummary`): unboxed, straight on the canvas. A 44px rounded numeral with "due" beside it in Pencil, and under it one line of queue counts ("12 new  3 learning  185 to review") with each number in its queue colour; a zero fades both the number and its word to Faded Pencil. The page's one action (Study Now) sits at the trailing edge, or below when the row is too narrow. With nothing due, the overview shows "All done for now" and Today a single line instead.
 - **The study card:** upstream's reviewer in a web view on Card White, up to 860px wide, 18px radius. Its contents are styled by the note type, never by the app.
 
 ### Navigation
-- **Sidebar:** Sidebar Linen. At the top, the "places": Today (Anki star, total due), then Browse and Statistics with coloured SF Symbols and their single-key shortcuts shown in Faded Pencil. Below them sits the deck tree in 30px rows with a 7px radius and a selection wash for the selected row, then a footer behind a hairline with New Deck and Sync.
-- **Deck list row:** 50px, deck ring, name and optional path, the queue counts, and an accent play button that appears only on hover. The hover wash runs to the edge of the row (10px radius).
+- **Sidebar:** Sidebar Linen. At the top, the "places": Today (Anki star, total due), then Browse and Statistics with coloured SF Symbols and their single-key shortcuts in KeyCaps, so they can't be read as counts. Below them sits the deck tree in 30px rows with a 7px radius and a selection wash for the selected row. Every deck, top-level or not, is the same row; a deck with subdecks has a disclosure arrow, and top-level decks with subdecks are set apart by 12px of space, never drawn as headings, since they can be selected and studied. then a footer behind a hairline with New Deck and Sync.
+- **Deck list row:** 50px, deck ring, name and optional path, the queue counts, and an accent play button that appears only on hover. The row's content keeps to the page's edge; its hover wash (10px radius) reaches 12px past it on both sides, as in Things, so the ring and counts line up with the title and the due summary.
 
 ### Deck Ring (signature)
-A deck's icon is a ring that fills like a pie as today's cards are answered. It's coral while cards in learning are waiting, accent blue when selected, and Pencil otherwise. It animates smoothly as progress changes.
+A deck's icon is a ring that fills like a pie as today's cards are answered. Its track is always a faint neutral hairline (the selection wash); only the filled arc carries colour, coral while cards in learning are waiting, accent blue when selected, and Pencil otherwise, so an untouched deck never reads as an unchecked to-do. It animates smoothly as progress changes.
 
 ### KeyCap
 The key's name in a small 4px-rounded box (rounded 10.5px semibold, hairline fill, Pencil text; a white-on-accent variant exists). It sits beside the action it triggers, and is hidden from accessibility and in compact windows.
@@ -257,7 +257,7 @@ A spaced-capital eyebrow (a greeting and date, or the parent deck path) over a 3
 - **Don't** use a second blue-filled button on a screen (The One Pen Rule).
 - **Don't** use the queue or grade colours for anything other than queues and grades.
 - **Don't** use the system's cool greys or `Color.gray` on main-window surfaces.
-- **Don't** add drop shadows to panels, tiles or rows; depth comes from tone.
+- **Don't** add drop shadows to panels or rows; depth comes from tone.
 - **Don't** spread glass onto fixed chrome such as the sidebar, page panels or the answer bar.
 - **Don't** restyle card content; the note type owns it.
 - **Don't** write new labels where upstream Anki has a translated string.

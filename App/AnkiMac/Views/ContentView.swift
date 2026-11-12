@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(CollectionModel.self) private var model
+    @State private var layout = WindowLayout()
 
     var body: some View {
         Group {
@@ -13,34 +14,66 @@ struct ContentView: View {
                 decks
             }
         }
+        .background(Theme.Palette.canvas.ignoresSafeArea())
+        // The window keeps its title for the Window menu, but none is drawn
+        // in the title bar; each page names itself. The toolbar stays
+        // see-through over the sidebar and the page.
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                IconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") { layout.toggleSidebar() }
+            }
+            .plain()
+        }
+        .environment(layout)
+        .focusedSceneValue(\.windowLayout, layout)
         .background(WindowReader { model.mainWindow = $0 })
         .alert(
-            "Something went wrong",
-            isPresented: Binding { model.errorMessage != nil } set: { if !$0 { model.errorMessage = nil } }
+            model.failure?.title ?? "",
+            isPresented: Binding { model.failure != nil } set: { if !$0 { model.failure = nil } }
         ) {
             Button("OK") {}
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(verbatim: model.failure?.detail ?? "")
         }
     }
 
+    /// The sidebar beside the content, or floating over it in a small window.
+    /// Studying puts the sidebar away; it comes back when the session ends.
     private var decks: some View {
-        NavigationSplitView {
-            DeckSidebar()
-        } detail: {
-            ZStack {
-                StudyView(session: model.session)
-                if model.session == nil {
-                    if let deck = model.selectedDeck {
-                        DeckOverview(deck: deck)
-                    } else if model.isLoaded {
-                        ContentUnavailableView(
-                            "No Deck Selected", systemImage: "rectangle.stack",
-                            description: Text("Choose a deck in the sidebar."))
+        GeometryReader { proxy in
+            let compact = proxy.size.width < Theme.Layout.compactWidth
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    if layout.sidebarVisible && !compact {
+                        DeckSidebar()
+                            .transition(.move(edge: .leading).combined(with: .opacity))
                     }
+                    detail
+                }
+                if layout.sidebarVisible && compact {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { layout.toggleSidebar(false) }
+                        .transition(.opacity)
+                    DeckSidebar()
+                        .shadow(color: .black.opacity(0.35), radius: 24, x: 6)
+                        .transition(.move(edge: .leading))
                 }
             }
+            .environment(\.compact, compact)
+            .onChange(of: compact, initial: true) { _, compact in
+                layout.sidebarFloats = compact
+                layout.sidebarVisible = !compact && model.session == nil
+            }
         }
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
+        .onChange(of: model.session == nil) { _, ended in
+            layout.toggleSidebar(ended && !layout.sidebarFloats)
+        }
+        .onSidebarSwipe(in: { [weak model] in model?.mainWindow }) { layout.toggleSidebar($0) }
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
         .navigationSubtitle(model.profileName ?? "")
         // Undo acts on the card being studied, or else on the deck list.
@@ -76,6 +109,25 @@ struct ContentView: View {
         } message: {
             Text(model.backupMessage ?? "")
         }
+    }
+}
+
+extension ContentView {
+    private var detail: some View {
+        ZStack {
+            // Always here, hidden while not studying, so the card's web view
+            // is attached once (see StudyView).
+            StudyView(session: model.session)
+            if model.session == nil {
+                if let deck = model.selectedDeck {
+                    DeckOverview(deck: deck)
+                } else if model.isLoaded {
+                    TodayView()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.Palette.canvas)
     }
 }
 

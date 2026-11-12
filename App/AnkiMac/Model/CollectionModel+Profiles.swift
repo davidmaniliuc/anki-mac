@@ -38,7 +38,7 @@ extension CollectionModel {
                     try backend.importCollectionPackage(request)
                 }
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t restore the backup", error: error)
                 return
             }
             backupRestored = true

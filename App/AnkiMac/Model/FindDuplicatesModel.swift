@@ -57,7 +57,7 @@ final class FindDuplicatesModel {
                 groups = try await backend.perform { try Self.findDuplicates(field: field, filter: filter, backend: $0) }
                 error = nil
             } catch {
-                self.error = (error as? AnkiError)?.message ?? String(describing: error)
+                self.error = ActionFailure.reason(error)
             }
         }
     }
@@ -69,7 +69,7 @@ final class FindDuplicatesModel {
     func tagDuplicates() {
         let noteIDs = Array(Set((groups ?? []).flatMap(\.noteIDs)))
         guard !noteIDs.isEmpty else { return }
-        browser.change(searchAgain: true) { backend in
+        browser.change(failing: "Couldn’t tag the duplicates", searchAgain: true) { backend in
             var request = Anki_Tags_NoteIdsAndTagsRequest()
             request.noteIds = noteIDs
             request.tags = Tr.browsingDuplicate

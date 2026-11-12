@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The selected deck before studying: what's due and Study Now.
+/// The selected deck before studying: what's due and Study Now, its
+/// subdecks, and its other actions.
 struct DeckOverview: View {
     @Environment(CollectionModel.self) private var model
     let deck: DeckNode
@@ -11,53 +12,56 @@ struct DeckOverview: View {
     }
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.xLarge) {
-            Text(deck.name)
-                .font(Theme.Fonts.overviewTitle)
-                .multilineTextAlignment(.center)
-
-            description
-
-            HStack(spacing: Theme.Spacing.xLarge) {
-                count(deck.newCount, "New", Theme.Colors.newCards)
-                count(deck.learnCount, "Learning", Theme.Colors.learnCards)
-                count(deck.reviewCount, "To Review", Theme.Colors.reviewCards)
+        Page {
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                PageTitle(eyebrow: parentPath, title: deck.name) {
+                    DeckRing(deck: deck, size: 22, selected: true)
+                }
+                description
             }
 
             if deck.dueCount > 0 {
-                Button("Study Now") { model.startStudying() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .keyboardShortcut(.defaultAction)
+                DueSummary(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount) {
+                    studyButton
+                }
             } else {
-                Text("Nothing is due in this deck right now.")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
+                    Text("All done for now").font(Theme.Fonts.panelTitle)
+                    Text("Nothing is due in this deck right now.")
+                        .font(Theme.Fonts.body)
+                        .foregroundStyle(Theme.Palette.secondary)
+                }
             }
 
-            HStack {
-                Button("Options…") { model.showOptions(deck) }
-                Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
-                    .help("\(Tr.statisticsTitle) (T)")
-                if deck.filtered {
-                    Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(deck.id) }
-                        .help("\(Tr.actionsRebuild) (R)")
-                    Button(Tr.studyingEmpty) { model.emptyFilteredDeck(deck.id) }
-                        .help("\(Tr.studyingEmpty) (E)")
-                } else {
-                    Button(Tr.schedulingDescription) { model.editDescription(deck.id) }
-                    Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(deck.id) }
-                        .help("\(Tr.actionsCustomStudy) (C)")
-                }
-                if model.selectedBuried.any {
-                    Button(model.selectedBuried.manually && model.selectedBuried.siblings
-                        ? "\(Tr.studyingUnbury)…" : Tr.studyingUnbury
-                    ) { model.askUnbury(deck.id) }
-                        .help("\(Tr.studyingUnbury) (U)")
+            if let children = deck.children {
+                PageSection("Decks") {
+                    ForEach(children) { DeckListRow(deck: $0) }
                 }
             }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.small) { actions }
+                VStack(alignment: .leading, spacing: Theme.Spacing.small) { actions }
+            }
+            .buttonStyle(ChipButtonStyle())
         }
-        .padding(Theme.Spacing.xLarge)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+            // Pushes the buttons to the trailing edge.
+            ToolbarSpacer(.flexible)
+            ToolbarItem(placement: .automatic) {
+                HStack(spacing: 0) {
+                    IconButton("plus", help: "Add Cards") {
+                        AddCardsWindowController.show(collection: model, deckID: deck.id)
+                    }
+                    IconButton("magnifyingglass", help: "Browse (B)") { BrowserWindowController.show(collection: model) }
+                    IconButton("chart.bar", help: "\(Tr.statisticsTitle) (T)") {
+                        StatisticsWindowController.show(collection: model)
+                    }
+                    IconButton("slider.horizontal.3", help: "Options (O)") { model.showOptions(deck) }
+                }
+            }
+            .plain()
+        }
         // The counts change with every refresh, so this follows unburying too.
         .task(id: deck) {
             model.selectedBuried = await model.buriedCards(in: deck)
@@ -68,6 +72,45 @@ struct DeckOverview: View {
             // A slower load for the deck shown before this one must not replace this deck's.
             guard !Task.isCancelled else { return }
             model.selectedDescription = description
+        }
+    }
+
+    /// "Spanish › Verbs" for "Spanish::Verbs::Irregular".
+    private var parentPath: String {
+        deck.fullName.components(separatedBy: "::").dropLast().joined(separator: " › ")
+    }
+
+    /// Study Now (Return), the page's one prominent action.
+    private var studyButton: some View {
+        Button { model.startStudying() } label: {
+            HStack(spacing: 10) {
+                Text("Study Now")
+                KeyCap("↩", onAccent: true)
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .keyboardShortcut(.defaultAction)
+        .fixedSize()
+    }
+
+    @ViewBuilder private var actions: some View {
+        if deck.filtered {
+            Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(deck.id) }
+                .help("\(Tr.actionsRebuild) (R)")
+            Button(Tr.studyingEmpty) { model.emptyFilteredDeck(deck.id) }
+                .help("\(Tr.studyingEmpty) (E)")
+        } else {
+            Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(deck.id) }
+                .help("\(Tr.actionsCustomStudy) (C)")
+            Button("\(Tr.schedulingDescription)…") { model.editDescription(deck.id) }
+        }
+        Button("Options…") { model.showOptions(deck) }
+            .help("Options (O)")
+        if model.selectedBuried.any {
+            Button(model.selectedBuried.manually && model.selectedBuried.siblings
+                ? "\(Tr.studyingUnbury)…" : Tr.studyingUnbury
+            ) { model.askUnbury(deck.id) }
+                .help("\(Tr.studyingUnbury) (U)")
         }
     }
 
@@ -87,19 +130,9 @@ struct DeckOverview: View {
                 ScrollView { text.textSelection(.enabled) }
                     .frame(maxHeight: Theme.Overview.descriptionMaxHeight)
             }
-            .frame(maxWidth: Theme.Overview.descriptionWidth)
+            .font(Theme.Fonts.lead)
+            .foregroundStyle(Theme.Palette.secondary)
+            .padding(.top, 2)
         }
-    }
-
-    private func count(_ value: Int, _ label: String, _ color: Color) -> some View {
-        VStack(spacing: Theme.Spacing.xSmall) {
-            Text(value, format: .number)
-                .font(Theme.Fonts.overviewCount)
-                .foregroundStyle(value == 0 ? Theme.Colors.zeroCount : color)
-            Text(label)
-                .font(Theme.Fonts.overviewCountLabel)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
     }
 }

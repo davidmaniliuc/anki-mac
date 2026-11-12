@@ -121,7 +121,7 @@ final class StatisticsModel {
             errorMessage = nil
         } catch {
             guard !Task.isCancelled else { return }
-            errorMessage = String(describing: error)
+            errorMessage = ActionFailure.reason(error)
         }
         loading = false
     }

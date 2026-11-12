@@ -12,6 +12,47 @@ struct BuriedCards: Equatable {
 /// Desktop's deck browser actions: create, rename, delete and drag decks,
 /// plus the overview's Custom Study and Unbury. All of them are undoable.
 extension CollectionModel {
+    // MARK: Progress
+
+    /// How much of today's work in a deck is done: cards answered today out
+    /// of those plus the ones still due. 0 with nothing done or due.
+    func progress(_ deck: DeckNode) -> Double {
+        let studied = Double(studiedToday[deck.id] ?? 0)
+        let total = studied + Double(deck.dueCount)
+        return total == 0 ? 0 : studied / total
+    }
+
+    /// Counts the cards answered today in every deck, one search each.
+    func refreshStudiedToday() async {
+        guard let backend else { return }
+        var names: [(Int64, String)] = []
+        func walk(_ nodes: [DeckNode]) {
+            for node in nodes {
+                names.append((node.id, node.fullName))
+                walk(node.children ?? [])
+            }
+        }
+        walk(decks)
+        let decks = names
+        let counts: [Int64: Int] = (try? await backend.perform { backend -> [Int64: Int] in
+            var counts: [Int64: Int] = [:]
+            var rated = Anki_Search_SearchNode()
+            rated.parsableText = "rated:1"
+            for (id, name) in decks {
+                var deck = Anki_Search_SearchNode()
+                deck.deck = name
+                var node = Anki_Search_SearchNode()
+                node.group.nodes = [deck, rated]
+                node.group.joiner = .and
+                var request = Anki_Search_SearchRequest()
+                request.search = try backend.buildSearchString(node).val
+                counts[id] = try backend.searchCards(request).ids.count
+            }
+            return counts
+        }) ?? [:]
+        if studiedToday != counts { studiedToday = counts }
+    }
+
     // MARK: Create and rename
 
     /// Things' New List: adds "New Deck" at the top level, selected and
@@ -22,7 +63,7 @@ extension CollectionModel {
         let name = sequence(first: 1) { $0 + 1 }
             .lazy.map { $0 == 1 ? "New Deck" : "New Deck \($0)" }
             .first { !taken.contains($0) }!
-        deckOp { backend in
+        deckOp(failing: "Couldn’t create the deck") { backend in
             var deck = try backend.newDeck()
             deck.name = name
             return try backend.addDeck(deck).id
@@ -47,7 +88,7 @@ extension CollectionModel {
         let name = newName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let deck = deck(deckID), !name.isEmpty, name != deck.name else { return }
         let fullName = String(deck.fullName.dropLast(deck.name.count)) + name
-        deckOp { backend in
+        deckOp(failing: "Couldn’t rename the deck") { backend in
             var request = Anki_Decks_RenameDeckRequest()
             request.deckID = deckID
             request.newName = fullName
@@ -61,7 +102,7 @@ extension CollectionModel {
     /// desktop does; Undo brings them back.
     func deleteDeck(_ deckID: Int64) {
         stopStudying(deleting: [deckID])
-        deckOp { backend in
+        deckOp(failing: "Couldn’t delete the deck") { backend in
             var request = Anki_Decks_DeckIds()
             request.dids = [deckID]
             _ = try backend.removeDecks(request)
@@ -72,7 +113,7 @@ extension CollectionModel {
     func moveDecks(_ deckIDs: [Int64], to parentID: Int64) {
         let moving = deckIDs.filter { $0 != parentID }
         guard !moving.isEmpty else { return }
-        deckOp { backend in
+        deckOp(failing: deckIDs.count == 1 ? "Couldn’t move the deck" : "Couldn’t move the decks") { backend in
             var request = Anki_Decks_ReparentDecksRequest()
             request.deckIds = moving
             request.newParent = parentID
@@ -102,7 +143,7 @@ extension CollectionModel {
 
     /// The picker's Add: creates the deck and shows its overview.
     func addDeckAndShow(named name: String) {
-        deckOp { backend in
+        deckOp(failing: "Couldn’t create the deck") { backend in
             var deck = try backend.newDeck()
             deck.name = name
             return try backend.addDeck(deck).id
@@ -133,7 +174,7 @@ extension CollectionModel {
             return DeckDescription(
                 id: deckID, text: text, markdown: markdown, body: DeckDescription.attributed(html: html))
         } catch {
-            errorMessage = FilteredDeckModel.message(error)
+            failure = ActionFailure("Couldn’t load the deck’s description", error: error)
             return nil
         }
     }
@@ -153,14 +194,14 @@ extension CollectionModel {
                         body: AttributedString())
                 }
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t open the deck’s description", error: error)
             }
         }
     }
 
     func saveDescription(_ edit: DeckDescription) {
         descriptionEdit = nil
-        deckOp { backend in
+        deckOp(failing: "Couldn’t save the deck’s description") { backend in
             var request = Anki_Decks_DeckId()
             request.did = edit.id
             var deck = try backend.getDeck(request)
@@ -205,7 +246,7 @@ extension CollectionModel {
     }
 
     func unbury(_ deckID: Int64, mode: Anki_Scheduler_UnburyDeckRequest.Mode = .all) {
-        deckOp { backend in
+        deckOp(failing: "Couldn’t unbury the deck’s cards") { backend in
             var request = Anki_Scheduler_UnburyDeckRequest()
             request.deckID = deckID
             request.mode = mode
@@ -223,7 +264,7 @@ extension CollectionModel {
             do {
                 customStudy = try await CustomStudyModel.load(deckID: deckID, backend: backend)
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure("Couldn’t open Custom Study", error: error)
             }
         }
     }
@@ -244,21 +285,21 @@ extension CollectionModel {
     /// Undoes the last change, from the main window while not studying.
     func undoLast() {
         guard undoState.canUndo else { return }
-        replay { _ = try $0.undo() }
+        replay(failing: "Couldn’t undo") { _ = try $0.undo() }
     }
 
     func redoLast() {
         guard undoState.canRedo else { return }
-        replay { _ = try $0.redo() }
+        replay(failing: "Couldn’t redo") { _ = try $0.redo() }
     }
 
-    private func replay(_ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    private func replay(failing title: String, _ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
         guard let backend else { return }
         Task {
             do {
                 try await backend.perform(change)
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure(title, error: error)
             }
             await refreshDecks()
             BrowserWindowController.current?.model.refreshAfterExternalChange()
@@ -268,14 +309,14 @@ extension CollectionModel {
     // MARK: Helpers
 
     private func deckOp<T: Sendable>(
-        _ op: @escaping @Sendable (AnkiBackend) throws -> T, then: @escaping (T) -> Void = { _ in }
+        failing title: String, _ op: @escaping @Sendable (AnkiBackend) throws -> T, then: @escaping (T) -> Void = { _ in }
     ) {
         guard let backend else { return }
         Task {
             do {
                 then(try await backend.perform(op))
             } catch {
-                errorMessage = FilteredDeckModel.message(error)
+                failure = ActionFailure(title, error: error)
             }
             await refreshDecks()
         }

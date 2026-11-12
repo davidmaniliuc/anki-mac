@@ -20,7 +20,7 @@ final class ChangeNotetypeModel {
     private(set) var newNotetypeID: Int64
     /// True while the mapping for a newly chosen note type loads; the old one no longer fits.
     private(set) var isLoading = false
-    var errorMessage: String?
+    var failure: ActionFailure?
     @ObservationIgnored private var loading: Task<Void, Never>?
 
     init(
@@ -62,7 +62,7 @@ final class ChangeNotetypeModel {
                 isLoading = false
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+                failure = ActionFailure("Couldn’t load this note type", error: error)
                 isLoading = false
             }
         }

@@ -43,7 +43,7 @@ final class NotetypeManager {
     let backend: AnkiBackend
     private(set) var entries: [Entry] = []
     var selectedID: Int64?
-    var errorMessage: String?
+    var failure: ActionFailure?
     /// Called after anything that may change what the main window shows
     /// (new cards from a template, deleted notes).
     var onChange: () -> Void = {}
@@ -64,7 +64,7 @@ final class NotetypeManager {
             } else if !entries.contains(where: { $0.id == selectedID }) {
                 selectedID = entries.first?.id
             }
-        } catch { errorMessage = "\(error)" }
+        } catch { failure = ActionFailure("Couldn’t load the note types", error: error) }
     }
 
     func notetype(_ id: Int64) async throws -> Anki_Notetypes_Notetype {
@@ -85,7 +85,7 @@ final class NotetypeManager {
             onChange()
             return true
         } catch {
-            errorMessage = "\(error)"
+            failure = ActionFailure("Couldn’t save the note type", error: error)
             return false
         }
     }
@@ -108,7 +108,7 @@ final class NotetypeManager {
             var value = try await notetype(id)
             value.name = name
             await save(value)
-        } catch { errorMessage = "\(error)" }
+        } catch { failure = ActionFailure("Couldn’t rename the note type", error: error) }
     }
 
     func remove(_ id: Int64) async {
@@ -121,7 +121,7 @@ final class NotetypeManager {
             selectedID = nil
             await refresh()
             onChange()
-        } catch { errorMessage = "\(error)" }
+        } catch { failure = ActionFailure("Couldn’t delete the note type", error: error) }
     }
 
     /// The name a new note type of this kind starts with.
@@ -149,7 +149,7 @@ final class NotetypeManager {
                 return try backend.addNotetypeLegacy(add).id
             }
             await refresh(select: id)
-        } catch { errorMessage = "\(error)" }
+        } catch { failure = ActionFailure("Couldn’t add the note type", error: error) }
     }
 
     func clone(_ id: Int64, name: String) async {
@@ -163,7 +163,7 @@ final class NotetypeManager {
             let value = copy
             let newID = try await backend.perform { try $0.addNotetype(value).id }
             await refresh(select: newID)
-        } catch { errorMessage = "\(error)" }
+        } catch { failure = ActionFailure("Couldn’t clone the note type", error: error) }
     }
 
     /// Whether the collection already needs a full upload at the next sync,

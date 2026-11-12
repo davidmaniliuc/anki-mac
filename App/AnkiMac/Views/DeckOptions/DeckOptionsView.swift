@@ -756,7 +756,8 @@ private struct PresetSection: View {
         Button(Tr.deckConfigRenameGroup + "…") { ask(.rename, model.preset.name) }
         Button(Tr.deckConfigRemoveGroup + "…", role: .destructive) {
             if model.isDefaultPresetSelected {
-                actions.showError(Tr.schedulingTheDefaultConfigurationCantBeRemoved)
+                actions.showError(
+                    ActionFailure("Couldn’t remove the preset", detail: Tr.schedulingTheDefaultConfigurationCantBeRemoved))
             } else {
                 confirmingRemove = true
             }

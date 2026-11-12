@@ -32,10 +32,12 @@ struct FsrsSimulatorView: View {
             minWidth: Theme.DeckOptions.simulatorMinSize.width, idealWidth: Theme.DeckOptions.simulatorSize.width,
             minHeight: Theme.DeckOptions.simulatorMinSize.height, idealHeight: Theme.DeckOptions.simulatorSize.height)
         .alert(
-            simulator.errorMessage ?? "",
-            isPresented: Binding { simulator.errorMessage != nil } set: { if !$0 { simulator.errorMessage = nil } }
+            simulator.failure?.title ?? "",
+            isPresented: Binding { simulator.failure != nil } set: { if !$0 { simulator.failure = nil } }
         ) {
             Button("OK") {}
+        } message: {
+            Text(verbatim: simulator.failure?.detail ?? "")
         }
         .alert(Tr.deckConfigSaveOptionsToPresetConfirm, isPresented: $confirmingSave) {
             Button("Cancel", role: .cancel) {}

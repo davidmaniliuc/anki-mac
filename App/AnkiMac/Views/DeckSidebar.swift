@@ -1,60 +1,141 @@
 import AnkiKit
+import AppKit
 import SwiftUI
 
+/// Today, the Browse and Statistics windows, then the decks: every deck,
+/// top-level or not, is the same selectable row with one due count, the
+/// breakdown being in the overview. A deck with subdecks has a disclosure
+/// arrow and sits apart from its neighbours by space alone. Up and Down move through the rows, Left and Right fold and
+/// unfold, a double-click renames, and dragging a deck onto another nests it.
 struct DeckSidebar: View {
     @Environment(CollectionModel.self) private var model
+    @Environment(WindowLayout.self) private var layout
     @State private var expanded: [Int64: Bool] = [:]
+    @State private var keyMonitor: Any?
 
     var body: some View {
-        @Bindable var model = model
-        List(selection: $model.selectedDeckID) {
-            Section {
-                DeckRows(nodes: model.decks, expanded: $expanded)
-            } header: {
-                // Dropping a deck on the header moves it to the top level.
-                Text("Decks")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(.rect)
-                    .dropDestination(for: String.self) { items, _ in
-                        model.dropDecks(items, on: 0)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollViewReader { scroller in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        places
+                        decks
+                        // Dropping a deck below the list moves it to the top level.
+                        Color.clear
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .contentShape(.rect)
+                            .dropDestination(for: String.self) { items, _ in model.dropDecks(items, on: 0) }
                     }
-            }
-        }
-        .contextMenu(forSelectionType: Int64.self) { ids in
-            if let id = ids.first, ids.count == 1, let deck = model.deck(id) {
-                Button("Options…") { model.showOptions(deck) }
-                if deck.filtered {
-                    Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(id) }
-                    Button(Tr.studyingEmpty) { model.emptyFilteredDeck(id) }
-                } else {
-                    Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(id) }
+                    .padding(.horizontal, Theme.Spacing.small + 2)
                 }
-                Divider()
-                Button(Tr.actionsRename) { model.beginRenaming(id) }
-                Divider()
-                Button(Tr.actionsDelete, role: .destructive) { model.deleteDeck(id) }
-            } else if ids.isEmpty {
-                Button("New Deck") { model.createDeck() }
+                .scrollIndicators(.never)
+                // Rows scroll out of sight below the title bar, not under the
+                // window's buttons.
+                .clipped()
+                .onChange(of: model.selectedDeckID) { _, deckID in
+                    if let deckID {
+                        reveal(deckID, in: model.decks)
+                        withAnimation { scroller.scrollTo(deckID) }
+                    }
+                }
             }
-        } primaryAction: { ids in
-            // A double-click on a deck edits its name, as in Things and Finder.
-            if let id = ids.first, ids.count == 1 { model.beginRenaming(id) }
+
+            footer
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button("New Deck", systemImage: "plus") { model.createDeck() }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(Theme.Sidebar.footerPadding)
-                .disabled(!model.isLoaded)
-        }
-        .navigationSplitViewColumnWidth(min: Theme.Sidebar.minWidth, ideal: Theme.Sidebar.idealWidth)
+        .frame(width: Theme.Layout.sidebarWidth)
+        // Up behind the toolbar too, so the sidebar runs the window's height.
+        .background(Theme.Palette.sidebar.ignoresSafeArea())
+        .overlay(alignment: .trailing) { Theme.Palette.hairline.frame(width: 1).ignoresSafeArea() }
         .onChange(of: model.decks, initial: true) { _, decks in
             seedExpansion(decks)
             if let deckID = model.selectedDeckID { reveal(deckID, in: decks) }
         }
-        .onChange(of: model.selectedDeckID) { _, deckID in
-            if let deckID { reveal(deckID, in: model.decks) }
+        .onAppear { startKeys() }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+        }
+    }
+
+    // MARK: Rows
+
+    @ViewBuilder private var places: some View {
+        SidebarRowShell(selected: model.selectedDeckID == nil) {
+            model.selectedDeckID = nil
+            layout.picked()
+        } content: {
+            AnkiStar(size: 17).foregroundStyle(Theme.Palette.star).frame(width: 20)
+            Text("Today").font(Theme.Fonts.row).fontWeight(model.selectedDeckID == nil ? .semibold : .regular)
+            Spacer(minLength: Theme.Spacing.xSmall)
+            Text(model.decks.reduce(0) { $0 + $1.dueCount }, format: .number)
+                .font(Theme.Fonts.sidebarCount).foregroundStyle(Theme.Palette.secondary)
+        }
+        place("Browse", "magnifyingglass", Theme.Palette.teal, key: "B") {
+            BrowserWindowController.show(collection: model)
+        }
+        place(Tr.statisticsTitle, "chart.bar.fill", Theme.Palette.violet, key: "T") {
+            StatisticsWindowController.show(collection: model)
+        }
+    }
+
+    /// A row that opens a window rather than showing something here.
+    private func place(_ title: String, _ symbol: String, _ tint: Color, key: String, action: @escaping () -> Void) -> some View {
+        SidebarRowShell(selected: false, action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 20)
+            Text(title).font(Theme.Fonts.row)
+            Spacer(minLength: Theme.Spacing.xSmall)
+            // A key, not a count: drawn as one so it can't be read as a number.
+            KeyCap(key)
+        }
+        .disabled(!model.isLoaded)
+    }
+
+    @ViewBuilder private var decks: some View {
+        let decks = model.decks
+        ForEach(decks.indices, id: \.self) { index in
+            let node = decks[index]
+            DeckRow(node: node, depth: 0, isExpanded: expansion(node))
+                .padding(.top, gap(before: index, in: decks))
+                .id(node.id)
+            if node.children != nil, expansion(node).wrappedValue {
+                DeckTree(nodes: node.children ?? [], depth: 1, expansion: expansion)
+            }
+        }
+    }
+
+    /// Space, not a heading, sets the decks off from the places above, and
+    /// sets off each top-level deck that has subdecks from its neighbours.
+    private func gap(before index: Int, in decks: [DeckNode]) -> CGFloat {
+        if index == 0 { return Theme.Spacing.large }
+        return decks[index].children != nil || decks[index - 1].children != nil ? Theme.Spacing.medium : 0
+    }
+
+    private var footer: some View {
+        HStack(spacing: Theme.Spacing.xSmall) {
+            Button { model.createDeck() } label: {
+                Label("New Deck", systemImage: "plus").font(Theme.Fonts.row)
+            }
+            .buttonStyle(QuietButtonStyle())
+            .disabled(!model.isLoaded)
+            Spacer()
+            SyncButton()
+        }
+        .padding(.horizontal, Theme.Spacing.medium)
+        .frame(height: 48)
+        .overlay(alignment: .top) { Theme.Palette.hairline.frame(height: 1) }
+    }
+
+    // MARK: Expansion
+
+    private func expansion(_ node: DeckNode) -> Binding<Bool> {
+        Binding {
+            expanded[node.id] ?? !node.collapsed
+        } set: { isExpanded in
+            withAnimation(.smooth(duration: 0.2)) { expanded[node.id] = isExpanded }
+            model.setCollapsed(node.id, !isExpanded)
         }
     }
 
@@ -82,44 +163,243 @@ struct DeckSidebar: View {
             seedExpansion(node.children ?? [])
         }
     }
+
+    // MARK: Keys
+
+    /// Today (nil) and every deck on screen, top to bottom.
+    private var visibleRows: [Int64?] {
+        var rows: [Int64?] = [nil]
+        func walk(_ nodes: [DeckNode]) {
+            for node in nodes {
+                rows.append(node.id)
+                if expanded[node.id] ?? !node.collapsed { walk(node.children ?? []) }
+            }
+        }
+        walk(model.decks)
+        return rows
+    }
+
+    /// The arrow keys move through the rows wherever the focus is, as long
+    /// as nothing is being typed and no card is up.
+    private func startKeys() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKey(event) ? nil : event
+        }
+    }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard let window = event.window, window === model.mainWindow, window.isKeyWindow,
+              !(window.firstResponder is NSText), model.session == nil, model.renamingDeckID == nil,
+              event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
+        else { return false }
+        let rows = visibleRows
+        let index = rows.firstIndex(of: model.selectedDeckID) ?? 0
+        switch event.keyCode {
+        case 126: model.selectedDeckID = rows[max(index - 1, 0)]
+        case 125: model.selectedDeckID = rows[min(index + 1, rows.count - 1)]
+        case 123, 124:
+            guard let id = model.selectedDeckID, let node = model.deck(id), node.children != nil else { return false }
+            expansion(node).wrappedValue = event.keyCode == 124
+        default: return false
+        }
+        return true
+    }
 }
 
-private struct DeckRows: View {
-    @Environment(CollectionModel.self) private var model
+private struct DeckTree: View {
     let nodes: [DeckNode]
-    @Binding var expanded: [Int64: Bool]
+    let depth: Int
+    let expansion: (DeckNode) -> Binding<Bool>
 
     var body: some View {
         ForEach(nodes) { node in
-            if let children = node.children {
-                DisclosureGroup(isExpanded: expansion(node)) {
-                    DeckRows(nodes: children, expanded: $expanded)
-                } label: {
-                    draggableRow(node)
+            DeckRow(node: node, depth: depth, isExpanded: expansion(node)).id(node.id)
+            if node.children != nil, expansion(node).wrappedValue {
+                DeckTree(nodes: node.children ?? [], depth: depth + 1, expansion: expansion)
+            }
+        }
+    }
+}
+
+private struct DeckRow: View {
+    @Environment(CollectionModel.self) private var model
+    @Environment(WindowLayout.self) private var layout
+    let node: DeckNode
+    let depth: Int
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        let selected = model.selectedDeckID == node.id
+        SidebarRowShell(selected: selected) {
+            model.selectedDeckID = node.id
+            layout.picked()
+        } doubleClick: {
+            model.beginRenaming(node.id)
+        } content: {
+            Group {
+                if node.children != nil {
+                    Disclosure(isExpanded: $isExpanded)
+                } else {
+                    Color.clear.frame(width: 12)
                 }
-                .tag(node.id)
+            }
+            .padding(.leading, CGFloat(depth) * Theme.Layout.indent)
+            DeckRing(deck: node, selected: selected)
+            if model.renamingDeckID == node.id {
+                DeckNameField(node: node)
             } else {
-                draggableRow(node).tag(node.id)
+                Text(node.name).font(Theme.Fonts.row).fontWeight(selected ? .semibold : .regular).lineLimit(1)
+            }
+            Spacer(minLength: Theme.Spacing.xSmall)
+            if node.dueCount > 0 {
+                Text(node.dueCount, format: .number).font(Theme.Fonts.sidebarCount)
+                    .foregroundStyle(Theme.Palette.secondary)
             }
         }
+        .deckRowBehaviour(node)
     }
+}
 
-    /// Dragging a deck onto another nests it there, as on desktop.
-    private func draggableRow(_ node: DeckNode) -> some View {
-        DeckRow(node: node)
+private struct Disclosure: View {
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button { isExpanded.toggle() } label: {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .frame(width: 12, height: 20)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.Palette.tertiary)
+        .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
+    }
+}
+
+private extension View {
+    /// Dragging, dropping and the context menu, the same on every deck row.
+    func deckRowBehaviour(_ node: DeckNode) -> some View {
+        modifier(DeckRowBehaviour(node: node))
+    }
+}
+
+private struct DeckRowBehaviour: ViewModifier {
+    @Environment(CollectionModel.self) private var model
+    let node: DeckNode
+
+    func body(content: Content) -> some View {
+        content
             .draggable(DeckDrag.text(node.id))
-            .dropDestination(for: String.self) { items, _ in
-                model.dropDecks(items, on: node.id)
+            .dropDestination(for: String.self) { items, _ in model.dropDecks(items, on: node.id) }
+            .contextMenu {
+                Button("Options…") { model.showOptions(node) }
+                if node.filtered {
+                    Button(Tr.actionsRebuild) { model.rebuildFilteredDeck(node.id) }
+                    Button(Tr.studyingEmpty) { model.emptyFilteredDeck(node.id) }
+                } else {
+                    Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(node.id) }
+                }
+                Divider()
+                Button(Tr.actionsRename) { model.beginRenaming(node.id) }
+                Divider()
+                Button(Tr.actionsDelete, role: .destructive) { model.deleteDeck(node.id) }
             }
     }
+}
 
-    private func expansion(_ node: DeckNode) -> Binding<Bool> {
-        Binding {
-            expanded[node.id] ?? !node.collapsed
-        } set: { isExpanded in
-            expanded[node.id] = isExpanded
-            model.setCollapsed(node.id, !isExpanded)
+/// The shape every sidebar row shares: a soft rounded highlight that shows
+/// on hover and stays, a little stronger, on the selected row.
+struct SidebarRowShell<Content: View>: View {
+    let selected: Bool
+    let action: () -> Void
+    var doubleClick: (() -> Void)? = nil
+    @ViewBuilder let content: Content
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.small) { content }
+            .padding(.horizontal, Theme.Spacing.small)
+            .frame(height: Theme.Layout.rowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
+                    .fill(selected ? Theme.Palette.selection : hovered && isEnabled ? Theme.Palette.hover : .clear))
+            .opacity(isEnabled ? 1 : 0.5)
+            .contentShape(.rect)
+            .onTapGesture(perform: action)
+            .simultaneousGesture(TapGesture(count: 2).onEnded { doubleClick?() })
+            .onHover { hovered = $0 }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { action() }
+    }
+}
+
+/// Sync, with its progress while it runs (a click cancels), tinted when
+/// the collection has changes to send.
+private struct SyncButton: View {
+    @Environment(CollectionModel.self) private var model
+
+    var body: some View {
+        Button {
+            if model.syncIsRunning { model.cancelSync() } else { Task { await model.synchronize() } }
+        } label: {
+            Group {
+                if model.syncIsRunning {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        if !model.syncMediaProgress.isEmpty {
+                            Text(model.syncMediaProgress).font(Theme.Fonts.caption)
+                        }
+                    }
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(tint ?? Theme.Palette.secondary)
+                }
+            }
+            .frame(minWidth: 30, minHeight: 28)
         }
+        .buttonStyle(QuietButtonStyle())
+        .help(model.syncIsRunning ? "Cancel Sync" : "Sync")
+        .accessibilityLabel(model.syncIsRunning ? "Cancel Sync" : "Sync")
+        .disabled(!model.isLoaded)
+    }
+
+    private var tint: Color? {
+        switch model.syncStatus {
+        case .fullSync: Theme.Colors.learnCards
+        case .normalSync: Theme.Colors.newCards
+        default: nil
+        }
+    }
+}
+
+/// The deck's name, editable in place. Return or clicking away keeps the
+/// new name; Escape puts the old one back.
+private struct DeckNameField: View {
+    @Environment(CollectionModel.self) private var model
+    let node: DeckNode
+    @State private var name = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(Tr.actionsRename, text: $name)
+            .textFieldStyle(.plain)
+            .font(Theme.Fonts.row)
+            .labelsHidden()
+            .focused($focused)
+            .onSubmit { model.finishRenaming(node.id, to: name) }
+            .onExitCommand { model.finishRenaming(node.id, to: nil) }
+            .onChange(of: focused) { _, focused in
+                if !focused { model.finishRenaming(node.id, to: name) }
+            }
+            .onAppear {
+                name = node.name
+                focused = true
+            }
     }
 }
 
@@ -139,82 +419,5 @@ extension CollectionModel {
     func dropDecks(_ items: [String], on parentID: Int64) {
         let ids = items.compactMap(DeckDrag.deckID)
         if !ids.isEmpty { moveDecks(ids, to: parentID) }
-    }
-}
-
-private struct DeckRow: View {
-    @Environment(CollectionModel.self) private var model
-    let node: DeckNode
-
-    var body: some View {
-        Label {
-            HStack(spacing: Theme.Spacing.small) {
-                if model.renamingDeckID == node.id {
-                    DeckNameField(node: node)
-                } else {
-                    Text(node.name).lineLimit(1)
-                }
-                Spacer(minLength: Theme.Spacing.small)
-                DueCounts(new: node.newCount, learn: node.learnCount, review: node.reviewCount)
-                    .font(Theme.Fonts.sidebarCount)
-            }
-        } icon: {
-            Image(systemName: node.filtered ? "line.3.horizontal.decrease.circle" : "rectangle.stack")
-        }
-        .accessibilityElement(children: model.renamingDeckID == node.id ? .contain : .combine)
-    }
-}
-
-/// The deck's name, editable in place. Return or clicking away keeps the
-/// new name; Escape puts the old one back.
-private struct DeckNameField: View {
-    @Environment(CollectionModel.self) private var model
-    let node: DeckNode
-    @State private var name = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        TextField(Tr.actionsRename, text: $name)
-            .textFieldStyle(.plain)
-            .labelsHidden()
-            .focused($focused)
-            .onSubmit { model.finishRenaming(node.id, to: name) }
-            .onExitCommand { model.finishRenaming(node.id, to: nil) }
-            .onChange(of: focused) { _, focused in
-                if !focused { model.finishRenaming(node.id, to: name) }
-            }
-            .onAppear {
-                name = node.name
-                focused = true
-            }
-    }
-}
-
-/// New, learning and review counts in Anki's colours.
-struct DueCounts: View {
-    let new: Int
-    let learn: Int
-    let review: Int
-    var highlighted: Anki_Scheduler_QueuedCards.Queue? = nil
-    @Environment(\.backgroundProminence) private var prominence
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.small) {
-            count(new, Theme.Colors.newCards, queue: .new)
-            count(learn, Theme.Colors.learnCards, queue: .learning)
-            count(review, Theme.Colors.reviewCards, queue: .review)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(new) new, \(learn) learning, \(review) to review")
-    }
-
-    private func count(_ value: Int, _ color: Color, queue: Anki_Scheduler_QueuedCards.Queue) -> some View {
-        // On a selected row the accent fill would swallow the colours, so the
-        // counts go plain, as badges do in Mail and Finder.
-        Text(value, format: .number)
-            .foregroundStyle(
-                prominence == .increased ? AnyShapeStyle(.primary)
-                    : value == 0 ? AnyShapeStyle(Theme.Colors.zeroCount) : AnyShapeStyle(color))
-            .underline(highlighted == queue)
     }
 }

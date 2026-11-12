@@ -58,12 +58,12 @@ struct CardTemplatesView: View {
         }
         .sheet(isPresented: $showsBrowserAppearance) { BrowserAppearanceSheet(model: model) }
         .sheet(isPresented: $showsDeckOverride) { DeckOverrideSheet(model: model) }
-        .alert(Tr.notetypesCards, isPresented: Binding(
-            get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
+        .alert(model.failure?.title ?? "", isPresented: Binding(
+            get: { model.failure != nil }, set: { if !$0 { model.failure = nil } })
         ) {
-            Button("OK") { model.errorMessage = nil }
+            Button("OK") { model.failure = nil }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(verbatim: model.failure?.detail ?? "")
         }
     }
 

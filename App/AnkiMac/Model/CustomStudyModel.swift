@@ -189,7 +189,7 @@ final class CustomStudyModel: Identifiable {
                 return try backend.getDeckIdByName(name).did
             }
         } catch {
-            self.error = FilteredDeckModel.message(error)
+            self.error = ActionFailure.reason(error)
             return nil
         }
     }

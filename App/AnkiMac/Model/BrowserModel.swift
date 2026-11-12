@@ -104,7 +104,7 @@ final class BrowserModel {
     var prompt: BrowserPrompt?
     /// The rows `prompt` was asked about.
     @ObservationIgnored var promptSelection: Selection?
-    var errorMessage: String?
+    var failure: ActionFailure?
     /// A short result ("3 notes updated.") that the window shows for a few seconds.
     private(set) var toast: String?
 
@@ -172,7 +172,7 @@ final class BrowserModel {
                 show(opening.ids)
                 undoState = opening.undoState
             } catch {
-                errorMessage = String(describing: error)
+                failure = ActionFailure("Couldn’t open the Browser", error: error)
             }
             await loadSidebar()
         }
@@ -308,7 +308,7 @@ final class BrowserModel {
                 show(sort.reverse == self.sort.reverse ? ids : ids.reversed())
             } catch {
                 guard generation == searchGeneration else { return }
-                searchError = (error as? AnkiError)?.message ?? String(describing: error)
+                searchError = ActionFailure.reason(error)
             }
         }
     }
@@ -400,7 +400,7 @@ final class BrowserModel {
             try backend.setConfigJSON(mode.keys.columns, keys)
             try Self.setActive(keys, backend: backend)
         } catch {
-            errorMessage = String(describing: error)
+            failure = ActionFailure("Couldn’t change the columns", error: error)
             return
         }
         columns = keys.compactMap { key in allColumns.first { $0.key == key } }
@@ -417,7 +417,7 @@ final class BrowserModel {
             _ = try backend.setConfigBool(request)
             apply(try Self.settings(for: newMode, allColumns: allColumns, backend: backend))
         } catch {
-            errorMessage = String(describing: error)
+            failure = ActionFailure("Couldn’t switch between cards and notes", error: error)
             return
         }
         // Card ids mean nothing in notes mode; clear the table until the new ids arrive.
@@ -457,7 +457,7 @@ final class BrowserModel {
                 collection.exportDeckID = nil
                 collection.exportSheetPresented = true
             } catch {
-                errorMessage = "Could not prepare selected notes for export: \(error)"
+                failure = ActionFailure("Couldn’t export the selected notes", error: error)
             }
         }
     }
@@ -497,7 +497,7 @@ final class BrowserModel {
     func toggleFlag(_ flag: CardFlag) {
         guard let selection, let commandCard else { return }
         let new = commandCard.flag == flag ? CardFlag.none : flag
-        change { backend in
+        change(failing: "Couldn’t change the flag") { backend in
             var request = Anki_Cards_SetFlagRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.flag = UInt32(new.rawValue)
@@ -508,7 +508,7 @@ final class BrowserModel {
     func toggleMark() {
         guard let selection, let commandCard else { return }
         let marked = commandCard.isMarked
-        change { backend in
+        change(failing: (marked ? "Couldn’t unmark the notes" : "Couldn’t mark the notes")) { backend in
             var request = Anki_Tags_NoteIdsAndTagsRequest()
             request.noteIds = try Self.noteIDs(selection, backend: backend)
             request.tags = Self.markedTag
@@ -518,7 +518,7 @@ final class BrowserModel {
 
     func toggleSuspend() {
         guard let selection, let suspended = commandCard?.isSuspended else { return }
-        change { backend in
+        change(failing: (suspended ? "Couldn’t unsuspend the cards" : "Couldn’t suspend the cards")) { backend in
             let cardIDs = try Self.cardIDs(selection, backend: backend)
             if suspended {
                 var request = Anki_Cards_CardIds()
@@ -544,7 +544,7 @@ final class BrowserModel {
     func confirmDelete() {
         guard let noteIDs = notesToDelete else { return }
         notesToDelete = nil
-        change(searchAgain: true) { backend in
+        change(failing: "Couldn’t delete the notes", searchAgain: true) { backend in
             var request = Anki_Notes_RemoveNotesRequest()
             request.noteIds = noteIDs
             _ = try backend.removeNotes(request)
@@ -553,12 +553,12 @@ final class BrowserModel {
 
     func undo() {
         guard undoState.canUndo else { return }
-        change(searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.undo() }
+        change(failing: "Couldn’t undo", searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.undo() }
     }
 
     func redo() {
         guard undoState.canRedo else { return }
-        change(searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.redo() }
+        change(failing: "Couldn’t redo", searchAgain: true, sidebar: SidebarChange()) { backend in _ = try backend.redo() }
     }
 
     /// Runs an undoable change, then redraws the rows (or searches again when
@@ -567,16 +567,16 @@ final class BrowserModel {
     /// non-nil `sidebar` loads the sidebar again, as desktop does for any op
     /// whose changes touch it.
     func change<Result: Sendable>(
-        searchAgain: Bool = false, sidebar: SidebarChange? = nil,
+        failing title: String, searchAgain: Bool = false, sidebar: SidebarChange? = nil,
         _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: @escaping (Result) -> Void = { _ in }
     ) {
-        Task { await perform(searchAgain: searchAgain, sidebar: sidebar, work, then: then) }
+        Task { await perform(failing: title, searchAgain: searchAgain, sidebar: sidebar, work, then: then) }
     }
 
     /// `change`, saying whether the work succeeded.
     @discardableResult
     func perform<Result: Sendable>(
-        searchAgain: Bool = false, sidebar change: SidebarChange? = nil,
+        failing title: String, searchAgain: Bool = false, sidebar change: SidebarChange? = nil,
         _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: (Result) -> Void = { _ in }
     ) async -> Bool {
         guard let backend = collection.backend else { return false }
@@ -589,7 +589,7 @@ final class BrowserModel {
             undoState = state
             result = value
         } catch {
-            errorMessage = (error as? AnkiError)?.message ?? String(describing: error)
+            failure = ActionFailure(title, error: error)
         }
         if searchAgain {
             self.searchAgain()

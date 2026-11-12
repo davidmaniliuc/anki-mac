@@ -20,7 +20,7 @@ final class CardTemplatesModel {
     var fillEmpty: Bool { didSet { scheduleRender() } }
     var nightMode = false { didSet { scheduleRender() } }
     var mobileClass = false { didSet { scheduleRender() } }
-    var errorMessage: String?
+    var failure: ActionFailure?
     /// The question or answer HTML for the preview, and the body class.
     private(set) var previewHTML = ""
     private(set) var previewIsAnswer = false
@@ -185,7 +185,7 @@ final class CardTemplatesModel {
             manager.onChange()
             return true
         } catch {
-            errorMessage = "\(error)"
+            failure = ActionFailure("Couldn’t restore the defaults", error: error)
             return false
         }
     }
@@ -271,7 +271,7 @@ final class CardTemplatesModel {
             previewBodyClass = "card card\(ord + 1)"
             previewVersion += 1
         } catch {
-            previewHTML = "<pre>\(String(describing: error).replacingOccurrences(of: "<", with: "&lt;"))</pre>"
+            previewHTML = "<pre>\(ActionFailure.reason(error).replacingOccurrences(of: "<", with: "&lt;"))</pre>"
             previewIsAnswer = answer
             previewVersion += 1
         }

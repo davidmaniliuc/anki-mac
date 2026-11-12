@@ -26,7 +26,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
             if let copying {
                 Task {
                     do { try await current.model.setNote(copying.note, deckID: copying.deckID) } catch {
-                        collection.errorMessage = "Could not copy the note: \(error)"
+                        collection.failure = ActionFailure("Couldn’t copy this note", error: error)
                     }
                 }
             }
@@ -46,7 +46,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
                 current = controller
                 controller.window?.makeKeyAndOrderFront(nil)
             } catch {
-                collection.errorMessage = "Could not open Add: \(error)"
+                collection.failure = ActionFailure("Couldn’t open Add", error: error)
             }
         }
     }

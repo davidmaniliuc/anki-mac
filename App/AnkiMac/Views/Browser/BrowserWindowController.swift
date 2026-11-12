@@ -149,8 +149,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
             guard let self else { return }
             if let notes = model.notesToDelete {
                 confirmDelete(count: notes.count)
-            } else if let message = model.errorMessage {
-                showError(message)
+            } else if let failure = model.failure {
+                showError(failure)
             }
         }
     }
@@ -240,15 +240,15 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         }
     }
 
-    private func showError(_ message: String) {
+    private func showError(_ failure: ActionFailure) {
         guard let window, !presentingAlert else { return }
         presentingAlert = true
         let alert = NSAlert()
-        alert.messageText = "Something went wrong"
-        alert.informativeText = message
+        alert.messageText = failure.title
+        alert.informativeText = failure.detail
         alert.beginSheetModal(for: window) { [weak self] _ in
             self?.presentingAlert = false
-            self?.model.errorMessage = nil
+            self?.model.failure = nil
         }
     }
 

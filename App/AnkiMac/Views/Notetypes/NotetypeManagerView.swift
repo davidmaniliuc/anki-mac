@@ -47,12 +47,12 @@ struct NotetypeManagerView: View {
         }
         .frame(minWidth: Theme.Notetypes.managerMinSize.width, minHeight: Theme.Notetypes.managerMinSize.height)
         .task { await model.refresh() }
-        .alert(Tr.notetypesNoteTypes, isPresented: Binding(
-            get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
+        .alert(model.failure?.title ?? "", isPresented: Binding(
+            get: { model.failure != nil }, set: { if !$0 { model.failure = nil } })
         ) {
-            Button("OK") { model.errorMessage = nil }
+            Button("OK") { model.failure = nil }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(verbatim: model.failure?.detail ?? "")
         }
         .sheet(item: $prompt) { prompt in
             NamePromptSheet(title: prompt.title, initial: prompt.initial, action: prompt.action)
@@ -143,7 +143,7 @@ struct NotetypeManagerView: View {
     private func load(_ present: @escaping (Anki_Notetypes_Notetype) -> Void) {
         guard let id = model.selectedID else { return }
         Task {
-            do { present(try await model.notetype(id)) } catch { model.errorMessage = "\(error)" }
+            do { present(try await model.notetype(id)) } catch { model.failure = ActionFailure("Couldn’t open the note type", error: error) }
         }
     }
 }

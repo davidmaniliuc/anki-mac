@@ -3,8 +3,8 @@ import SwiftUI
 
 /// The card, with the answer controls under it. Keyboard: Space shows the
 /// answer, 1–4 rate it, Ctrl+1 to Ctrl+7 flag it, * marks the note, B opens
-/// the browser (see StudyCommands and CardCommands, which also put every
-/// action in the menu bar).
+/// the browser, M opens the card's menu (see StudyCommands and CardCommands,
+/// which also put every action in the menu bar).
 ///
 /// This view stays in the window for the app's lifetime, hidden while no
 /// session is running, so the card web view is attached once, not every time
@@ -12,78 +12,36 @@ import SwiftUI
 struct StudyView: View {
     @Environment(CollectionModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.compact) private var compact
     let session: StudySession?
     @State private var keyMonitor: Any?
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                if model.reviewerReady, let webView = model.reviewer.webView {
-                    CardWebView(webView: webView)
-                        .frame(minHeight: Theme.Study.cardMinHeight)
-                        .contextMenu {
-                            reviewerActions
-                        }
-                        .overlay(alignment: .top) {
-                            if let card = session?.card, session?.phase != .finished {
-                                CardIndicators(flag: card.flag, isMarked: card.isMarked)
-                            }
-                        }
-                } else {
-                    Color.clear
+        VStack(spacing: 0) {
+            ZStack {
+                card
+                if session?.phase == .finished {
+                    SessionFinished()
                 }
-                AnswerBar(session: session)
             }
-            if session?.phase == .finished {
-                ContentUnavailableView {
-                    Label("Congratulations!", systemImage: "checkmark.circle")
-                } description: {
-                    Text("You have finished this deck for now.")
-                } actions: {
-                    Button("Back to Deck") { model.stopStudying() }
-                        .keyboardShortcut(.defaultAction)
-                }
-                .background(.background)
+            AnswerBar(session: session)
+        }
+        .background(Theme.Palette.canvas)
+        .overlay(alignment: .topLeading) {
+            if let session, session.phase != .finished {
+                SessionTitle(session: session)
+            }
+        }
+        .toolbar {
+            if let session {
+                ToolbarSpacer(.flexible)
+                ToolbarItem(placement: .automatic) { actions }
+                    .plain()
             }
         }
         .opacity(session == nil ? 0 : 1)
         .allowsHitTesting(session != nil)
         .accessibilityHidden(session == nil)
-        // Fixed items, only enabled or disabled: when NSToolbar adds,
-        // removes or resizes items it re-lays out the window (~35-45 ms),
-        // which used to land on the first card.
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // The card's last answer while studying, otherwise the last deck change.
-                let undoState = session?.undoState ?? model.undoState
-                Button("Undo", systemImage: "arrow.uturn.backward") {
-                    if let session { session.undo() } else { model.undoLast() }
-                }
-                .help(undoState.undoTitle)
-                .disabled(!undoState.canUndo)
-                Button("End Session", systemImage: "xmark") { model.stopStudying() }
-                    .disabled(session == nil)
-                Button {
-                    if model.syncIsRunning {
-                        model.cancelSync()
-                    } else {
-                        Task { await model.synchronize() }
-                    }
-                } label: {
-                    if model.syncIsRunning {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            if !model.syncMediaProgress.isEmpty { Text(model.syncMediaProgress) }
-                        }
-                    } else {
-                        Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-                .help(model.syncIsRunning ? "Cancel Sync" : model.syncMediaProgress.isEmpty ? "Sync" : model.syncMediaProgress)
-                .tint(model.syncStatus == .fullSync ? Theme.Colors.learnCards : model.syncStatus == .normalSync ? Theme.Colors.newCards : nil)
-                .disabled(!model.isLoaded)
-            }
-        }
         .alert(failureTitle, isPresented: failureShown) {
             Button("OK") {}
         } message: {
@@ -136,6 +94,81 @@ struct StudyView: View {
         Binding { session?.failure != nil } set: { if !$0 { session?.failure = nil } }
     }
 
+    /// The card on a quiet rounded surface. Its page paints the same colour
+    /// behind the card (Theme.Palette.cardSurface), so the two read as one.
+    @ViewBuilder private var card: some View {
+        let shape = RoundedRectangle(cornerRadius: compact ? 14 : Theme.Study.cardRadius)
+        Group {
+            if model.reviewerReady, let webView = model.reviewer.webView {
+                CardWebView(webView: webView)
+                    .contextMenu {
+                        reviewerActions
+                    }
+                    .overlay(alignment: .top) {
+                        if let card = session?.card, session?.phase != .finished {
+                            // The toolbar's flag button shows the flag unless
+                            // a small window folds it into More.
+                            CardIndicators(flag: compact ? card.flag : .none, isMarked: card.isMarked)
+                        }
+                    }
+            } else {
+                Theme.Palette.surface
+            }
+        }
+        .frame(maxWidth: Theme.Study.cardMaxWidth, minHeight: Theme.Study.cardMinHeight)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Theme.Palette.hairline))
+        .padding(.horizontal, compact ? Theme.Study.compactMargin : Theme.Study.margin)
+        .padding(.top, compact ? Theme.Spacing.xSmall : Theme.Spacing.small)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Undo and End stay in view; Edit and Flag fold into More in a small window.
+    private var actions: some View {
+        HStack(spacing: 0) {
+            let undoState = session?.undoState ?? UndoState()
+            IconButton("arrow.uturn.backward", help: undoState.canUndo ? "\(undoState.undoTitle) (U)" : "Undo") {
+                session?.undo()
+            }
+            .disabled(!undoState.canUndo)
+            if !compact, let session {
+                IconButton("pencil", help: "Edit Note (E)") { session.editCurrentNote() }
+                Menu {
+                    flagItems(session)
+                } label: {
+                    Image(systemName: session.card.map { $0.flag == .none ? "flag" : "flag.fill" } ?? "flag")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(session.card.map { Theme.flagColor($0.flag) } ?? Theme.Palette.secondary)
+                        .frame(width: 30, height: 28)
+                }
+                .menuStyle(.button)
+                .buttonStyle(QuietButtonStyle())
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(Tr.studyingFlagCard)
+            }
+            Menu {
+                reviewerActions
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 14, weight: .medium))
+                    .frame(width: 30, height: 28)
+            }
+            .menuStyle(.button)
+            .buttonStyle(QuietButtonStyle())
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("More (M)")
+            IconButton("xmark", help: "End Session (Esc)") { model.stopStudying() }
+        }
+    }
+
+    @ViewBuilder private func flagItems(_ session: StudySession) -> some View {
+        ForEach(CardFlag.assignable, id: \.self) { flag in
+            Toggle(flag.title, isOn: Binding { session.card?.flag == flag } set: { _ in session.toggleFlag(flag) })
+                .keyboardShortcut(KeyEquivalent(Character("\(flag.rawValue)")), modifiers: .control)
+        }
+    }
+
     /// The web view takes plain keys before the menu bar sees them, so the
     /// Study menu's single-key shortcuts are handled here first. Keys pass
     /// through while a text box (type-in-the-answer) has focus.
@@ -180,12 +213,24 @@ struct StudyView: View {
             return true
         }
         guard let session else { return false }
+        // Caps Lock changes the letter too, so Shift is read from the flags.
+        let shift = event.modifierFlags.contains(.shift)
+        if modifiers.isEmpty, key.lowercased() == "v" {
+            if shift { session.recordVoice() } else { session.replayVoice() }
+            return true
+        }
+        if modifiers.isEmpty, shift, key.lowercased() == "a" { session.toggleAutoAdvance(); return true }
+        if modifiers.isEmpty, key == "m" { showContextMenu(in: window); return true }
+        if modifiers.isEmpty, key == "u" { session.undo(); return true }
         if modifiers.isEmpty, key == "e" { session.editCurrentNote(); return true }
         if modifiers.isEmpty, key == "@" { session.suspendCurrentCard(); return true }
         if modifiers.isEmpty, key == "!" { session.suspendCurrentNote(); return true }
         if modifiers.isEmpty, key == "-" { session.buryCurrentCard(); return true }
         if modifiers.isEmpty, key == "=" { session.buryCurrentNote(); return true }
-                if modifiers == [.command, .option], key == "n" { session.askForget(); return true }
+        if modifiers == [.command, .option], key == "n" { session.askForget(); return true }
+        // Desktop's Ctrl+Alt+E and Ctrl+Backspace, with Command for Ctrl as on its Mac build.
+        if modifiers == [.command, .option], key == "e" { session.createCopy(in: model); return true }
+        if modifiers == .command, event.keyCode == 51 { session.deleteCurrentNote(); return true }
         if modifiers == [.command, .shift], key == "d" { session.askSetDueDate(); return true }
         if modifiers.isEmpty, key == "i" { session.showCardInfo(in: model); return true }
         if modifiers == .command, key == "z" {
@@ -210,6 +255,10 @@ struct StudyView: View {
             session.replayAudio()
         case (.question, "5"), (.answer, "5"):
             session.toggleAudioPause()
+        case (.question, "6"), (.answer, "6"):
+            session.seekAudio(by: -5)
+        case (.question, "7"), (.answer, "7"):
+            session.seekAudio(by: 5)
         case (.question, "*"), (.answer, "*"):
             session.toggleMark()
         case (_, "\u{1b}"):
@@ -220,8 +269,24 @@ struct StudyView: View {
         return true
     }
 
-    /// Desktop's reviewer menu in its order, after Copy (from its web view's
-    /// own menu) and Edit (its E key).
+    /// Desktop's M: the card's context menu, at the pointer when it is over
+    /// the card, else in the card's middle. A right click is sent there, so
+    /// the menu opens the same way as for a real one.
+    private func showContextMenu(in window: NSWindow) {
+        guard let webView = model.reviewer.webView else { return }
+        let card = webView.convert(webView.bounds, to: nil)
+        var location = window.mouseLocationOutsideOfEventStream
+        if !card.contains(location) { location = NSPoint(x: card.midX, y: card.midY) }
+        guard let click = NSEvent.mouseEvent(
+            with: .rightMouseDown, location: location, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+            context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+        else { return }
+        window.sendEvent(click)
+    }
+
+    /// Desktop's reviewer menu in its order, with its shortcuts, after Copy
+    /// (from its web view's own menu) and Edit (its E key).
     @ViewBuilder private var reviewerActions: some View {
         if let session {
             if session.hasSelection {
@@ -229,29 +294,51 @@ struct StudyView: View {
                 Divider()
             }
             Button("Edit Note…") { session.editCurrentNote() }
+                .keyboardShortcut("e", modifiers: [])
             Divider()
             Menu(Tr.studyingFlagCard) {
-                ForEach(CardFlag.assignable, id: \.self) { flag in
-                    Toggle(flag.title, isOn: Binding { session.card?.flag == flag } set: { _ in session.toggleFlag(flag) })
-                }
+                flagItems(session)
             }
             Button(Tr.studyingBuryCard) { session.buryCurrentCard() }
+                .keyboardShortcut("-", modifiers: [])
             Button(Tr.actionsWithEllipsis(action: Tr.actionsForgetCard)) { session.askForget() }
+                .keyboardShortcut("n", modifiers: [.command, .option])
             Button(Tr.actionsWithEllipsis(action: Tr.actionsSetDueDate)) { session.askSetDueDate() }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
             Button(Tr.actionsReposition + "…") { session.askReposition() }
                 .disabled(session.currentQueue != .new)
             Button(Tr.actionsSuspendCard) { session.suspendCurrentCard() }
+                .keyboardShortcut("@", modifiers: [])
             Button(Tr.actionsOptions) { if let deck = model.selectedDeck { model.showOptions(deck) } }
+                .keyboardShortcut("o", modifiers: [])
             Button(Tr.actionsCardInfo) { session.showCardInfo(in: model) }
+                .keyboardShortcut("i", modifiers: [])
             Divider()
             Toggle(Tr.studyingMarkNote, isOn: Binding { session.card?.isMarked ?? false } set: { _ in session.toggleMark() })
+                .keyboardShortcut("*", modifiers: [])
             Button(Tr.studyingBuryNote) { session.buryCurrentNote() }
+                .keyboardShortcut("=", modifiers: [])
             Button(Tr.studyingSuspendNote) { session.suspendCurrentNote() }
+                .keyboardShortcut("!", modifiers: [])
             Button(Tr.actionsWithEllipsis(action: Tr.actionsCreateCopy)) { session.createCopy(in: model) }
+                .keyboardShortcut("e", modifiers: [.command, .option])
             Button(Tr.studyingDeleteNote) { session.deleteCurrentNote() }
+                .keyboardShortcut(.delete)
             Divider()
             Button(Tr.actionsReplayAudio) { session.replayAudio() }
+                .keyboardShortcut("r", modifiers: [])
             Button(Tr.studyingPauseAudio) { session.toggleAudioPause() }
+                .keyboardShortcut("5", modifiers: [])
+            Button(Tr.studyingAudio5s) { session.seekAudio(by: -5) }
+                .keyboardShortcut("6", modifiers: [])
+            Button(Tr.studyingAudioAnd5s) { session.seekAudio(by: 5) }
+                .keyboardShortcut("7", modifiers: [])
+            Button(Tr.studyingRecordOwnVoice) { session.recordVoice() }
+                .keyboardShortcut("v", modifiers: .shift)
+            Button(Tr.studyingReplayOwnVoice) { session.replayVoice() }
+                .keyboardShortcut("v", modifiers: [])
+            Toggle(Tr.actionsAutoAdvance, isOn: Binding { session.autoAdvance } set: { _ in session.toggleAutoAdvance() })
+                .keyboardShortcut("a", modifiers: .shift)
         }
     }
 }
@@ -286,49 +373,119 @@ struct CardIndicators: View {
     }
 }
 
-/// Show Answer, then Again / Hard / Good / Easy with their next intervals.
-///
-/// This sits at the bottom of the window, against the HIG's advice to keep
-/// controls off the bottom edge: it follows the reading order (question,
-/// answer, decision) that every Anki client uses, and every action is also
-/// in the Study menu with a single-key shortcut.
-private struct AnswerBar: View {
-    let session: StudySession?
+/// The deck's name in the title bar, lined up with the card's left edge,
+/// after its parent decks when they fit, then the session's counts with the
+/// current card's queue underlined. With the sidebar put away it starts no
+/// sooner than past the window controls and the sidebar button; it stops
+/// short of the actions.
+private struct SessionTitle: View {
+    @Environment(CollectionModel.self) private var model
+    @Environment(WindowLayout.self) private var layout
+    @Environment(\.compact) private var compact
+    let session: StudySession
 
     var body: some View {
-        // Counts on the leading side; the buttons stay centred in the window.
-        HStack(spacing: Theme.Spacing.medium) {
-            Group {
-                if let session {
+        if let deck = model.deck(session.deckID) {
+            let parents = deck.fullName.components(separatedBy: "::").dropLast().joined(separator: " › ")
+            let clear = !layout.sidebarVisible || layout.sidebarFloats
+                ? Theme.Study.titleControlsInset : Theme.Spacing.large
+            GeometryReader { proxy in
+                let margin = compact ? Theme.Study.compactMargin : Theme.Study.margin
+                let cardEdge = max(margin, (proxy.size.width - Theme.Study.cardMaxWidth) / 2)
+                let leading = max(clear, cardEdge)
+                HStack(spacing: Theme.Spacing.medium) {
+                    ViewThatFits(in: .horizontal) {
+                        if !parents.isEmpty {
+                            HStack(spacing: 5) {
+                                Text(parents).foregroundStyle(Theme.Palette.secondary)
+                                Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(Theme.Palette.tertiary)
+                                Text(deck.name)
+                            }
+                        }
+                        Text(deck.name).truncationMode(.tail)
+                    }
+                    .font(Theme.Fonts.studyTitle)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
                     DueCounts(
                         new: session.counts.new, learn: session.counts.learn, review: session.counts.review,
                         highlighted: session.currentQueue)
                         .font(Theme.Fonts.studyCounts)
                         .fixedSize()
                 }
+                .frame(maxWidth: max(0, proxy.size.width - leading - Theme.Study.titleActionsInset), alignment: .leading)
+                // The page starts under the title bar; the row moves up into
+                // it, centred on the bar's height.
+                .frame(height: proxy.safeAreaInsets.top)
+                .offset(y: -proxy.safeAreaInsets.top)
+                .padding(.leading, leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: Theme.Spacing.medium) {
-                buttons
-            }
-            // In a narrow window the buttons keep their room; the side columns give way.
-            .layoutPriority(1)
-            Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+            .allowsHitTesting(false)
         }
-        .controlSize(.large)
-        .padding(.vertical, Theme.Study.barPadding)
-        .padding(.horizontal, Theme.Spacing.large)
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
+private struct SessionFinished: View {
+    @Environment(CollectionModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 40)).foregroundStyle(Theme.Palette.green)
+            Text("Congratulations!").font(.system(size: 22, weight: .bold))
+            Text("You have finished this deck for now.")
+                .font(Theme.Fonts.body).foregroundStyle(Theme.Palette.secondary)
+                .multilineTextAlignment(.center)
+            Button { model.stopStudying() } label: {
+                HStack(spacing: 10) {
+                    Text("Back to Deck")
+                    KeyCap("↩", onAccent: true)
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
+            .padding(.top, 6)
+        }
+        .padding(Theme.Spacing.large)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.Palette.canvas)
+    }
+}
+
+/// Show Answer, then Again / Hard / Good / Easy with their next intervals,
+/// in the ratings' colours. They share the width evenly up to a comfortable
+/// size; in a small window they lose the key badges and get shorter.
+///
+/// This sits at the bottom of the window, against the HIG's advice to keep
+/// controls off the bottom edge: it follows the reading order (question,
+/// answer, decision) that every Anki client uses, and every action is also
+/// in the Study menu with a single-key shortcut.
+private struct AnswerBar: View {
+    @Environment(\.compact) private var compact
+    let session: StudySession?
+
+    var body: some View {
+        HStack(spacing: compact ? 6 : 10) {
+            buttons
+        }
+        .frame(height: compact ? Theme.Study.compactAnswerButtonHeight : Theme.Study.answerButtonHeight)
+        // The same edge as the card, so no button reaches past it.
+        .padding(.horizontal, compact ? Theme.Study.compactMargin : Theme.Study.margin)
+        .padding(.vertical, compact ? 10 : 18)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var buttons: some View {
         switch session?.phase ?? .loading {
         case .question:
             Button { session?.showAnswer() } label: {
-                Text("Show Answer").frame(minWidth: Theme.Study.answerButtonWidth * 2)
+                HStack(spacing: 10) {
+                    Text("Show Answer").font(Theme.Fonts.button)
+                    if !compact { KeyCap("Space") }
+                }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GradeButtonStyle(color: Theme.Palette.text, emphasised: false))
+            .frame(width: Theme.Study.showAnswerWidth, height: Theme.Study.showAnswerHeight)
         case .answer:
             if let session {
                 ForEach(Rating.allCases, id: \.self) { rating in
@@ -340,36 +497,53 @@ private struct AnswerBar: View {
             }
         case .loading, .finished:
             // Keeps the bar's height while the next card loads.
-            Button("Show Answer") {}.hidden()
+            Color.clear
         }
     }
 }
 
 private struct AnswerButton: View {
+    @Environment(\.compact) private var compact
     let rating: Rating
     let interval: String
     let session: StudySession
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.xSmall) {
-            Text(interval)
-                .font(Theme.Fonts.intervalCaption)
+        Button { session.answer(rating) } label: {
+            if compact {
+                VStack(spacing: 2) {
+                    Text(rating.title).font(.system(size: 13, weight: .semibold))
+                    Text(interval).font(Theme.Fonts.intervalCaption).foregroundStyle(Theme.Palette.secondary)
+                }
                 .lineLimit(1)
-                .fixedSize()
-                .foregroundStyle(.secondary)
-            let button = Button { session.answer(rating) } label: {
-                Text(rating.title)
-                    .frame(minWidth: Theme.Study.answerButtonMinWidth, maxWidth: Theme.Study.answerButtonWidth)
-            }
-            // Good is what most answers are, so it is the one prominent button.
-            if rating == .good {
-                button.buttonStyle(.borderedProminent)
             } else {
-                button.buttonStyle(.bordered)
+                VStack(alignment: .leading, spacing: 3) {
+                    // The key follows the label as part of it, not as a
+                    // badge in the corner.
+                    HStack(spacing: 6) {
+                        Text(rating.title).font(Theme.Fonts.button)
+                        KeyCap("\(rating.rawValue + 1)")
+                    }
+                    Text(interval).font(Theme.Fonts.intervalCaption).foregroundStyle(Theme.Palette.secondary)
+                }
+                .lineLimit(1)
             }
         }
-        .accessibilityElement(children: .combine)
+        // Good is what most answers are, so it is the one outlined.
+        .buttonStyle(GradeButtonStyle(color: rating.color, emphasised: rating == .good))
+        .frame(maxWidth: Theme.Study.answerButtonMaxWidth)
         .accessibilityLabel("\(rating.title), next review in \(interval)")
+    }
+}
+
+private extension Rating {
+    var color: Color {
+        switch self {
+        case .again: Theme.Palette.coral
+        case .hard: Theme.Palette.amber
+        case .good: Theme.Palette.green
+        case .easy: Theme.Palette.blue
+        }
     }
 }
 

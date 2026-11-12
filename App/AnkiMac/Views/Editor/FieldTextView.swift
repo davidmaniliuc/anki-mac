@@ -412,7 +412,7 @@ final class FieldTextView: NSTextView {
             window?.makeFirstResponder(self)
             if let tag = Self.mediaTag(forFile: name) { insertHTML(tag) }
         } catch {
-            showError((error as? AnkiError)?.message ?? String(describing: error))
+            showError(ActionFailure.reason(error))
         }
     }
 

@@ -111,7 +111,7 @@ struct FilteredDeckSheet: View {
         do {
             showInBrowser(try search())
         } catch {
-            deck.error = FilteredDeckModel.message(error)
+            deck.error = ActionFailure.reason(error)
         }
     }
 

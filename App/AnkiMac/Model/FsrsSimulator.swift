@@ -56,7 +56,7 @@ final class FsrsSimulator: Identifiable {
     private(set) var computingRetention = false
     private(set) var retentionIterations: UInt32?
     private(set) var optimalRetention: Double?
-    var errorMessage: String?
+    var failure: ActionFailure?
 
     init(options: DeckOptionsModel, workload: Bool) {
         self.options = options
@@ -130,7 +130,7 @@ final class FsrsSimulator: Identifiable {
                 runCount = run
                 points += new
             } catch {
-                errorMessage = String(describing: error)
+                failure = ActionFailure("Couldn’t run the simulation", error: error)
             }
         }
     }
@@ -169,7 +169,7 @@ final class FsrsSimulator: Identifiable {
                     .optimalRetention)
             } catch let error as AnkiError where error.backend?.kind == .interrupted {
             } catch {
-                errorMessage = String(describing: error)
+                failure = ActionFailure("Couldn’t compute the retention", error: error)
             }
         }
     }

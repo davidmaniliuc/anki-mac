@@ -27,7 +27,7 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
                 open[deckID] = controller
                 controller.window?.makeKeyAndOrderFront(nil)
             } catch {
-                collection.errorMessage = "Could not load the deck options: \(error)"
+                collection.failure = ActionFailure("Couldn’t open the deck options", error: error)
             }
         }
     }
@@ -43,7 +43,7 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
         let actions = DeckOptionsActions(
             save: { [weak self] mode in self?.save(mode: mode) },
             close: { [weak self] in self?.closeSaved() },
-            showError: { [weak self] message in self?.showError(message) })
+            showError: { [weak self] failure in self?.showError(failure) })
         let host = NSHostingController(rootView: DeckOptionsView(model: model, actions: actions))
         host.sceneBridgingOptions = [.toolbars]
         window.contentViewController = host
@@ -69,7 +69,7 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
                 try await model.save(mode: mode)
                 closeSaved()
             } catch {
-                showError(String(describing: error))
+                showError(ActionFailure("Couldn’t save the deck options", error: error))
             }
         }
     }
@@ -80,11 +80,11 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
         close()
     }
 
-    func showError(_ message: String) {
+    func showError(_ failure: ActionFailure) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Something went wrong"
-        alert.informativeText = message
+        alert.messageText = failure.title
+        alert.informativeText = failure.detail
         alert.beginSheetModal(for: window)
     }
 
@@ -134,7 +134,7 @@ struct DeckOptionsActions {
     let save: (Anki_DeckConfig_UpdateDeckConfigsMode) -> Void
     /// Closes once the form saved by itself (Optimize All Presets).
     let close: () -> Void
-    let showError: (String) -> Void
+    let showError: (ActionFailure) -> Void
 }
 
 /// The options window that the File menu's Save acts on while it is key.
