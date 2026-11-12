@@ -84,13 +84,10 @@ struct StudyView: View {
                 .disabled(!model.isLoaded)
             }
         }
-        .alert(
-            "Something went wrong",
-            isPresented: Binding { session?.errorMessage != nil } set: { if !$0 { session?.errorMessage = nil } }
-        ) {
+        .alert(failureTitle, isPresented: failureShown) {
             Button("OK") {}
         } message: {
-            Text(session?.errorMessage ?? "")
+            Text(verbatim: session?.failure?.detail ?? "")
         }
         .alert(
             session?.timeboxMessage ?? "",
@@ -130,6 +127,13 @@ struct StudyView: View {
             if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
             keyMonitor = nil
         }
+    }
+
+    /// The failed action's alert: what didn't happen, then why.
+    private var failureTitle: String { session?.failure?.title ?? "" }
+
+    private var failureShown: Binding<Bool> {
+        Binding { session?.failure != nil } set: { if !$0 { session?.failure = nil } }
     }
 
     /// The web view takes plain keys before the menu bar sees them, so the

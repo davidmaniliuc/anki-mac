@@ -80,7 +80,8 @@ final class StudySession {
     private(set) var counts = (new: 0, learn: 0, review: 0)
     private(set) var currentQueue: Anki_Scheduler_QueuedCards.Queue?
     private(set) var undoState = UndoState()
-    var errorMessage: String?
+    /// What failed and why, for the alert.
+    var failure: StudyFailure?
     private(set) var audioPaused = false
     /// The time is up: the alert's text, until Continue or Finish.
     private(set) var timeboxMessage: String?
@@ -112,7 +113,7 @@ final class StudySession {
         reviewer.onCommand = { [weak self] command in self?.handle(command) }
         let deckID = deckID
         busy = true
-        await loadNext { backend in
+        await loadNext(failing: "Couldn’t load this deck’s cards") { backend in
             var select = Anki_Decks_DeckId()
             select.did = deckID
             _ = try backend.setCurrentDeck(select)
@@ -134,7 +135,10 @@ final class StudySession {
         revealing = true
         Task {
             let typed = await reviewer.typedAnswer()
-            let html = await run { backend in
+            let html = await run(
+                failing: "Couldn’t compare what you typed",
+                recovery: "The answer is shown without the comparison."
+            ) { backend in
                 try CardRenderer.answerHTML(
                     card.rendered.answer, typeAnswer: typeAnswer, typed: typed, backend: backend)
             }
@@ -164,7 +168,7 @@ final class StudySession {
         busy = true
         Task {
             // Answering and fetching the next card share one trip off the main thread.
-            await loadNext(answered: true) { backend in
+            await loadNext(answered: true, failing: "Couldn’t save your answer") { backend in
                 let states = card.queued.states
                 var answer = Anki_Scheduler_CardAnswer()
                 answer.cardID = card.queued.card.id
@@ -195,20 +199,20 @@ final class StudySession {
 
     func undo() {
         guard undoState.canUndo else { return }
-        replay { backend in _ = try backend.undo() }
+        replay(failing: "Couldn’t undo") { backend in _ = try backend.undo() }
     }
 
     func redo() {
         guard undoState.canRedo else { return }
-        replay { backend in _ = try backend.redo() }
+        replay(failing: "Couldn’t redo") { backend in _ = try backend.redo() }
     }
 
-    private func replay(_ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    private func replay(failing title: String, _ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
         guard !busy else { return }
         audio.stop()
         busy = true
         Task {
-            await loadNext(after: change)
+            await loadNext(failing: title, after: change)
         }
     }
 
@@ -217,7 +221,7 @@ final class StudySession {
         guard let card, !busy else { return }
         let new: CardFlag = card.flag == flag ? .none : flag
         let cardID = card.queued.card.id
-        edit(cardID) { backend in
+        edit(cardID, failing: "Couldn’t change this card’s flag") { backend in
             var request = Anki_Cards_SetFlagRequest()
             request.cardIds = [cardID]
             request.flag = UInt32(new.rawValue)
@@ -232,7 +236,7 @@ final class StudySession {
         let marked = !card.isMarked
         let cardID = card.queued.card.id
         let noteID = card.queued.card.noteID
-        edit(cardID) { backend in
+        edit(cardID, failing: marked ? "Couldn’t mark this note" : "Couldn’t unmark this note") { backend in
             var request = Anki_Tags_NoteIdsAndTagsRequest()
             request.noteIds = [noteID]
             request.tags = Self.markedTag
@@ -245,10 +249,11 @@ final class StudySession {
     /// Runs an undoable change to the card on screen, then refreshes the
     /// undo state. `applied` runs only if that card is still showing.
     private func edit(
-        _ cardID: Int64, _ change: @escaping @Sendable (AnkiBackend) throws -> Void, applied: @escaping () -> Void
+        _ cardID: Int64, failing title: String,
+        _ change: @escaping @Sendable (AnkiBackend) throws -> Void, applied: @escaping () -> Void
     ) {
         Task {
-            let undoState = await run { backend in
+            let undoState = await run(failing: title) { backend in
                 try change(backend)
                 return try backend.undoState()
             }
@@ -282,6 +287,7 @@ final class StudySession {
     /// Runs `change` on the card on screen, then shows the next one with
     /// the message it returns as feedback. Every such change is undoable.
     private func changeCard(
+        failing title: String = "Couldn’t change this card",
         _ change: @escaping @Sendable (Anki_Cards_Card, AnkiBackend) throws -> String
     ) {
         guard let card, !busy else { return }
@@ -290,7 +296,7 @@ final class StudySession {
         let ids = card.queued.card
         Task {
             let message = Box<String>()
-            await loadNext { backend in message.value = try change(ids, backend) }
+            await loadNext(failing: title) { backend in message.value = try change(ids, backend) }
             if let text = message.value { showFeedback(text) }
         }
     }
@@ -323,7 +329,7 @@ final class StudySession {
         guard let card = card?.queued.card else { return }
         let deckID = card.originalDeckID != 0 ? card.originalDeckID : card.deckID
         Task {
-            let note = await run { backend in
+            let note = await run(failing: "Couldn’t copy this note") { backend in
                 var id = Anki_Notes_NoteId()
                 id.nid = card.noteID
                 return try backend.getNote(id)
@@ -396,7 +402,7 @@ final class StudySession {
     }
 
     private func ask(_ gather: @escaping @Sendable (AnkiBackend) throws -> Prompt) {
-        Task { prompt = await run(gather) }
+        Task { prompt = await run(failing: "Couldn’t load this action’s settings", gather) }
     }
 
     func setDueDate(days: String) {
@@ -464,7 +470,10 @@ final class StudySession {
         guard save, !busy, let note = editor.changedNote() else { return }
         busy = true
         Task {
-            await loadNext { backend in
+            await loadNext(
+                failing: "Couldn’t save your changes to the note",
+                recovery: "Open Edit again to retry; the card shows the note as it was."
+            ) { backend in
                 var request = Anki_Notes_UpdateNotesRequest()
                 request.notes = [note]
                 _ = try backend.updateNotes(request)
@@ -494,10 +503,15 @@ final class StudySession {
     /// second key press can't answer the same card twice.
     /// `answered` counts the change as a review for the timebox, whose alert
     /// then holds the session (`busy`) until Continue.
-    private func loadNext(answered: Bool = false, after change: @escaping @Sendable (AnkiBackend) throws -> Void) async {
+    private func loadNext(
+        answered: Bool = false, failing title: String, recovery: String? = nil,
+        after change: @escaping @Sendable (AnkiBackend) throws -> Void
+    ) async {
         defer { busy = timeboxMessage != nil }
         let configCache = self.configCache
-        let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32)? = await run { backend in
+        let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32)? = await run(
+            failing: title, recovery: recovery
+        ) { backend in
             try change(backend)
             let timeLimitSecs = try answered ? backend.getPreferences().reviewing.timeLimitSecs : 0
             var request = Anki_Scheduler_GetQueuedCardsRequest()
@@ -601,13 +615,19 @@ final class StudySession {
         }
     }
 
-    /// Runs backend work off the main thread; errors land in `errorMessage`.
+    /// Runs backend work off the main thread. A failure lands in `failure`,
+    /// titled with what didn't happen, then the backend's own reason, then
+    /// `recovery` when what's left on screen needs saying.
     @discardableResult
-    private func run<T: Sendable>(_ work: @escaping @Sendable (AnkiBackend) throws -> T) async -> T? {
+    private func run<T: Sendable>(
+        failing title: String, recovery: String? = nil,
+        _ work: @escaping @Sendable (AnkiBackend) throws -> T
+    ) async -> T? {
         do {
             return try await backend.perform(work)
         } catch {
-            errorMessage = String(describing: error)
+            let reason = (error as? AnkiError)?.message ?? error.localizedDescription
+            failure = StudyFailure(title: title, detail: [reason, recovery].compactMap { $0 }.joined(separator: "\n\n"))
             return nil
         }
     }
@@ -637,4 +657,11 @@ nonisolated final class Box<Value: Sendable>: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
+}
+
+/// A study action that didn't happen: what it was, for the alert's title,
+/// and why, with what to do next when that's known.
+struct StudyFailure: Equatable {
+    let title: String
+    let detail: String
 }

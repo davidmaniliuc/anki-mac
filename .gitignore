@@ -11,3 +11,4 @@ xcuserdata/
 /AnkiKit/Sources/AnkiKit/Generated/
 /App/*.xcodeproj/
 __pycache__/
+/App/build/
