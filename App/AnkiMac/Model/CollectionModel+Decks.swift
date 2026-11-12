@@ -22,12 +22,17 @@ extension CollectionModel {
         return total == 0 ? 0 : studied / total
     }
 
-    /// Counts the cards answered today in every deck, one search each.
-    func refreshStudiedToday() async {
+    /// Counts the cards answered today, one search per deck: in every deck,
+    /// or only in `deckID`'s subtree and its parents, the decks an answer
+    /// there can change, which keeps the pies live during a session.
+    func refreshStudiedToday(around deckID: Int64? = nil) async {
         guard let backend else { return }
         var names: [(Int64, String)] = []
+        let under = deckID.flatMap { deck($0)?.subtreeIDs } ?? []
         func walk(_ nodes: [DeckNode]) {
             for node in nodes {
+                // With a deck, skip all but its parents and its subtree.
+                if let deckID, !under.contains(node.id), !node.subtreeIDs.contains(deckID) { continue }
                 names.append((node.id, node.fullName))
                 walk(node.children ?? [])
             }
@@ -50,7 +55,8 @@ extension CollectionModel {
             }
             return counts
         }) ?? [:]
-        if studiedToday != counts { studiedToday = counts }
+        let merged = deckID == nil ? counts : studiedToday.merging(counts) { $1 }
+        if studiedToday != merged { studiedToday = merged }
     }
 
     // MARK: Create and rename
@@ -100,12 +106,17 @@ extension CollectionModel {
 
     /// Deletes the deck, its subdecks and their cards without asking, as
     /// desktop does; Undo brings them back.
+    /// Deletes the deck, then says how many cards went with it, as desktop
+    /// does. Undo brings it all back.
     func deleteDeck(_ deckID: Int64) {
+        let name = deck(deckID)?.fullName ?? ""
         stopStudying(deleting: [deckID])
         deckOp(failing: "Couldn’t delete the deck") { backend in
             var request = Anki_Decks_DeckIds()
             request.dids = [deckID]
-            _ = try backend.removeDecks(request)
+            return try backend.removeDecks(request).count
+        } then: { count in
+            self.showNotice(Tr.browsingCardsDeletedWithDeckname(count: Int(count), deckName: name))
         }
     }
 
@@ -243,6 +254,16 @@ extension CollectionModel {
         } else {
             unbury(deckID)
         }
+    }
+
+    /// Unbury at the end of a session: back to the deck's overview, where
+    /// the unburied cards show as due, as desktop's congratulations screen
+    /// returns to it. Asks which kind first when there are both.
+    func unburyAfterSession(_ buried: BuriedCards) {
+        guard let deckID = session?.deckID else { return }
+        stopStudying(keepingDeck: true)
+        selectedBuried = buried
+        askUnbury(deckID)
     }
 
     func unbury(_ deckID: Int64, mode: Anki_Scheduler_UnburyDeckRequest.Mode = .all) {

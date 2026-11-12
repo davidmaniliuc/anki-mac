@@ -103,6 +103,15 @@ final class StudySession {
     var onDisplayed: ((Phase) -> Void)?
     /// After each answer, undo or deck change, once the next card is up.
     var onCountsChanged: (() -> Void)?
+    /// Cards answered this session, less the answers undone.
+    private(set) var studied = 0
+    let startedAt = Date()
+    /// Set when the last card is answered; nil while cards remain.
+    private(set) var finishedAt: Date?
+    /// What desktop's congratulations screen shows, read once the deck is done.
+    private(set) var congrats: Anki_Scheduler_CongratsInfoResponse?
+    /// The deck's description for that screen, when its Markdown option is on.
+    private(set) var congratsDescription: AttributedString?
 
     private let backend: AnkiBackend
     private let reviewer: ReviewerWebController
@@ -216,7 +225,8 @@ final class StudySession {
 
     func undo() {
         guard undoState.canUndo else { return }
-        replay(failing: "Couldn’t undo") { backend in _ = try backend.undo() }
+        let undoesAnswer = undoState.undo == Tr.actionsAnswerCard
+        replay(failing: "Couldn’t undo", undoesAnswer: undoesAnswer) { backend in _ = try backend.undo() }
     }
 
     func redo() {
@@ -224,12 +234,14 @@ final class StudySession {
         replay(failing: "Couldn’t redo") { backend in _ = try backend.redo() }
     }
 
-    private func replay(failing title: String, _ change: @escaping @Sendable (AnkiBackend) throws -> Void) {
+    private func replay(
+        failing title: String, undoesAnswer: Bool = false, _ change: @escaping @Sendable (AnkiBackend) throws -> Void
+    ) {
         guard !busy else { return }
         audio.stop()
         busy = true
         Task {
-            await loadNext(failing: title, after: change)
+            await loadNext(undoesAnswer: undoesAnswer, failing: title, after: change)
         }
     }
 
@@ -627,15 +639,16 @@ final class StudySession {
     /// next card, in one background call. Callers set `busy` first, so a
     /// second key press can't answer the same card twice.
     /// `answered` counts the change as a review for the timebox, whose alert
-    /// then holds the session (`busy`) until Continue.
+    /// then holds the session (`busy`) until Continue; `undoesAnswer` takes
+    /// one back off the session's count.
     private func loadNext(
-        answered: Bool = false, failing title: String, recovery: String? = nil,
+        answered: Bool = false, undoesAnswer: Bool = false, failing title: String, recovery: String? = nil,
         after change: @escaping @Sendable (AnkiBackend) throws -> Void
     ) async {
         cancelAutoAdvance()
         defer { busy = timeboxMessage != nil }
         let configCache = self.configCache
-        let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32)? = await run(
+        let next: (StudyCard?, Anki_Scheduler_QueuedCards, UndoState, UInt32, Anki_Scheduler_CongratsInfoResponse?)? = await run(
             failing: title, recovery: recovery
         ) { backend in
             try change(backend)
@@ -644,7 +657,9 @@ final class StudySession {
             request.fetchLimit = 1
             let queue = try backend.getQueuedCards(request)
             let undoState = try backend.undoState()
-            guard let queued = queue.cards.first else { return (nil, queue, undoState, timeLimitSecs) }
+            guard let queued = queue.cards.first else {
+                return (nil, queue, undoState, timeLimitSecs, try backend.congratsInfo())
+            }
 
             var hideKey = Anki_Config_GetConfigBoolRequest()
             hideKey.key = .hideAudioPlayButtons
@@ -658,12 +673,14 @@ final class StudySession {
             let studyCard = StudyCard(
                 queued: queued, rendered: rendered, intervals: intervals, options: options,
                 flag: CardFlag(cardFlags: queued.card.flags), isMarked: isMarked)
-            return (studyCard, queue, undoState, timeLimitSecs)
+            return (studyCard, queue, undoState, timeLimitSecs, nil)
         }
         BenchDriver.trace("first_card_rendered")
-        guard let (card, queue, undoState, timeLimitSecs) = next else { return }
+        guard let (card, queue, undoState, timeLimitSecs, congrats) = next else { return }
         self.undoState = undoState
+        if undoesAnswer { studied = max(0, studied - 1) }
         if answered {
+            studied += 1
             timebox.answers += 1
             timeboxMessage = timebox.messageIfReached(limitSecs: timeLimitSecs)
         }
@@ -672,12 +689,18 @@ final class StudySession {
         defer { onCountsChanged?() }
         guard let card else {
             currentQueue = nil
+            finishedAt = Date()
+            self.congrats = congrats
+            congratsDescription = congrats.flatMap {
+                $0.deckDescription.isEmpty ? nil : DeckDescription.attributed(html: $0.deckDescription)
+            }
             phase = .finished
             reviewer.clear()
             onDisplayed?(.finished)
             return
         }
         currentQueue = card.queued.queue
+        finishedAt = nil
         phase = .question
         shownAt = Date()
         reviewer.showQuestion(card.rendered.question, answer: card.rendered.answer, bodyClass: card.rendered.bodyClass)

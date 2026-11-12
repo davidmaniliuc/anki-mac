@@ -20,8 +20,8 @@ struct StudyView: View {
         VStack(spacing: 0) {
             ZStack {
                 card
-                if session?.phase == .finished {
-                    SessionFinished()
+                if let session, session.phase == .finished {
+                    SessionFinished(session: session)
                 }
             }
             AnswerBar(session: session)
@@ -97,7 +97,7 @@ struct StudyView: View {
     /// The card on a quiet rounded surface. Its page paints the same colour
     /// behind the card (Theme.Palette.cardSurface), so the two read as one.
     @ViewBuilder private var card: some View {
-        let shape = RoundedRectangle(cornerRadius: compact ? 14 : Theme.Study.cardRadius)
+        let shape = RoundedRectangle(cornerRadius: compact ? Theme.Study.compactCardRadius : Theme.Study.cardRadius)
         Group {
             if model.reviewerReady, let webView = model.reviewer.webView {
                 CardWebView(webView: webView)
@@ -213,6 +213,11 @@ struct StudyView: View {
             return true
         }
         guard let session else { return false }
+        // The end of a session is desktop's congratulations screen, where "c" is Custom Study.
+        if modifiers.isEmpty, session.phase == .finished, key == "c", model.deck(session.deckID)?.filtered == false {
+            model.showCustomStudy(session.deckID)
+            return true
+        }
         // Caps Lock changes the letter too, so Shift is read from the flags.
         let shift = event.modifierFlags.contains(.shift)
         if modifiers.isEmpty, key.lowercased() == "v" {
@@ -354,7 +359,7 @@ struct CardIndicators: View {
         HStack {
             if isMarked {
                 Image(systemName: "star.fill")
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(Theme.Palette.secondary)
                     .accessibilityLabel("Marked")
             }
             Spacer()
@@ -365,7 +370,6 @@ struct CardIndicators: View {
             }
         }
         .font(.title2)
-        .shadow(color: .black.opacity(0.2), radius: 1, y: 0.5)
         .padding(Theme.Spacing.medium)
         .allowsHitTesting(false)
         .animation(.default, value: isMarked)
@@ -426,29 +430,118 @@ private struct SessionTitle: View {
     }
 }
 
+/// The end of a session, as a page: upstream's congratulations for its
+/// title, what the session did, and what desktop's congratulations screen
+/// adds (learning cards still to come, limits reached, Custom Study and
+/// Unbury, the deck's description).
 private struct SessionFinished: View {
     @Environment(CollectionModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let session: StudySession
+    @State private var ticked = false
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 40)).foregroundStyle(Theme.Palette.green)
-            Text("Congratulations!").font(.system(size: 22, weight: .bold))
-            Text("You have finished this deck for now.")
-                .font(Theme.Fonts.body).foregroundStyle(Theme.Palette.secondary)
-                .multilineTextAlignment(.center)
-            Button { model.stopStudying() } label: {
-                HStack(spacing: 10) {
-                    Text("Back to Deck")
-                    KeyCap("↩", onAccent: true)
+        Page {
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                PageTitle(eyebrow: deckPath, title: Tr.schedulingCongratulationsFinished, lineLimit: nil) {
+                    Image(systemName: "checkmark.circle")
+                        .font(Theme.Fonts.titleSymbol)
+                        .foregroundStyle(Theme.Palette.text)
+                        // The tick draws itself once, as the page appears.
+                        .symbolEffect(.drawOn, isActive: !ticked)
+                        .accessibilityHidden(true)
+                }
+                if let summary {
+                    Text(summary).font(Theme.Fonts.lead).foregroundStyle(Theme.Palette.secondary)
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .keyboardShortcut(.defaultAction)
-            .padding(.top, 6)
+
+            if !notes.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                    ForEach(notes, id: \.self) { Text($0) }
+                }
+                .font(Theme.Fonts.body)
+                .foregroundStyle(Theme.Palette.secondary)
+                .frame(maxWidth: Theme.Overview.descriptionWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.small) { actions }
+                VStack(alignment: .leading, spacing: Theme.Spacing.small) { actions }
+            }
+
+            if let description = session.congratsDescription {
+                Text(description)
+                    .font(Theme.Fonts.lead)
+                    .foregroundStyle(Theme.Palette.secondary)
+                    .textSelection(.enabled)
+                    .padding(.top, Theme.Spacing.medium)
+                    .overlay(alignment: .top) { Rectangle().fill(Theme.Palette.hairline).frame(height: 1) }
+            }
         }
-        .padding(Theme.Spacing.large)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.Palette.canvas)
+        .onAppear {
+            if reduceMotion { ticked = true } else { withAnimation { ticked = true } }
+        }
+    }
+
+    /// "Spanish › Verbs › Irregular", naming the deck that was finished.
+    private var deckPath: String {
+        model.deck(session.deckID)?.fullName.replacing("::", with: " › ") ?? ""
+    }
+
+    /// "12 cards studied in 8 minutes.", desktop's timebox wording.
+    private var summary: String? {
+        guard session.studied > 0, let finishedAt = session.finishedAt else { return nil }
+        let minutes = max(1, Int((finishedAt.timeIntervalSince(session.startedAt) / 60).rounded()))
+        return Tr.studyingCardStudiedInMinute(cards: session.studied, minutes: minutes)
+    }
+
+    /// Desktop's lines under the congratulations, in its order.
+    private var notes: [String] {
+        guard let info = session.congrats else { return [] }
+        var notes: [String] = []
+        // The backend sends a day or more when no learning card is due later today.
+        let secs = Int(info.secsUntilNextLearn)
+        if secs < 86_400 {
+            let (unit, amount) = secs < 3_600 ? ("minutes", Double(secs) / 60) : ("hours", Double(secs) / 3_600)
+            notes.append(Tr.schedulingNextLearnDue(unit: unit, amount: Int(amount.rounded()))
+                + " " + Tr.schedulingLearnRemaining(remaining: Int(info.learnRemaining)))
+        }
+        if info.reviewRemaining { notes.append(Tr.schedulingTodayReviewLimitReached) }
+        if info.newRemaining { notes.append(Tr.schedulingTodayNewLimitReached) }
+        return notes
+    }
+
+    private var buried: BuriedCards {
+        BuriedCards(manually: session.congrats?.haveUserBuried ?? false, siblings: session.congrats?.haveSchedBuried ?? false)
+    }
+
+    @ViewBuilder private var actions: some View {
+        Button { model.stopStudying() } label: {
+            HStack(spacing: 10) {
+                Text(model.sessionReturnsToToday ? "Back to Today" : "Back to Deck")
+                KeyCap("↩", onAccent: true)
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .keyboardShortcut(.defaultAction)
+        .fixedSize()
+        Group {
+            if session.congrats?.isFilteredDeck == false {
+                Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(session.deckID) }
+                    .help("\(Tr.actionsCustomStudy) (C)")
+            }
+            if buried.any {
+                Button(buried.manually && buried.siblings ? "\(Tr.studyingUnbury)…" : Tr.studyingUnbury) {
+                    model.unburyAfterSession(buried)
+                }
+            }
+        }
+        .buttonStyle(ChipButtonStyle())
+        .fixedSize()
     }
 }
 

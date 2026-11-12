@@ -1427,4 +1427,18 @@ nonisolated enum Tr {
     static let notetypesNoOcclusionCreated2 = "Unable to add. Either you have not added any occlusions, or the first field is empty."
     static let notetypesIoSelectImage = "Select Image"
     static let notetypesIoPasteImageFromClipboard = "Paste Image from Clipboard"
+    static let actionsAnswerCard = "Answer Card"
+    static let schedulingCongratulationsFinished = "Congratulations! You have finished this deck for now."
+    static func schedulingNextLearnDue(unit: String, amount: some TrNumber) -> String {
+        ("The next learning card will be ready in " + (unit == "seconds" ? (amount.trValue == 1 ? (Tr.number(amount) + " second") : (Tr.number(amount) + " seconds")) : (unit == "minutes" ? (amount.trValue == 1 ? (Tr.number(amount) + " minute") : (Tr.number(amount) + " minutes")) : (amount.trValue == 1 ? (Tr.number(amount) + " hour") : (Tr.number(amount) + " hours")))) + ".")
+    }
+    static func schedulingLearnRemaining(remaining: some TrNumber) -> String {
+        (remaining.trValue == 1 ? "There is one remaining learning card due later today." : ("There are " + Tr.number(remaining) + " learning cards due later today."))
+    }
+    static let schedulingTodayReviewLimitReached = "Today's review limit has been reached, but there are still cards waiting to be reviewed. For optimum memory, consider increasing the daily limit in the options."
+    static let schedulingTodayNewLimitReached = "There are more new cards available, but the daily limit has been reached. You can increase the limit in the options, but please bear in mind that the more new cards you introduce, the higher your short-term review workload will become."
+    static let browsingSidebarDueToday = "Due"
+    static func browsingCardsDeletedWithDeckname(count: some TrNumber, deckName: String) -> String {
+        (count.trValue == 1 ? (Tr.number(count) + " card deleted from " + deckName + ".") : (Tr.number(count) + " cards deleted from " + deckName + "."))
+    }
 }

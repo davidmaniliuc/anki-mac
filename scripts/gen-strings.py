@@ -380,6 +380,14 @@ EXTRA = [
     "notetypes-io-paste-image-from-clipboard",
     "undo-undo",
     "undo-redo",
+    "actions-answer-card",
+    "scheduling-congratulations-finished",
+    "scheduling-next-learn-due",
+    "scheduling-learn-remaining",
+    "scheduling-today-review-limit-reached",
+    "scheduling-today-new-limit-reached",
+    "browsing-sidebar-due-today",
+    "browsing-cards-deleted-with-deckname",
 ]
 
 

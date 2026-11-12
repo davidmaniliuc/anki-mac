@@ -65,20 +65,42 @@ enum Theme {
     /// sidebar, and the width below which everything tightens up.
     enum Layout {
         static let sidebarWidth: CGFloat = 248
-        /// Below this window width the sidebar floats over the content
-        /// instead of pushing it aside.
+        /// Below this window width a docked sidebar is put away, and one
+        /// that can't widen the window floats over the content instead.
         static let compactWidth: CGFloat = 720
+        /// Below this page width (the window's, less a docked sidebar) type
+        /// shrinks and margins tighten. Showing or hiding the sidebar
+        /// resizes the window around the page, so it never changes this.
+        static let compactPageWidth: CGFloat = 472
+        /// Behind the floating sidebar in a small window.
+        static let scrimOpacity = 0.3
+        /// Under the floating sidebar, the only shadow in the main window.
+        static let floatingShadowOpacity = 0.35
+        static let floatingShadowRadius: CGFloat = 24
+        static let floatingShadowOffset: CGFloat = 6
         static let radius: CGFloat = 12
         static let rowRadius: CGFloat = 7
         static let rowHeight: CGFloat = 30
+        /// Deck rows in a page's list, Today's and the overview's.
+        static let listRowHeight: CGFloat = 50
+        static let listRowRadius: CGFloat = 10
+        static let focusRingWidth: CGFloat = 2
+        /// The gap between a deck ring's track and its pie, as a share of the ring.
+        static let ringPieInset: CGFloat = 0.08
+        /// How far Up and Down scroll a page.
+        static let arrowScroll: CGFloat = 60
         /// Each level of a deck tree steps in this far.
         static let indent: CGFloat = 14
         static let pageWidth: CGFloat = 680
         static let pageMargin: CGFloat = 56
+        /// Room under a page's last block, so it doesn't end on the window's edge.
+        static let pageBottomPadding: CGFloat = 40
         static let compactPageMargin: CGFloat = 18
         /// A list row's content keeps to the page's edge; its hover wash
         /// reaches this far past it on both sides, as in Things.
         static let washOutset: CGFloat = 12
+        /// The dot on a quiet button that has something waiting (Sync).
+        static let badgeDot: CGFloat = 7
         /// How far two fingers travel sideways before the sidebar moves.
         static let swipeDistance: CGFloat = 60
     }
@@ -98,6 +120,8 @@ enum Theme {
         /// Sized for the title bar, where it sits beside the session's counts.
         static let studyTitle = Font.system(size: 13, weight: .semibold)
         static let compactTitle = Font.system(size: 24, weight: .bold)
+        /// A symbol standing as a page title's icon, the size of the deck ring there.
+        static let titleSymbol = Font.system(size: 24, weight: .medium)
         static let eyebrow = Font.system(size: 11, weight: .semibold)
         static let eyebrowTracking: CGFloat = 0.8
         /// Sidebar rows: regular, so only the selected row (semibold) steps
@@ -146,6 +170,7 @@ enum Theme {
         /// Past the window controls and the sidebar button.
         static let titleControlsInset: CGFloat = 132
         static let cardRadius: CGFloat = 18
+        static let compactCardRadius: CGFloat = 14
         /// How long the message after a card action stays over the card.
         static let feedbackDuration: Duration = .seconds(2.5)
         /// Keeps the message above the answer bar.

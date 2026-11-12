@@ -193,6 +193,12 @@ struct DeckSidebar: View {
               !(window.firstResponder is NSText), model.session == nil, model.renamingDeckID == nil,
               event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
         else { return false }
+        // Once the page has been clicked or scrolled, Up and Down scroll it.
+        if event.keyCode == 125 || event.keyCode == 126, !layout.arrowsMoveSidebar,
+           let scrollPage = layout.scrollPage?.scroll {
+            _ = scrollPage(event.keyCode == 125 ? Theme.Layout.arrowScroll : -Theme.Layout.arrowScroll)
+            return true
+        }
         let rows = visibleRows
         let index = rows.firstIndex(of: model.selectedDeckID) ?? 0
         switch event.keyCode {
@@ -337,8 +343,8 @@ struct SidebarRowShell<Content: View>: View {
     }
 }
 
-/// Sync, with its progress while it runs (a click cancels), tinted when
-/// the collection has changes to send.
+/// Sync, with its progress while it runs (a click cancels), and a dot
+/// when something is waiting to sync.
 private struct SyncButton: View {
     @Environment(CollectionModel.self) private var model
 
@@ -355,25 +361,39 @@ private struct SyncButton: View {
                         }
                     }
                 } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: model.syncStatus == .fullSync
+                        ? "exclamationmark.arrow.triangle.2.circlepath" : "arrow.triangle.2.circlepath")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(tint ?? Theme.Palette.secondary)
+                        .overlay(alignment: .topTrailing) {
+                            if waiting != nil {
+                                Circle().fill(Theme.Palette.accent)
+                                    .frame(width: Theme.Layout.badgeDot, height: Theme.Layout.badgeDot)
+                                    .offset(x: Theme.Spacing.xxSmall, y: -Theme.Spacing.xxSmall)
+                            }
+                        }
                 }
             }
             .frame(minWidth: 30, minHeight: 28)
         }
         .buttonStyle(QuietButtonStyle())
-        .help(model.syncIsRunning ? "Cancel Sync" : "Sync")
-        .accessibilityLabel(model.syncIsRunning ? "Cancel Sync" : "Sync")
+        .help(label)
+        .accessibilityLabel(label)
         .disabled(!model.isLoaded)
     }
 
-    private var tint: Color? {
+    /// What's waiting to sync, if anything. The queue colours stay with the
+    /// queues, so the button says it with the accent dot and these words.
+    private var waiting: String? {
         switch model.syncStatus {
-        case .fullSync: Theme.Colors.learnCards
-        case .normalSync: Theme.Colors.newCards
+        case .fullSync: "a one-way sync is needed"
+        case .normalSync: "changes are waiting"
         default: nil
         }
+    }
+
+    private var label: String {
+        if model.syncIsRunning { return "Cancel Sync" }
+        return waiting.map { "Sync: \($0)" } ?? "Sync"
     }
 }
 

@@ -28,7 +28,10 @@ struct ContentView: View {
         }
         .environment(layout)
         .focusedSceneValue(\.windowLayout, layout)
-        .background(WindowReader { model.mainWindow = $0 })
+        .background(WindowReader {
+            model.mainWindow = $0
+            layout.window = $0
+        })
         .alert(
             model.failure?.title ?? "",
             isPresented: Binding { model.failure != nil } set: { if !$0 { model.failure = nil } }
@@ -40,40 +43,53 @@ struct ContentView: View {
     }
 
     /// The sidebar beside the content, or floating over it in a small window.
-    /// Studying puts the sidebar away; it comes back when the session ends.
     private var decks: some View {
         GeometryReader { proxy in
-            let compact = proxy.size.width < Theme.Layout.compactWidth
+            let docked = layout.sidebarVisible && !layout.sidebarFloats
+            let page = layout.pageWidth ?? proxy.size.width - (docked ? Theme.Layout.sidebarWidth : 0)
             ZStack(alignment: .leading) {
-                HStack(spacing: 0) {
-                    if layout.sidebarVisible && !compact {
-                        DeckSidebar()
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
-                    detail
+                if docked || layout.pageWidth != nil {
+                    DeckSidebar()
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                 }
-                if layout.sidebarVisible && compact {
-                    Color.black.opacity(0.3)
+                // While the window's right edge moves, the page keeps its
+                // width against it and slides over the sidebar.
+                detail
+                    .frame(width: layout.pageWidth)
+                    .padding(.leading, docked && layout.pageWidth == nil ? Theme.Layout.sidebarWidth : 0)
+                    .frame(width: proxy.size.width, alignment: .trailing)
+                if layout.sidebarVisible && layout.sidebarFloats {
+                    Color.black.opacity(Theme.Layout.scrimOpacity)
                         .ignoresSafeArea()
                         .onTapGesture { layout.toggleSidebar(false) }
                         .transition(.opacity)
                     DeckSidebar()
-                        .shadow(color: .black.opacity(0.35), radius: 24, x: 6)
+                        .shadow(
+                            color: .black.opacity(Theme.Layout.floatingShadowOpacity),
+                            radius: Theme.Layout.floatingShadowRadius, x: Theme.Layout.floatingShadowOffset)
                         .transition(.move(edge: .leading))
                 }
             }
-            .environment(\.compact, compact)
-            .onChange(of: compact, initial: true) { _, compact in
-                layout.sidebarFloats = compact
-                layout.sidebarVisible = !compact && model.session == nil
+            .environment(\.compact, page < Theme.Layout.compactPageWidth)
+            .onChange(of: proxy.size.width < Theme.Layout.compactWidth, initial: true) { _, narrow in
+                layout.windowWidthChanged(narrow: narrow)
             }
         }
         .foregroundStyle(Theme.Palette.text)
         .tint(Theme.Palette.accent)
-        .onChange(of: model.session == nil) { _, ended in
-            layout.toggleSidebar(ended && !layout.sidebarFloats)
-        }
         .onSidebarSwipe(in: { [weak model] in model?.mainWindow }) { layout.toggleSidebar($0) }
+        .overlay(alignment: .bottom) {
+            if let notice = model.notice {
+                Text(notice)
+                    .padding(.horizontal, Theme.Spacing.medium)
+                    .padding(.vertical, Theme.Spacing.small)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, Theme.Spacing.xLarge)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+        .animation(.default, value: model.notice)
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
         .navigationSubtitle(model.profileName ?? "")
         // Undo acts on the card being studied, or else on the deck list.

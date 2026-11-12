@@ -95,12 +95,21 @@ final class CollectionModel {
     private(set) var isLoaded = false
     private(set) var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
+    private var learnTask: Task<Void, Never>?
+    /// Cards in learning that come due later today (not yet due), and when
+    /// the first of them does, for Today's line when nothing is due now.
+    private(set) var learnLaterToday: (next: Date, count: Int)?
     private var activationTask: Task<Void, Never>?
     var backupTask: Task<Void, Never>?
     var selectedDeckID: Int64?
     private(set) var session: StudySession?
+    /// The session was started from Today, so ending it goes back there.
+    private(set) var sessionReturnsToToday = false
     /// What failed and why, for the main window's alert.
     var failure: ActionFailure?
+    /// A short message over the main window after a change, as desktop's tooltip.
+    private(set) var notice: String?
+    @ObservationIgnored private var noticeTask: Task<Void, Never>?
     /// What Undo and Redo would act on in the main window, while not studying.
     private(set) var undoState = UndoState()
     /// The deck whose name is being edited in the sidebar.
@@ -235,10 +244,8 @@ final class CollectionModel {
             BenchDriver.trace("collection_open")
             self.paths = paths
             reviewer.mediaFolder = paths.mediaFolder
+            // The day starts on Today (no deck selected), not on a deck picked for the user.
             await refreshDecks()
-            if selectedDeckID == nil {
-                selectedDeckID = decks.max { $0.dueCount < $1.dueCount }?.id
-            }
             isLoaded = true
             refreshWhenActivated()
             startPeriodicBackups()
@@ -314,6 +321,7 @@ final class CollectionModel {
 
     private func beginClosing() -> (AnkiBackend, Closing)? {
         rolloverTask?.cancel()
+        learnTask?.cancel()
         activationTask?.cancel()
         backupTask?.cancel()
         session?.stop()
@@ -505,13 +513,17 @@ final class CollectionModel {
         guard !collectionClosed else { return }
         guard let backend else { return }
         do {
-            let (tree, nextDayAt, undoState) = try await backend.perform { backend in
+            // Only Today uses the learning cards' times, so a session's refresh after each answer skips them.
+            let studying = session != nil
+            let (tree, nextDayAt, undoState, learnDues) = try await backend.perform { backend in
                 var request = Anki_Decks_DeckTreeRequest()
                 request.now = Int64(Date().timeIntervalSince1970)
+                let nextDayAt = try backend.schedTimingToday().nextDayAt
                 return (
-                    try backend.deckTree(request), try backend.schedTimingToday().nextDayAt,
-                    try backend.undoState())
+                    try backend.deckTree(request), nextDayAt, try backend.undoState(),
+                    studying ? [] : try Self.learnDues(before: nextDayAt, backend: backend))
             }
+            learnLaterToday = learnDues.min().map { (Date(timeIntervalSince1970: TimeInterval($0)), learnDues.count) }
             decks = tree.children.map { DeckNode($0) }
             self.undoState = undoState
             if let id = selectedDeckID, deck(id) == nil {
@@ -519,7 +531,9 @@ final class CollectionModel {
             }
             lastRefresh = Date()
             scheduleRollover(at: nextDayAt)
-            if session == nil { Task { await refreshStudiedToday() } }
+            scheduleLearnRefresh()
+            let sessionDeck = session?.deckID
+            Task { await refreshStudiedToday(around: sessionDeck) }
             BenchDriver.trace("deck_tree")
         } catch {
             failure = ActionFailure("Couldn’t load your decks", error: error)
@@ -533,6 +547,35 @@ final class CollectionModel {
         rolloverTask?.cancel()
         let delay = max(1, Double(nextDayAt) - Date().timeIntervalSince1970)
         rolloverTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.refreshDecks()
+        }
+    }
+
+    /// When the cards in learning that aren't due yet come due, before the
+    /// day ends: (re)learning cards, which are due at a time of day, not
+    /// those due on a later day. Few cards are in learning at once.
+    private nonisolated static func learnDues(before nextDayAt: Int64, backend: AnkiBackend) throws -> [Int64] {
+        var request = Anki_Search_SearchRequest()
+        request.search = "is:learn -is:due"
+        return try backend.searchCards(request).ids.compactMap { id in
+            var cardID = Anki_Cards_CardId()
+            cardID.cid = id
+            let card = try backend.getCard(cardID)
+            // Queue 1 is learning within the day; 3 is learning due on a day.
+            // Its due is a time, in a filtered deck too.
+            return card.queue == 1 && Int64(card.due) < nextDayAt ? Int64(card.due) : nil
+        }
+    }
+
+    /// Refreshes the counts once the next learning card comes due, so Today
+    /// and the sidebar show it without waiting for another change.
+    private func scheduleLearnRefresh() {
+        learnTask?.cancel()
+        guard let next = learnLaterToday?.next else { return }
+        let delay = max(1, next.timeIntervalSinceNow)
+        learnTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             await self?.refreshDecks()
@@ -574,6 +617,7 @@ final class CollectionModel {
     func startStudying() {
         guard let deckID = selectedDeckID, let backend else { return }
         session?.stop()
+        sessionReturnsToToday = false
         let session = StudySession(deckID: deckID, backend: backend, reviewer: reviewer)
         self.session = session
         // The sidebar stays on screen while studying, so its counts follow each answer.
@@ -589,7 +633,32 @@ final class CollectionModel {
         if deckIDs.contains(where: { deck($0)?.subtreeIDs.contains(studying) == true }) { stopStudying() }
     }
 
-    func stopStudying() {
+    func showNotice(_ text: String) {
+        notice = text
+        NSAccessibility.post(
+            element: NSApp as Any, notification: .announcementRequested,
+            userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        noticeTask?.cancel()
+        noticeTask = Task {
+            try? await Task.sleep(for: Theme.Study.feedbackDuration)
+            if !Task.isCancelled { notice = nil }
+        }
+    }
+
+    /// Starts a deck from Today; ending its session comes back to Today.
+    func studyFromToday(_ deckID: Int64) {
+        selectedDeckID = deckID
+        startStudying()
+        sessionReturnsToToday = true
+    }
+
+    /// Ends the session. One started from Today goes back there, unless
+    /// `keepingDeck` or another deck has been picked meanwhile.
+    func stopStudying(keepingDeck: Bool = false) {
+        if sessionReturnsToToday, !keepingDeck, let session, selectedDeckID == session.deckID {
+            selectedDeckID = nil
+        }
+        sessionReturnsToToday = false
         session?.stop()
         session = nil
         Task { await refreshDecks() }

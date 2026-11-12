@@ -123,6 +123,8 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         /* The main window's card surface, so the page meets it seamlessly. */
         html:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.light)); }
         html.night-mode:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.dark)); }
+        /* No rubber-banding: the card sits in a fixed panel, not a page. */
+        html, body { overscroll-behavior: none; }
         </style>
         </head>
         <body class="\(themeBodyClasses(nightMode: nightMode))">

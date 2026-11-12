@@ -25,12 +25,10 @@ struct DeckOverview: View {
                     studyButton
                 }
             } else {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
-                    Text("All done for now").font(Theme.Fonts.panelTitle)
-                    Text("Nothing is due in this deck right now.")
-                        .font(Theme.Fonts.body)
-                        .foregroundStyle(Theme.Palette.secondary)
-                }
+                // Desktop's overview shows its congratulations here.
+                Text(Tr.schedulingCongratulationsFinished)
+                    .font(Theme.Fonts.panelTitle)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let children = deck.children {
@@ -45,19 +43,15 @@ struct DeckOverview: View {
             }
             .buttonStyle(ChipButtonStyle())
         }
+        // Add Cards into this deck is the one action with no other place on
+        // the page: Options is a chip below, Browse and Statistics are in
+        // the sidebar.
         .toolbar {
-            // Pushes the buttons to the trailing edge.
+            // Pushes the button to the trailing edge.
             ToolbarSpacer(.flexible)
             ToolbarItem(placement: .automatic) {
-                HStack(spacing: 0) {
-                    IconButton("plus", help: "Add Cards") {
-                        AddCardsWindowController.show(collection: model, deckID: deck.id)
-                    }
-                    IconButton("magnifyingglass", help: "Browse (B)") { BrowserWindowController.show(collection: model) }
-                    IconButton("chart.bar", help: "\(Tr.statisticsTitle) (T)") {
-                        StatisticsWindowController.show(collection: model)
-                    }
-                    IconButton("slider.horizontal.3", help: "Options (O)") { model.showOptions(deck) }
+                IconButton("plus", help: "Add Cards") {
+                    AddCardsWindowController.show(collection: model, deckID: deck.id)
                 }
             }
             .plain()

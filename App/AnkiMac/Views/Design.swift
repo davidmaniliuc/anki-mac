@@ -10,16 +10,96 @@ import SwiftUI
 
 /// Whether the sidebar shows, and how: beside the content, or floating over
 /// it in a small window, where it closes once something is picked.
+///
+/// As in Things 3, showing or hiding the docked sidebar grows or shrinks
+/// the window by its width from the right edge, and the page keeps its size
+/// and slides across, over the sidebar, which stays put. Where the window can't change (full screen, or
+/// no room on screen) the sidebar pushes the page aside instead.
 @Observable final class WindowLayout {
-    var sidebarVisible = true
+    var sidebarVisible = !UserDefaults.standard.bool(forKey: "sidebarHidden") {
+        didSet { if !sidebarFloats { UserDefaults.standard.set(!sidebarVisible, forKey: "sidebarHidden") } }
+    }
     var sidebarFloats = false
+    /// The page's width, held while the window slides around it.
+    var pageWidth: CGFloat?
+    @ObservationIgnored weak var window: NSWindow?
+    /// Put away because the window got too narrow; it comes back when the
+    /// window is widened again.
+    @ObservationIgnored private var hiddenForWidth = false
+    /// Up and Down move through the sidebar until the page is clicked or
+    /// scrolled; then they scroll the page, until something is picked in
+    /// the sidebar again.
+    var arrowsMoveSidebar = true
+    /// Scrolls the page on screen by a distance; false when it can't move.
+    /// `owner` tells pages apart while one replaces another.
+    @ObservationIgnored var scrollPage: (owner: UUID, scroll: (CGFloat) -> Bool)?
 
     func toggleSidebar(_ visible: Bool? = nil) {
-        withAnimation(.smooth(duration: 0.28)) { sidebarVisible = visible ?? !sidebarVisible }
+        let show = visible ?? !sidebarVisible
+        guard show != sidebarVisible, pageWidth == nil else { return }
+        hiddenForWidth = false
+        let sidebar = Theme.Layout.sidebarWidth
+        if let window, !window.styleMask.contains(.fullScreen), let screen = window.screen?.visibleFrame {
+            var frame = window.frame
+            if show, frame.width + sidebar <= screen.width {
+                frame.size.width += sidebar
+                frame.origin.x = max(min(frame.minX, screen.maxX - frame.width), screen.minX)
+                return slide(window, to: frame, page: window.frame.width, show: true)
+            }
+            if !show, !sidebarFloats, frame.width - sidebar >= Theme.Window.minWidth {
+                frame.size.width -= sidebar
+                return slide(window, to: frame, page: frame.width, show: false)
+            }
+        }
+        if show { sidebarFloats = (window?.frame.width ?? .infinity) < Theme.Layout.compactWidth }
+        withAnimation(.smooth(duration: 0.28)) { sidebarVisible = show }
     }
 
-    /// After picking something in a floating sidebar.
+    /// Moves the window's right edge by the sidebar's width, the page held
+    /// at its width against it, so the page slides over the sidebar.
+    private func slide(_ window: NSWindow, to frame: NSRect, page: CGFloat, show: Bool) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            pageWidth = page
+            sidebarFloats = false
+            sidebarVisible = show
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(frame, display: true)
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { self?.pageWidth = nil }
+            }
+        }
+    }
+
+    /// The window crossed `compactWidth`, resized by hand or by going full
+    /// screen: a docked sidebar is put away when it gets narrow, and comes
+    /// back (or stops floating) when it gets wide.
+    func windowWidthChanged(narrow: Bool) {
+        guard pageWidth == nil else { return }
+        if narrow {
+            guard sidebarVisible, !sidebarFloats else { return }
+            hiddenForWidth = true
+            withAnimation(.smooth(duration: 0.28)) { sidebarVisible = false }
+        } else {
+            let show = hiddenForWidth
+            hiddenForWidth = false
+            withAnimation(.smooth(duration: 0.28)) {
+                sidebarFloats = false
+                if show { sidebarVisible = true }
+            }
+        }
+    }
+
+    /// After picking something in the sidebar.
     func picked() {
+        arrowsMoveSidebar = true
         if sidebarFloats { toggleSidebar(false) }
     }
 }
@@ -59,7 +139,12 @@ extension ToolbarContent {
 /// width, with margins that shrink in a small window.
 struct Page<Content: View>: View {
     @Environment(\.compact) private var compact
+    @Environment(WindowLayout.self) private var layout
     @ViewBuilder let content: Content
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var id = UUID()
+    @State private var geometry = ScrollGeometry(
+        contentOffset: .zero, contentSize: .zero, contentInsets: EdgeInsets(), containerSize: .zero)
 
     var body: some View {
         ScrollView {
@@ -67,12 +152,29 @@ struct Page<Content: View>: View {
                 .frame(maxWidth: Theme.Layout.pageWidth, alignment: .leading)
                 .padding(.horizontal, compact ? Theme.Layout.compactPageMargin : Theme.Layout.pageMargin)
                 .padding(.top, compact ? 0 : Theme.Spacing.small)
-                .padding(.bottom, 40)
+                .padding(.bottom, Theme.Layout.pageBottomPadding)
                 .frame(maxWidth: .infinity)
         }
+        .scrollPosition($position)
+        .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, new in geometry = new }
+        // Clicking or scrolling the page hands it the arrow keys (see WindowLayout).
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting { layout.arrowsMoveSidebar = false }
+        }
+        .simultaneousGesture(TapGesture().onEnded { layout.arrowsMoveSidebar = false })
+        .onAppear { layout.scrollPage = (id, scroll) }
+        .onDisappear { if layout.scrollPage?.owner == id { layout.scrollPage = nil } }
         // The page scrolls out of sight below the title bar, not under the
         // window's buttons and the toolbar.
         .clipped()
+    }
+
+    private func scroll(by distance: CGFloat) -> Bool {
+        let limit = max(0, geometry.contentSize.height - geometry.containerSize.height)
+        let target = min(max(0, geometry.contentOffset.y + distance), limit)
+        guard target != geometry.contentOffset.y else { return false }
+        withAnimation(.smooth(duration: 0.15)) { position.scrollTo(y: target) }
+        return true
     }
 }
 
@@ -81,6 +183,7 @@ struct PageTitle<Icon: View>: View {
     @Environment(\.compact) private var compact
     let eyebrow: String
     let title: String
+    var lineLimit: Int? = 2
     @ViewBuilder let icon: Icon
 
     var body: some View {
@@ -92,7 +195,8 @@ struct PageTitle<Icon: View>: View {
                 icon
                 Text(title)
                     .font(compact ? Theme.Fonts.compactTitle : Theme.Fonts.title)
-                    .lineLimit(2)
+                    .lineLimit(lineLimit)
+                    .fixedSize(horizontal: false, vertical: lineLimit == nil)
                     .textSelection(.enabled)
             }
         }
@@ -183,16 +287,23 @@ struct DueSummary<Action: View>: View {
     }
 }
 
-/// A deck in a page's list: its dot, name and path, its counts, and a
-/// Study button that shows on hover (Return in the overview does the same).
+/// A deck in a page's list: its ring, name and path, its counts, and a
+/// Study button that shows on hover. The row is a button that opens the
+/// deck (click, or Space when it has keyboard focus); VoiceOver reads it as
+/// one element with Study as an action, so the hover-only button stays
+/// out of its way and out of the keyboard loop.
 struct DeckListRow: View {
     @Environment(CollectionModel.self) private var model
     @Environment(\.compact) private var compact
     let deck: DeckNode
     var path = ""
+    /// On Today, studying the row comes back to Today.
+    var onToday = false
     @State private var hovered = false
+    @FocusState private var focused: Bool
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Layout.listRowRadius)
         HStack(spacing: Theme.Spacing.medium) {
             DeckRing(deck: deck, size: 16)
             VStack(alignment: .leading, spacing: 1) {
@@ -209,10 +320,7 @@ struct DeckListRow: View {
                 DueCounts(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount)
                     .font(Theme.Fonts.studyCounts)
             }
-            Button {
-                model.selectedDeckID = deck.id
-                model.startStudying()
-            } label: {
+            Button(action: study) {
                 Image(systemName: "play.fill").font(.system(size: 10))
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(Theme.Palette.accent))
@@ -221,16 +329,45 @@ struct DeckListRow: View {
             .buttonStyle(.plain)
             .opacity(hovered && deck.dueCount > 0 ? 1 : 0)
             .disabled(deck.dueCount == 0)
+            .focusable(false)
             .help("Study \(deck.name)")
-            .accessibilityLabel("Study \(deck.name)")
+            .accessibilityHidden(true)
         }
         .padding(.horizontal, Theme.Layout.washOutset)
-        .frame(height: 50)
-        .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Theme.Palette.hover : .clear))
+        .frame(height: Theme.Layout.listRowHeight)
+        .background(shape.fill(hovered ? Theme.Palette.hover : .clear))
+        .overlay {
+            if focused { shape.strokeBorder(Theme.Palette.accent, lineWidth: Theme.Layout.focusRingWidth) }
+        }
         .padding(.horizontal, -Theme.Layout.washOutset)
         .contentShape(.rect)
         .onHover { hovered = $0 }
-        .onTapGesture { model.selectedDeckID = deck.id }
+        .onTapGesture(perform: open)
+        // Reachable with Tab when the system's keyboard navigation is on, as buttons are.
+        .focusable(interactions: .activate)
+        .focused($focused)
+        .focusEffectDisabled()
+        .onKeyPress(.space) {
+            open()
+            return .handled
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(path.isEmpty ? deck.name : "\(deck.name), \(path)")
+        .accessibilityValue("\(deck.newCount) new, \(deck.learnCount) learning, \(deck.reviewCount) to review")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, open)
+        .accessibilityActions {
+            if deck.dueCount > 0 { Button("Study", action: study) }
+        }
+    }
+
+    private func open() { model.selectedDeckID = deck.id }
+
+    private func study() {
+        if onToday { model.studyFromToday(deck.id) } else {
+            model.selectedDeckID = deck.id
+            model.startStudying()
+        }
     }
 }
 
@@ -245,19 +382,64 @@ struct DeckRing: View {
     var selected = false
 
     var body: some View {
-        let tint = deck.learnCount > 0 ? Theme.Palette.coral : selected ? Theme.Palette.accent : Theme.Palette.secondary
-        let done = model.progress(deck)
-        ZStack {
-            Circle().strokeBorder(Theme.Palette.selection, lineWidth: max(1.2, size / 10))
-            Circle()
-                .trim(from: 0, to: done)
-                .stroke(tint, style: StrokeStyle(lineWidth: size / 2.6))
-                .rotationEffect(.degrees(-90))
-                .padding(size * 0.27)
+        // A fresh ring per deck, so one deck's pie never animates into another's.
+        Ring(done: model.progress(deck), tint: tint, size: size).id(deck.id)
+    }
+
+    private var tint: Color {
+        deck.learnCount > 0 ? Theme.Palette.coral : selected ? Theme.Palette.accent : Theme.Palette.secondary
+    }
+
+    /// Only the fill animates, in its own transaction: an implicit animation
+    /// here would also catch the ring moving as a page lays out, and slide
+    /// it. The pie fills from empty as the ring appears, then follows the
+    /// day's progress.
+    private struct Ring: View {
+        let done: Double
+        let tint: Color
+        let size: CGFloat
+        @State private var shown = 0.0
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            ZStack {
+                Circle().strokeBorder(Theme.Palette.selection, lineWidth: max(1.2, size / 10))
+                Pie(progress: shown)
+                    .fill(tint)
+                    .padding(size * Theme.Layout.ringPieInset)
+            }
+            .frame(width: size, height: size)
+            .onAppear { show(done) }
+            .onChange(of: done) { _, done in show(done) }
+            .accessibilityLabel("\(Int(done * 100)) percent done today")
         }
-        .frame(width: size, height: size)
-        .animation(.smooth, value: done)
-        .accessibilityLabel("\(Int(done * 100)) percent done today")
+
+        private func show(_ value: Double) {
+            if reduceMotion { shown = value } else { withAnimation(.smooth) { shown = value } }
+        }
+    }
+
+    /// A wedge from twelve o'clock, clockwise, filled solid to the centre.
+    private nonisolated struct Pie: Shape {
+        var progress: Double
+        var animatableData: Double {
+            get { progress }
+            set { progress = newValue }
+        }
+
+        func path(in rect: CGRect) -> Path {
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let radius = min(rect.width, rect.height) / 2
+            var path = Path()
+            guard progress > 0 else { return path }
+            guard progress < 1 else { return Path(ellipseIn: rect) }
+            path.move(to: center)
+            path.addArc(
+                center: center, radius: radius, startAngle: .degrees(-90),
+                endAngle: .degrees(-90 + 360 * progress), clockwise: false)
+            path.closeSubpath()
+            return path
+        }
     }
 }
 
