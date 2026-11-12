@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T06:14:12.806533+00:00",
+  "title": "Design System: AnkiMac",
+  "extensions": {
+    "colorMeta": {
+      "accent-blue": {
+        "role": "primary",
+        "displayName": "Electric Pen Blue",
+        "canonical": "#2F6BFF",
+        "dark": "#4C8BFF",
+        "tonalRamp": [
+          "#101D3C",
+          "#132D6C",
+          "#103AA2",
+          "#0745DF",
+          "#336BF5",
+          "#789AED",
+          "#B9C9EE",
+          "#ECF0F8"
+        ]
+      },
+      "queue-new-blue": {
+        "role": "secondary",
+        "displayName": "Queue New Blue",
+        "canonical": "#2F6BFF",
+        "dark": "#6AA2FF",
+        "tonalRamp": [
+          "#101D3C",
+          "#132D6C",
+          "#103AA2",
+          "#0745DF",
+          "#336BF5",
+          "#789AED",
+          "#B9C9EE",
+          "#ECF0F8"
+        ]
+      },
+      "queue-learn-coral": {
+        "role": "secondary",
+        "displayName": "Learning Coral",
+        "canonical": "#D9534A",
+        "dark": "#F2786D",
+        "tonalRamp": [
+          "#351A18",
+          "#5D2623",
+          "#892F29",
+          "#B9352C",
+          "#D35D55",
+          "#D8918D",
+          "#E5C5C3",
+          "#F6EFEE"
+        ]
+      },
+      "queue-review-green": {
+        "role": "secondary",
+        "displayName": "Review Green",
+        "canonical": "#2E9E5B",
+        "dark": "#6CC78E",
+        "tonalRamp": [
+          "#1A3224",
+          "#27583B",
+          "#318151",
+          "#38AE67",
+          "#5FC989",
+          "#93D2AC",
+          "#C5E2D1",
+          "#EFF5F2"
+        ]
+      },
+      "grade-hard-amber": {
+        "role": "secondary",
+        "displayName": "Ochre Amber",
+        "canonical": "#C7841A",
+        "dark": "#E9AE52",
+        "tonalRamp": [
+          "#372A15",
+          "#62471D",
+          "#926621",
+          "#C68520",
+          "#DEA549",
+          "#DFBD86",
+          "#E8D8C0",
+          "#F7F3EE"
+        ]
+      },
+      "place-violet": {
+        "role": "tertiary",
+        "displayName": "Places Violet",
+        "canonical": "#7C5CE6",
+        "dark": "#A78BFA",
+        "tonalRamp": [
+          "#1E1637",
+          "#2E1F61",
+          "#3C248F",
+          "#4824C2",
+          "#6E4DDB",
+          "#9C88DD",
+          "#C9C0E7",
+          "#F0EEF7"
+        ]
+      },
+      "place-teal": {
+        "role": "tertiary",
+        "displayName": "Places Teal",
+        "canonical": "#1E9AAE",
+        "dark": "#5CC8D8",
+        "tonalRamp": [
+          "#173236",
+          "#20565F",
+          "#267F8D",
+          "#27AABF",
+          "#50C5D8",
+          "#89D0DC",
+          "#C1E1E6",
+          "#EEF5F6"
+        ]
+      },
+      "anki-star-blue": {
+        "role": "tertiary",
+        "displayName": "Anki Star Blue",
+        "canonical": "#2E9BEA",
+        "dark": "#55B8F7",
+        "tonalRamp": [
+          "#142938",
+          "#1B4664",
+          "#1D6395",
+          "#1B81CB",
+          "#45A1E3",
+          "#83BAE2",
+          "#BED7E9",
+          "#EDF3F7"
+        ]
+      },
+      "canvas-paper": {
+        "role": "neutral",
+        "displayName": "Canvas Paper",
+        "canonical": "#FAF9F6",
+        "dark": "#1D1C1A",
+        "tonalRamp": [
+          "#2D2920",
+          "#4C4633",
+          "#6E6444",
+          "#928254",
+          "#B0A278",
+          "#C3BBA2",
+          "#DBD7CC",
+          "#F4F3F1"
+        ]
+      },
+      "sidebar-linen": {
+        "role": "neutral",
+        "displayName": "Sidebar Linen",
+        "canonical": "#F1EFEA",
+        "dark": "#161513",
+        "tonalRamp": [
+          "#2B2822",
+          "#494437",
+          "#68604B",
+          "#887C5D",
+          "#A79C81",
+          "#BEB7A7",
+          "#D9D6CE",
+          "#F3F3F1"
+        ]
+      },
+      "card-white": {
+        "role": "neutral",
+        "displayName": "Card White",
+        "canonical": "#FFFFFF",
+        "dark": "#252421",
+        "tonalRamp": [
+          "#262626",
+          "#404040",
+          "#595959",
+          "#737373",
+          "#949494",
+          "#B2B2B2",
+          "#D4D4D4",
+          "#F2F2F2"
+        ]
+      },
+      "raised-oat": {
+        "role": "neutral",
+        "displayName": "Raised Oat",
+        "canonical": "#F6F4F0",
+        "dark": "#2D2C29",
+        "tonalRamp": [
+          "#2C2821",
+          "#4B4335",
+          "#6C5F47",
+          "#8E7C58",
+          "#AC9C7C",
+          "#C1B7A4",
+          "#DAD6CD",
+          "#F4F3F1"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1D1C1A",
+        "dark": "#EEECE8",
+        "tonalRamp": [
+          "#272725",
+          "#42413D",
+          "#5D5B55",
+          "#79756D",
+          "#99968F",
+          "#B6B4AF",
+          "#D5D4D2",
+          "#F3F2F2"
+        ]
+      },
+      "pencil": {
+        "role": "neutral",
+        "displayName": "Pencil",
+        "canonical": "#6B675F",
+        "dark": "#A29E97",
+        "tonalRamp": [
+          "#282725",
+          "#42413D",
+          "#5E5B55",
+          "#79756C",
+          "#9A968E",
+          "#B6B4AF",
+          "#D5D4D2",
+          "#F3F2F2"
+        ]
+      },
+      "faded-pencil": {
+        "role": "neutral",
+        "displayName": "Faded Pencil",
+        "canonical": "#9E9A92",
+        "dark": "#6E6A64",
+        "tonalRamp": [
+          "#282725",
+          "#42413D",
+          "#5E5B55",
+          "#79756C",
+          "#9A968E",
+          "#B6B4AF",
+          "#D5D4D2",
+          "#F3F2F2"
+        ]
+      },
+      "hover-wash": {
+        "role": "neutral",
+        "displayName": "Hover Wash",
+        "canonical": "rgba(0, 0, 0, 0.04)",
+        "dark": "rgba(255, 255, 255, 0.05)"
+      },
+      "selection-wash": {
+        "role": "neutral",
+        "displayName": "Selection Wash",
+        "canonical": "rgba(0, 0, 0, 0.07)",
+        "dark": "rgba(255, 255, 255, 0.09)"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgba(0, 0, 0, 0.08)",
+        "dark": "rgba(255, 255, 255, 0.07)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Page Title",
+        "purpose": "Today and the deck name; 24px in a small window."
+      },
+      "headline": {
+        "displayName": "Panel Title",
+        "purpose": "Panel and sheet titles."
+      },
+      "title": {
+        "displayName": "List Row",
+        "purpose": "Deck names in lists; 13.5px in the sidebar."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Descriptions and secondary lines; 15px lead, 12px caption."
+      },
+      "label": {
+        "displayName": "Eyebrow",
+        "purpose": "Uppercase section names and the path over a title."
+      },
+      "numeral": {
+        "displayName": "Big Number",
+        "purpose": "Counts in stat tiles."
+      },
+      "count": {
+        "displayName": "Count",
+        "purpose": "Due counts in rows and the study title bar."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating-sidebar",
+        "value": "6px 0 24px rgba(0,0,0,0.35)",
+        "purpose": "Only under the sidebar when it floats over the content in a small window."
+      }
+    ],
+    "materials": [
+      {
+        "name": "regular-material",
+        "value": "SwiftUI .regularMaterial / Liquid Glass",
+        "purpose": "Things that float above the flat window: toasts, popovers, quick-find style panels."
+      }
+    ],
+    "motion": [
+      {
+        "name": "sidebar",
+        "value": ".smooth(duration: 0.28)",
+        "purpose": "Showing and hiding the sidebar."
+      },
+      {
+        "name": "disclosure",
+        "value": ".smooth(duration: 0.2)",
+        "purpose": "Expanding and collapsing decks."
+      },
+      {
+        "name": "progress",
+        "value": ".smooth",
+        "purpose": "The deck ring filling."
+      },
+      {
+        "name": "feedback",
+        "value": ".default, opacity",
+        "purpose": "The study toast and mark/flag indicators."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact",
+        "value": "720px window width"
+      },
+      {
+        "name": "min-window",
+        "value": "360 x 340"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one prominent action on a page, such as Study Now.",
+      "html": "<button class=\"ds-btn-primary\">Study Now</button>",
+      "css": ".ds-btn-primary{font-family:-apple-system,'SF Pro',system-ui;background:#2F6BFF;color:#fff;font-size:14px;font-weight:600;height:36px;padding:0 16px;border:none;border-radius:9px;cursor:default}.ds-btn-primary:active{filter:brightness(.92)}.ds-btn-primary:focus-visible{outline:3px solid rgba(47,107,255,.4);outline-offset:2px}"
+    },
+    {
+      "name": "Chip Button",
+      "kind": "chip",
+      "refersTo": "button-chip",
+      "description": "Secondary actions on a page, as small capsules.",
+      "html": "<button class=\"ds-chip\">Custom Study</button>",
+      "css": ".ds-chip{font-family:-apple-system,'SF Pro',system-ui;background:#F6F4F0;color:#1D1C1A;font-size:12.5px;font-weight:500;height:28px;padding:0 12px;border:1px solid rgba(0,0,0,.08);border-radius:9999px}.ds-chip:active{background:rgba(0,0,0,.07)}.ds-chip:focus-visible{outline:3px solid rgba(47,107,255,.4);outline-offset:2px}"
+    },
+    {
+      "name": "Quiet Icon Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Toolbar and footer actions that brighten on hover.",
+      "html": "<button class=\"ds-quiet\" aria-label=\"Add Cards\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\"><path d=\"M7 1v12M1 7h12\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"/></svg></button>",
+      "css": ".ds-quiet{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;background:transparent;color:#6B675F;border:none;border-radius:7px}.ds-quiet:hover{background:rgba(0,0,0,.04);color:#1D1C1A}.ds-quiet:active{background:rgba(0,0,0,.07)}"
+    },
+    {
+      "name": "Grade Button",
+      "kind": "custom",
+      "refersTo": "button-grade",
+      "description": "An answer rating: a soft wash of its colour, the interval below, its key at the right. Good is outlined.",
+      "html": "<button class=\"ds-grade ds-grade-good\"><span class=\"ds-grade-top\"><b>Good</b><kbd class=\"ds-keycap\">3</kbd></span><span class=\"ds-grade-int\">4d</span></button>",
+      "css": ".ds-grade{font-family:-apple-system,'SF Pro',system-ui;display:flex;flex-direction:column;gap:3px;width:140px;height:58px;justify-content:center;padding:0 12px;border-radius:11px;border:1px solid rgba(0,0,0,.08);text-align:left}.ds-grade-good{color:#2E9E5B;background:rgba(46,158,91,.11);border:1.5px solid rgba(46,158,91,.55)}.ds-grade-good:hover{background:rgba(46,158,91,.18)}.ds-grade-good:active{background:rgba(46,158,91,.26)}.ds-grade-top{display:flex;justify-content:space-between;align-items:center;font-size:14px}.ds-grade-int{font-family:ui-rounded,system-ui;font-size:12px;font-weight:500;color:#6B675F;font-variant-numeric:tabular-nums}.ds-keycap{font-family:ui-rounded,system-ui;font-size:10.5px;font-weight:600;min-width:18px;height:17px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(0,0,0,.08);color:#6B675F}"
+    },
+    {
+      "name": "Stat Tile",
+      "kind": "card",
+      "refersTo": "stat-tile",
+      "description": "One queue: its dot, its name and how many are due.",
+      "html": "<div class=\"ds-tile\"><div class=\"ds-tile-label\"><i></i>Learning</div><div class=\"ds-tile-num\">12</div></div>",
+      "css": ".ds-tile{font-family:-apple-system,'SF Pro',system-ui;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:14px;width:140px}.ds-tile-label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:#6B675F}.ds-tile-label i{width:7px;height:7px;border-radius:50%;background:#D9534A}.ds-tile-num{margin-top:6px;font-family:ui-rounded,system-ui;font-size:30px;font-weight:600;color:#1D1C1A;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Sidebar",
+      "kind": "nav",
+      "refersTo": "sidebar-row",
+      "description": "Places then the deck tree, on Sidebar Linen; the selected row gets a selection wash.",
+      "html": "<nav class=\"ds-side\"><a class=\"ds-side-row ds-sel\"><span class=\"ds-star\">&#9734;</span>Today<em>42</em></a><a class=\"ds-side-row\"><span class=\"ds-ring\"></span>Spanish<em class=\"ds-counts\"><b style=\"color:#2F6BFF\">20</b> <b style=\"color:#D9534A\">3</b> <b style=\"color:#2E9E5B\">19</b></em></a></nav>",
+      "css": ".ds-side{font-family:-apple-system,'SF Pro',system-ui;background:#F1EFEA;padding:8px;width:248px}.ds-side-row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:7px;font-size:13.5px;font-weight:500;color:#1D1C1A}.ds-side-row:hover{background:rgba(0,0,0,.04)}.ds-sel{background:rgba(0,0,0,.07);font-weight:600}.ds-side-row em{margin-left:auto;font-style:normal;font-family:ui-rounded,system-ui;font-size:12px;color:#6B675F;font-variant-numeric:tabular-nums}.ds-star{color:#2E9BEA;width:20px;text-align:center}.ds-ring{width:14px;height:14px;margin:0 3px;border-radius:50%;border:1.4px solid rgba(107,103,95,.5)}.ds-counts b{font-weight:600}"
+    },
+    {
+      "name": "Eyebrow and Page Title",
+      "kind": "custom",
+      "refersTo": "page-title",
+      "description": "A spaced-capital eyebrow over a large title.",
+      "html": "<header class=\"ds-title\"><div class=\"ds-eyebrow\">Good morning · Thursday 12 November</div><h1>Today</h1></header>",
+      "css": ".ds-title{font-family:-apple-system,'SF Pro',system-ui;color:#1D1C1A}.ds-eyebrow{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#6B675F;margin-bottom:6px}.ds-title h1{margin:0;font-size:30px;font-weight:700}"
+    },
+    {
+      "name": "Floating Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "A transient message over the card, the one place glass sits in the main window.",
+      "html": "<div class=\"ds-toast\">Card buried.</div>",
+      "css": ".ds-toast{font-family:-apple-system,'SF Pro',system-ui;display:inline-block;padding:8px 12px;border-radius:9999px;font-size:13px;color:#1D1C1A;background:rgba(250,249,246,.6);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);border:1px solid rgba(255,255,255,.5)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Desk",
+    "overview": "A tidy study desk in good light: warm paper, one blue pen, nothing out that isn't needed. The main window is made of warm neutrals in place of macOS's cool greys, with one electric blue accent and the queue colours Anki users already read at a glance. Nothing competes with the card or the counts. The interface gets out of the way while you study and stays ready when you're done.\n\nThe window is flat at rest: canvas, sidebar and panels are told apart by tone and hairlines, not shadows. Liquid Glass shows up only on what floats above that desk, like a toast over the card, a popover, or a floating panel, in the way Things 3's Quick Find and Rex's tab capsules sit over flat content. Lists are Things-like: a small spaced-capital eyebrow over a large title, quiet rows that show a hover wash, and actions that appear only when the pointer is over them.\n\nThe main window is the reference. The utility windows (Browser, Statistics, Deck Options, the editors) still use system controls and desktop's colours. They move onto this system gradually, without losing their density.",
+    "keyCharacteristics": [
+      "Warm paper neutrals; one blue accent; queue colours as information, never decoration.",
+      "SF Pro for words, SF Pro Rounded with tabular figures for every number.",
+      "Flat tonal layers with hairlines; glass only for things that float above them.",
+      "Quiet controls that brighten on hover; one prominent action per page at most.",
+      "Every study action shows its key (KeyCap) and works from the keyboard."
+    ],
+    "rules": [
+      {
+        "name": "The One Pen Rule",
+        "body": "Electric Pen Blue marks the single prominent action on a screen. Secondary actions are chips or quiet buttons, never a second blue fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Queue Colours Mean Queues Rule",
+        "body": "Blue, coral and green stand for new, learning and review (and the grades that share them). Don't reuse them for unrelated status or decoration. A zero count fades to Faded Pencil instead of showing its colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Neutral Rule",
+        "body": "Main-window surfaces use the palette's warm neutrals, never `Color.gray` or the system's cool greys.",
+        "section": "colors"
+      },
+      {
+        "name": "The Rounded Numbers Rule",
+        "body": "Every count, interval and statistic uses the rounded face with tabular digits; words never do.",
+        "section": "typography"
+      },
+      {
+        "name": "The Small Capitals Rule",
+        "body": "Uppercase appears only in eyebrows, small and tracked. Titles and buttons are sentence or title case from upstream's wording.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Desk Rule",
+        "body": "A surface that stays put is flat and toned; only what floats above it gets glass or a shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Glass Is Rare Rule",
+        "body": "Glass marks something transient or overlaid. If glass appears on every surface it stops meaning \"above\", so don't put it on the sidebar, panels or rows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** take every colour, size and spacing from `Theme`; add a token there before using a new value.",
+      "**Do** show due counts in queue colours with the rounded tabular face, fading zeros to Faded Pencil.",
+      "**Do** show the keyboard shortcut next to study actions with KeyCap, and in the sidebar for places.",
+      "**Do** keep surfaces flat and divide them with 1px hairlines and tone steps.",
+      "**Do** use glass or material for things that float over the window: toasts, popovers, quick-find style panels.",
+      "**Do** reveal secondary row actions on hover, and keep each one reachable from a menu or key.",
+      "**Do** design both appearances; every palette colour has a light and a dark value."
+    ],
+    "donts": [
+      "**Don't** use a second blue-filled button on a screen (The One Pen Rule).",
+      "**Don't** use the queue or grade colours for anything other than queues and grades.",
+      "**Don't** use the system's cool greys or `Color.gray` on main-window surfaces.",
+      "**Don't** add drop shadows to panels, tiles or rows; depth comes from tone.",
+      "**Don't** spread glass onto fixed chrome such as the sidebar, page panels or the answer bar.",
+      "**Don't** restyle card content; the note type owns it.",
+      "**Don't** write new labels where upstream Anki has a translated string."
+    ]
+  }
+}
