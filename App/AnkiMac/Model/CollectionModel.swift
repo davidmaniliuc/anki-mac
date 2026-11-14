@@ -216,6 +216,9 @@ final class CollectionModel {
     /// desktop would: the only one, or else the one opened last. Otherwise
     /// the profiles show, to pick one.
     func start() async {
+        // The main window asks again each time it opens.
+        guard !started else { return }
+        started = true
         do {
             let backend = try await backendStartup.value
             self.backend = backend
@@ -330,6 +333,9 @@ final class CollectionModel {
 
     /// The main window, which stays open across profiles.
     @ObservationIgnored weak var mainWindow: NSWindow?
+    /// Opens the main window again after it was closed; set by the window.
+    @ObservationIgnored var openMainWindow: () -> Void = {}
+    @ObservationIgnored private var started = false
 
     private func closeOtherWindows() -> Bool {
         let others = NSApp.windows.filter {

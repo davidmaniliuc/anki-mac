@@ -24,12 +24,15 @@ class WashRowView: NSTableRowView {
         if isSelected { fillWash(Theme.Palette.selectionNS) }
     }
 
+    /// The area the wash is kept inside, less `rowInset` either side.
+    var washBounds: NSRect { bounds }
+
     /// Fills the row's wash shape, the same for a selection, a hover and a
     /// tint. A selected row joins the selected rows beside it; others don't.
     func fillWash(_ color: NSColor) {
         let radius = Theme.Layout.rowRadius
         let gap = Theme.Browser.rowWashGap
-        var rect = bounds.insetBy(dx: Theme.Browser.rowInset, dy: 0)
+        var rect = washBounds.insetBy(dx: Theme.Browser.rowInset, dy: 0)
         let joinsMinY = isSelected && (isFlipped ? isPreviousRowSelected : isNextRowSelected)
         let joinsMaxY = isSelected && (isFlipped ? isNextRowSelected : isPreviousRowSelected)
         // A joined side runs past the row, so its corners are drawn out of sight.

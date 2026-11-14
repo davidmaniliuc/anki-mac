@@ -222,6 +222,11 @@ enum Theme {
         /// Small enough to study in a corner of the screen.
         static let minWidth: CGFloat = 360
         static let minHeight: CGFloat = 340
+        /// The toolbar's height, kept clear at the top in full screen, where the toolbar hides.
+        static let fullScreenBand: CGFloat = 52
+        /// The glass pill behind the traffic lights in full screen.
+        static let lightsPillHeight: CGFloat = 30
+        static let lightsPillInset: CGFloat = 9
     }
 
     enum Profiles {
@@ -252,6 +257,32 @@ enum Theme {
         static let dueLimit = 6
     }
 
+    /// The editors' tag field: tags as chips, and the list of matches that
+    /// floats under the text being typed (or over it, near the screen's foot).
+    enum Tags {
+        static let chipFont = Font.system(size: 12.5, weight: .medium)
+        static let chipHeight: CGFloat = 22
+        static let chipPadding: CGFloat = 8
+        static let spacing: CGFloat = 4
+        /// The text being typed is at least this wide, so there's room to click into.
+        static let fieldMinWidth: CGFloat = 80
+        static let font = NSFont.systemFont(ofSize: 13)
+        static let popupMinWidth: CGFloat = 200
+        static let popupMaxWidth: CGFloat = 320
+        static let popupRadius: CGFloat = 14
+        static let popupPadding: CGFloat = 5
+        /// Between the text and the list.
+        static let popupGap: CGFloat = 6
+        static let rowHeight: CGFloat = 28
+        static let rowRadius: CGFloat = 9
+        static let rowFont = Font.system(size: 13.5, weight: .medium)
+        static let rowSymbol = Font.system(size: 13)
+        /// Tints the glass toward the canvas, as Quick Find's.
+        static let tintOpacity = 0.3
+        /// A bordered field (in a sheet) draws this radius around its chips.
+        static let boxRadius: CGFloat = 6
+    }
+
     enum CustomStudy {
         static let sheetWidth: CGFloat = 480
         static let sheetHeight: CGFloat = 520
@@ -276,6 +307,19 @@ enum Theme {
         /// window of many rows (see DESIGN.md, Browser).
         static let denseRowHeight: CGFloat = 26
         static let headerHeight: CGFloat = 28
+        /// The band under the traffic lights that holds the window's
+        /// controls, as tall as a unified toolbar so the lights sit centred in it.
+        static let chromeHeight: CGFloat = 52
+        /// Where the sidebar button starts, clear of the traffic lights. It
+        /// stays there whether the sidebar is shown or hidden.
+        static let sidebarToggleLeading: CGFloat = 84
+        /// "Browse" in the band, beside the counts under it.
+        static let titleFont = Font.system(size: 15, weight: .semibold)
+        static let searchWidth: CGFloat = 260
+        static let searchMinWidth: CGFloat = 120
+        /// Section names and top-level icons start this far into the
+        /// sidebar, so a disclosure triangle fits in the wash before them.
+        static let sidebarLeading: CGFloat = rowInset + Spacing.small
         /// A selection or hover wash keeps this far from the pane's edges.
         static let rowInset: CGFloat = 8
         /// Rows' washes stop this short of the row's top and bottom, so two

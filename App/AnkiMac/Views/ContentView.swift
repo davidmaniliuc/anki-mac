@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(CollectionModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     @State private var layout = WindowLayout()
 
     var body: some View {
@@ -14,15 +15,47 @@ struct ContentView: View {
                 decks
             }
         }
+        .safeAreaPadding(.top, layout.fullScreen ? Theme.Window.fullScreenBand : 0)
+        // The scroll views' edge effect fills the band with a backdrop of
+        // what's behind the window, a grey strip once the toolbar has left
+        // for the bar that comes down; the sidebar and page show through.
+        .scrollEdgeEffectHidden(layout.fullScreen, for: .top)
+        .overlay(alignment: .topLeading) {
+            if layout.fullScreen {
+                IconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") { layout.toggleSidebar() }
+                    .frame(height: Theme.Window.fullScreenBand)
+                    .padding(.leading, Theme.Spacing.small)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
+            guard let window = layout.window, note.object as? NSWindow === window else { return }
+            layout.fullScreen = true
+            FullScreenTitlebar.dress(window, true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { note in
+            guard let window = layout.window, note.object as? NSWindow === window else { return }
+            layout.fullScreen = false
+            FullScreenTitlebar.dress(window, false)
+        }
         .background(Theme.Palette.canvas.ignoresSafeArea())
         // The window keeps its title for the Window menu, but none is drawn
         // in the title bar; each page names itself. The toolbar stays
         // see-through over the sidebar and the page.
         .toolbar(removing: .title)
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        // In full screen the toolbar would be drawn as an opaque grey bar
+        // over the sidebar and the page; it hides with the menu bar instead.
+        .windowToolbarFullScreenVisibility(.onHover)
         .toolbar {
+            // In full screen the page draws its own, and the bar that comes
+            // down with the menu bar shows only the traffic lights. The item
+            // stays, hidden: without it the toolbar goes and the bar shrinks
+            // to a plain title bar, the lights moving with it.
             ToolbarItem(placement: .navigation) {
                 IconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") { layout.toggleSidebar() }
+                    .opacity(layout.fullScreen ? 0 : 1)
+                    .allowsHitTesting(!layout.fullScreen)
+                    .accessibilityHidden(layout.fullScreen)
             }
             .plain()
         }
@@ -30,7 +63,14 @@ struct ContentView: View {
         .focusedSceneValue(\.windowLayout, layout)
         .background(WindowReader {
             model.mainWindow = $0
+            model.openMainWindow = { openWindow(id: "main") }
             layout.window = $0
+            // The bar that comes down in full screen is as opaque as the
+            // window's background colour, so that is clear and the content
+            // paints the canvas itself. The title bar is see-through too.
+            $0.titlebarAppearsTransparent = true
+            $0.isOpaque = false
+            $0.backgroundColor = .clear
         })
         .alert(
             model.failure?.title ?? "",

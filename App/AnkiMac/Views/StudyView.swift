@@ -32,13 +32,7 @@ struct StudyView: View {
                 SessionTitle(session: session)
             }
         }
-        .toolbar {
-            if let session {
-                ToolbarSpacer(.flexible)
-                ToolbarItem(placement: .automatic) { actions }
-                    .plain()
-            }
-        }
+        .pageActions(shown: session != nil) { actions }
         .opacity(session == nil ? 0 : 1)
         .allowsHitTesting(session != nil)
         .accessibilityHidden(session == nil)

@@ -90,8 +90,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         urls.forEach { model?.openPackage($0) }
     }
 
+    /// A lone `Window` scene quits the app when it closes unless told otherwise.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        false
+    }
+
+    /// Clicking the Dock icon brings the main window back once it's closed,
+    /// also while another window, like the browser, is still open.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if let model, model.mainWindow?.isVisible != true { model.openMainWindow() }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -141,6 +149,10 @@ struct DeckOptionsCommands: Commands {
                 .disabled(adding == nil)
         }
         CommandGroup(replacing: .saveItem) {
+            // Replacing the group takes the system's Close with it.
+            Button("Close") { NSApp.keyWindow?.performClose(nil) }
+                .keyboardShortcut("w")
+            Divider()
             let options = KeyDeckOptions.shared.controller
             Button(Tr.deckConfigSaveButton) { options?.save() }
                 .keyboardShortcut("s")

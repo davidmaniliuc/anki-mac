@@ -16,6 +16,13 @@ final class BrowserEditorModel {
     }
 
     private let browser: BrowserModel
+
+    /// What the empty pane says: how many rows are selected, when not one.
+    var emptyTitle: String {
+        let count = browser.selectedRows.count
+        guard count > 1 else { return "No Note Selected" }
+        return "\(count.formatted()) \(browser.mode == .cards ? "Cards" : "Notes") Selected"
+    }
     private let backend: AnkiBackend
     private var note = Anki_Notes_Note()
     private var saveTask: Task<Void, Never>?

@@ -22,6 +22,9 @@ import SwiftUI
         didSet { if !sidebarFloats { UserDefaults.standard.set(!sidebarVisible, forKey: "sidebarHidden") } }
     }
     var sidebarFloats = false
+    /// In full screen the toolbar hides with the menu bar, and the window
+    /// draws the sidebar button itself in the toolbar's place.
+    var fullScreen = false
     /// The page's width, held while the window slides around it.
     var pageWidth: CGFloat?
     @ObservationIgnored weak var window: NSWindow?
@@ -100,9 +103,16 @@ struct LayoutCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .sidebar) {
-            Button("Toggle Sidebar") { layout?.toggleSidebar() }
-                .keyboardShortcut("s", modifiers: [.command, .control])
-                .disabled(layout == nil)
+            // The browser isn't a SwiftUI scene, so it has no layout of its own here.
+            Button("Toggle Sidebar") {
+                if KeyBrowser.shared.model != nil {
+                    BrowserWindowController.current?.toggleSidebar()
+                } else {
+                    layout?.toggleSidebar()
+                }
+            }
+            .keyboardShortcut("s", modifiers: [.command, .control])
+            .disabled(layout == nil && KeyBrowser.shared.model == nil)
         }
     }
 }
@@ -112,10 +122,145 @@ extension EnvironmentValues {
     @Entry var compact = false
 }
 
+/// The bar that comes down with the menu bar in full screen: see-through,
+/// with the traffic lights alone in a glass pill, so they read over the
+/// page under them.
+enum FullScreenTitlebar {
+    private static let pillID = NSUserInterfaceItemIdentifier("FullScreenTitlebar.pill")
+    private static var updates: [ObjectIdentifier: any NSObjectProtocol] = [:]
+
+    /// Call once the window is in full screen, and with `false` as it leaves.
+    /// The bar is in a window of its own, which paints an opaque backstop
+    /// behind it; that and the bar's own backgrounds are taken away whenever
+    /// the bar updates, as AppKit puts them back as it comes down.
+    static func dress(_ window: NSWindow, _ on: Bool) {
+        guard let close = window.standardWindowButton(.closeButton),
+              let zoom = window.standardWindowButton(.zoomButton),
+              let bar = close.superview
+        else { return }
+        bar.subviews.first { $0.identifier == pillID }?.removeFromSuperview()
+        updates.removeValue(forKey: ObjectIdentifier(window)).map(NotificationCenter.default.removeObserver)
+        strip(bar, of: window, on)
+        window.contentView.map { hideScrollBackdrops($0, on) }
+        guard on else { return }
+
+        let pill = NSGlassEffectView()
+        pill.identifier = pillID
+        pill.cornerRadius = Theme.Window.lightsPillHeight / 2
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(pill, positioned: .below, relativeTo: close)
+        NSLayoutConstraint.activate([
+            pill.leadingAnchor.constraint(equalTo: close.leadingAnchor, constant: -Theme.Window.lightsPillInset),
+            pill.trailingAnchor.constraint(equalTo: zoom.trailingAnchor, constant: Theme.Window.lightsPillInset),
+            pill.centerYAnchor.constraint(equalTo: close.centerYAnchor),
+            pill.heightAnchor.constraint(equalToConstant: Theme.Window.lightsPillHeight),
+        ])
+        observe(window, bar)
+    }
+
+    private static func observe(_ window: NSWindow, _ bar: NSView) {
+        // The bar moves into its own window once full screen has settled,
+        // and AppKit shows the backdrop again as it comes down.
+        updates[ObjectIdentifier(window)] = NotificationCenter.default.addObserver(
+            forName: NSWindow.didUpdateNotification, object: nil, queue: .main
+        ) { [weak bar, weak window] note in
+            guard let bar, let updated = note.object as? NSWindow else { return }
+            if updated === bar.window, let window { strip(bar, of: window, true) }
+            if updated === window { window?.contentView.map { hideScrollBackdrops($0, true) } }
+        }
+    }
+
+    /// Leaves only the lights and the pill showing in the bar: everything
+    /// else in it and around it is faded, and its backdrop layers hidden,
+    /// up to the root of the bar's own window.
+    private static func strip(_ bar: NSView, of window: NSWindow, _ on: Bool) {
+        var kept: NSView?
+        var view: NSView? = bar
+        while let current = view {
+            for layer in current.layer?.sublayers ?? [] where !(layer.delegate is NSView) && layer.isHidden != on {
+                layer.isHidden = on
+            }
+            for sub in current.subviews where sub !== kept && sub.alphaValue != (on ? 0 : 1) {
+                if current === bar, sub.identifier == pillID || sub is NSButton { continue }
+                sub.alphaValue = on ? 0 : 1
+            }
+            if on { dropBackstop(current) }
+            kept = current
+            // Past the title bar's container only in the bar's own window:
+            // in the content window that is the frame, with the content in it.
+            view = current === bar || bar.window !== window ? current.superview : nil
+        }
+    }
+
+    /// The bar's window paints an opaque grey behind the bar, in a layer of
+    /// its content view's that is not among the view's sublayers.
+    private static func dropBackstop(_ view: NSView) {
+        let needs = NSSelectorFromString("needsOpaqueBackstop"), set = NSSelectorFromString("setNeedsOpaqueBackstop:")
+        guard view.responds(to: needs), view.responds(to: set) else { return }
+        if view.value(forKey: "needsOpaqueBackstop") as? Bool == true {
+            view.setValue(false, forKey: "needsOpaqueBackstop")
+        }
+        if let ivar = class_getInstanceVariable(type(of: view), "opaqueBackstopLayer"),
+           let layer = object_getIvar(view, ivar) as? CALayer, !layer.isHidden {
+            layer.isHidden = true
+        }
+    }
+
+    /// Each scroll view under the bar keeps a backdrop over its top edge,
+    /// as tall as the band and growing under the bar as it comes down. With
+    /// the toolbar gone from the window it draws a flat grey, which reads
+    /// as a box behind the see-through bar.
+    private static func hideScrollBackdrops(_ view: NSView, _ hidden: Bool) {
+        guard view is NSScrollView else { return view.subviews.forEach { hideScrollBackdrops($0, hidden) } }
+        let isBackdrop = { (layer: CALayer) in String(describing: type(of: layer)).contains("Backdrop") }
+        for backdrop in view.subviews where backdrop.layer.map(isBackdrop) == true && backdrop.isHidden != hidden {
+            backdrop.isHidden = hidden
+        }
+    }
+}
+
 extension ToolbarContent {
     /// Toolbar buttons drawn plainly, without the toolbar's glass capsule.
     func plain() -> some ToolbarContent {
         sharedBackgroundVisibility(.hidden)
+    }
+}
+
+extension View {
+    /// A page's own actions, at the trailing end of the toolbar. In full
+    /// screen the toolbar hides with the menu bar, so they move into the
+    /// band the window keeps clear at the top of the page (see ContentView)
+    /// and stay in reach. `shown` false takes them away altogether.
+    func pageActions<Actions: View>(shown: Bool = true, @ViewBuilder _ actions: @escaping () -> Actions) -> some View {
+        modifier(PageActions(shown: shown, actions: actions))
+    }
+}
+
+private struct PageActions<Actions: View>: ViewModifier {
+    @Environment(WindowLayout.self) private var layout
+    let shown: Bool
+    let actions: () -> Actions
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                if shown && !layout.fullScreen {
+                    // Pushes the actions to the trailing edge.
+                    ToolbarSpacer(.flexible)
+                    ToolbarItem(placement: .automatic) { actions() }
+                        .plain()
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if shown && layout.fullScreen {
+                    HStack(spacing: 0) { actions() }
+                        .frame(height: Theme.Window.fullScreenBand)
+                        // The toolbar's own gap before the window's edge.
+                        .padding(.trailing, Theme.Spacing.xSmall)
+                        // Up into the band, which is the page's safe area.
+                        .ignoresSafeArea(edges: .top)
+                }
+            }
     }
 }
 

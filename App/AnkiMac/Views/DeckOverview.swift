@@ -46,15 +46,10 @@ struct DeckOverview: View {
         // Add Cards into this deck is the one action with no other place on
         // the page: Options is a chip below, Browse and Statistics are in
         // the sidebar.
-        .toolbar {
-            // Pushes the button to the trailing edge.
-            ToolbarSpacer(.flexible)
-            ToolbarItem(placement: .automatic) {
-                IconButton("plus", help: "Add Cards") {
-                    AddCardsWindowController.show(collection: model, deckID: deck.id)
-                }
+        .pageActions {
+            IconButton("plus", help: "Add Cards") {
+                AddCardsWindowController.show(collection: model, deckID: deck.id)
             }
-            .plain()
         }
         // The counts change with every refresh, so this follows unburying too.
         .task(id: deck) {

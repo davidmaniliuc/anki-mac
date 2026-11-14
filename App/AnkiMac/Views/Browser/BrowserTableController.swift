@@ -44,7 +44,9 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         table.allowsMultipleSelection = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
-        table.columnAutoresizingStyle = .noColumnAutoresizing
+        // The last column takes what the others leave, so the table always
+        // reaches the editor, as Finder's list view does.
+        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         // Typing jumps to a row by its first column, which means little when
         // that column is a due date; desktop has no type-select either.
         table.allowsTypeSelect = false
@@ -62,6 +64,9 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         scroll.autohidesScrollers = true
         scroll.drawsBackground = true
         scroll.backgroundColor = Theme.Palette.canvasNS
+        // The band above keeps it clear of the toolbar; its safe area would
+        // otherwise push the header down.
+        scroll.automaticallyAdjustsContentInsets = false
         view = scroll
         model.selectRow = { [weak self] row in
             self?.table.selectRowIndexes([row], byExtendingSelection: false)
@@ -119,8 +124,10 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         }
         let content = data.cells[index]
         let column = model.columns[safe: index]
+        // A deck's path reads as the main window writes it, "M1 › FSGBD".
+        let text = column?.key == "deck" ? content.text.replacing("::", with: " › ") : content.text
         cell.show(
-            content.text, elide: content.elideMode, centered: column?.alignment == .center,
+            text, elide: content.elideMode, centered: column?.alignment == .center,
             numeric: column?.isNumeric(shownMode ?? model.mode) ?? false)
     }
 
@@ -139,8 +146,12 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             tableColumn.headerToolTip = column.tooltip(mode)
             tableColumn.width = Theme.Browser.columnWidth
             tableColumn.minWidth = Theme.Browser.columnMinWidth
+            // A title lines up with its column's text: centred, or on the
+            // trailing edge over counts and dates.
             if column.alignment == .center {
                 tableColumn.headerCell.alignment = .center
+            } else if column.isNumeric(mode) {
+                tableColumn.headerCell.alignment = .right
             }
             if column.sorting(mode) != .none {
                 tableColumn.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: true)
@@ -149,6 +160,7 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         }
         table.autosaveTableColumns = true
         table.autosaveName = "Browser.\(mode.rawValue)"
+        table.sizeLastColumnToFit()
     }
 
     private func showSortIndicator(_ table: NSTableView, _ sort: BrowserSort) {
@@ -324,7 +336,8 @@ private final class BrowserCell: NSTableCellView {
         label.stringValue = text
         setFont(numeric ? Theme.Browser.numberFont : Theme.Browser.cellFont)
         label.textColor = Theme.Palette.textNS
-        label.alignment = centered ? .center : .natural
+        // Counts and dates keep to the trailing edge, so their digits line up.
+        label.alignment = centered ? .center : numeric ? .right : .natural
         label.lineBreakMode = switch elide {
         case .elideLeft: .byTruncatingHead
         case .elideMiddle: .byTruncatingMiddle

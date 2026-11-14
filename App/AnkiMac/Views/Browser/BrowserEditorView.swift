@@ -9,7 +9,7 @@ struct BrowserEditorView: View {
         Group {
             if model.noteID == nil {
                 ContentUnavailableView(
-                    "No Note Selected", systemImage: "square.and.pencil",
+                    model.emptyTitle, systemImage: "square.and.pencil",
                     description: Text("Select one card or note to edit it."))
                 .foregroundStyle(Theme.Palette.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -22,6 +22,9 @@ struct BrowserEditorView: View {
                 }
             }
         }
+        // The pane runs under the window's band, which the table's side
+        // holds; the editor starts below it.
+        .padding(.top, Theme.Browser.chromeHeight)
         .background(Theme.Palette.canvas, ignoresSafeAreaEdges: .all)
     }
 }

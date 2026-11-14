@@ -356,7 +356,7 @@ func applyColor(_ kind: ColorKind) {
 
 /// Lays its views out in rows, starting a new row when the next one
 /// doesn't fit.
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     let spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
