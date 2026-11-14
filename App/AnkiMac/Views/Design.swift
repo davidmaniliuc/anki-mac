@@ -125,12 +125,7 @@ extension ToolbarContent {
 /// width, with margins that shrink in a small window.
 struct Page<Content: View>: View {
     @Environment(\.compact) private var compact
-    @Environment(WindowLayout.self) private var layout
     @ViewBuilder let content: Content
-    @State private var position = ScrollPosition(edge: .top)
-    @State private var id = UUID()
-    @State private var geometry = ScrollGeometry(
-        contentOffset: .zero, contentSize: .zero, contentInsets: EdgeInsets(), containerSize: .zero)
 
     var body: some View {
         ScrollView {
@@ -141,18 +136,32 @@ struct Page<Content: View>: View {
                 .padding(.bottom, Theme.Layout.pageBottomPadding)
                 .frame(maxWidth: .infinity)
         }
-        .scrollPosition($position)
-        .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, new in geometry = new }
-        // Clicking or scrolling the page hands it the arrow keys (see WindowLayout).
-        .onScrollPhaseChange { _, phase in
-            if phase == .interacting { layout.arrowsMoveSidebar = false }
-        }
-        .simultaneousGesture(TapGesture().onEnded { layout.arrowsMoveSidebar = false })
-        .onAppear { layout.scrollPage = (id, scroll) }
-        .onDisappear { if layout.scrollPage?.owner == id { layout.scrollPage = nil } }
-        // The page scrolls out of sight below the title bar, not under the
-        // window's buttons and the toolbar.
-        .clipped()
+        .pageScrolling()
+    }
+}
+
+/// What every page's scroll view shares: the arrow keys scroll it once it
+/// has been clicked or scrolled (see WindowLayout), and it is clipped so it
+/// scrolls out of sight below the title bar, not under the window's buttons
+/// and the toolbar.
+private struct PageScrolling: ViewModifier {
+    @Environment(WindowLayout.self) private var layout
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var id = UUID()
+    @State private var geometry = ScrollGeometry(
+        contentOffset: .zero, contentSize: .zero, contentInsets: EdgeInsets(), containerSize: .zero)
+
+    func body(content: Content) -> some View {
+        content
+            .scrollPosition($position)
+            .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, new in geometry = new }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting { layout.arrowsMoveSidebar = false }
+            }
+            .simultaneousGesture(TapGesture().onEnded { layout.arrowsMoveSidebar = false })
+            .onAppear { layout.scrollPage = (id, scroll) }
+            .onDisappear { if layout.scrollPage?.owner == id { layout.scrollPage = nil } }
+            .clipped()
     }
 
     private func scroll(by distance: CGFloat) -> Bool {
@@ -162,6 +171,11 @@ struct Page<Content: View>: View {
         withAnimation(.smooth(duration: 0.15)) { position.scrollTo(y: target) }
         return true
     }
+}
+
+extension View {
+    /// For a page's scroll view.
+    func pageScrolling() -> some View { modifier(PageScrolling()) }
 }
 
 /// A small heading over a large title with its icon, as Things titles a list.

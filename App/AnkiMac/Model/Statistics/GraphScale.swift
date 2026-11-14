@@ -175,19 +175,5 @@ nonisolated struct ColorRamp: Sendable {
             + (1 + 3 * t1 + 3 * t2 - 3 * t3) * v2 + t3 * v3) / 6
     }
 
-    static let blues = ColorRamp("f7fbffdeebf7c6dbef9ecae16baed64292c62171b508519c08306b")
-    static let greens = ColorRamp("f7fcf5e5f5e0c7e9c0a1d99b74c47641ab5d238b45006d2c00441b")
-    static let reds = ColorRamp("fff5f0fee0d2fcbba1fc9272fb6a4aef3b2ccb181da50f1567000d")
-    static let oranges = ColorRamp("fff5ebfee6cefdd0a2fdae6bfd8d3cf16913d94801a636037f2704")
-    static let purples = ColorRamp("fcfbfdefedf5dadaebbcbddc9e9ac8807dba6a51a354278f3f007d")
     static let redYellowGreen = ColorRamp("a50026d73027f46d43fdae61fee08bffffbfd9ef8ba6d96a66bd631a9850006837")
-}
-
-extension Color {
-    /// A `#rrggbb` colour, for the fixed swatches desktop's graphs use.
-    nonisolated init(hex: UInt32) {
-        self.init(
-            .sRGB, red: Double(hex >> 16 & 0xff) / 255, green: Double(hex >> 8 & 0xff) / 255,
-            blue: Double(hex & 0xff) / 255)
-    }
 }

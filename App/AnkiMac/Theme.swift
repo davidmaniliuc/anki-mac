@@ -38,7 +38,7 @@ enum Theme {
 
         static func css(_ hex: UInt32) -> String { String(format: "#%06X", hex) }
 
-        private static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: (CGFloat, CGFloat) = (1, 1)) -> Color {
+        static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: (CGFloat, CGFloat) = (1, 1)) -> Color {
             Color(nsColor: NSColor(name: nil) { appearance in
                 let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
                 let hex = isDark ? dark : light
@@ -295,15 +295,24 @@ enum Theme {
     }
 
     enum Statistics {
-        static let defaultSize = CGSize(width: 1000, height: 800)
-        static let minSize = CGSize(width: 560, height: 400)
         /// Graphs sit side by side once each can be this wide, as desktop's
         /// one to three columns.
-        static let graphMinWidth: CGFloat = 520
+        static let graphMinWidth: CGFloat = 440
+        static let maxColumns = 3
+        static let columnGap: CGFloat = Spacing.xLarge
+        /// Room under the hairline over each graph, and between rows of graphs.
+        static let sectionPadding: CGFloat = Spacing.large
+        static let rowGap: CGFloat = Spacing.xLarge
         static let chartHeight: CGFloat = 220
         static let pdfWidth: CGFloat = 760
-        static let printedCardRadius: CGFloat = 8
-        static let searchWidth: CGFloat = 220
+        /// The search box under the header.
+        static let searchWidth: CGFloat = 360
+        /// The scope, history and range switches, as tall as a chip.
+        static let controlHeight: CGFloat = 28
+        static let segmentPadding: CGFloat = 10
+        /// Room around a menu's label for its hover wash.
+        static let menuPadding: CGFloat = Spacing.small
+        static let menuChevron = Font.system(size: 9, weight: .bold)
         /// Desktop asks d3 for about 7 ticks along x and 5 up y.
         static let xTickCount: Double = 7
         static let yTickCount: Double = 5
@@ -311,24 +320,61 @@ enum Theme {
         static let barInset = 0.06
         /// d3's inner band padding for the hour and button bars.
         static let bandPadding = 0.1
-        static let axisFont = Font.caption2.monospacedDigit()
-        static let gridLine = Color.secondary.opacity(0.25)
-        static let hoverColumn = Color.primary.opacity(0.06)
-        /// The running total behind the bars, as desktop's faint overlay.
-        static let areaFill = Color.primary.opacity(0.07)
-        static let tooltipFont = Font.callout.monospacedDigit()
-        static let tooltipRadius: CGFloat = 6
+        /// Every number in the window is in the rounded face, as the main window's.
+        static let axisFont = Font.system(size: 11, weight: .medium, design: .rounded).monospacedDigit()
+        static let figures = Font.system(size: 13, weight: .medium, design: .rounded).monospacedDigit()
+        static let tableFont = Font.system(size: 13)
+        static let tooltipFont = Font.system(size: 12.5, weight: .medium, design: .rounded).monospacedDigit()
+        static let todayLead = Fonts.lead
+        static let todayLeadFigures = Font.system(size: 15, design: .rounded).monospacedDigit()
+        static let todayFigures = Font.system(size: 14, design: .rounded).monospacedDigit()
+        static let gridLine = Palette.hairline
+        static let hoverColumn = Palette.selection
+        /// The running total behind the bars, as desktop's faint overlay:
+        /// the lightest wash, since it often covers most of the plot.
+        static let areaFill = Palette.hover
+        static let tooltipRadius: CGFloat = 8
         static let tooltipOffset: CGFloat = 14
+        static let swatchSize: CGFloat = 9
+        static let swatchRadius: CGFloat = 2
         /// Lines a table label up with the labels that have a colour swatch.
-        static let swatchIndent: CGFloat = 16
+        static let swatchIndent: CGFloat = swatchSize + Spacing.xSmall
         static let pieSize: CGFloat = 180
         static let calendarGap: CGFloat = 2
+        static let calendarRadius: CGFloat = 2
         static let calendarLabelWidth: CGFloat = 14
-        /// Desktop's colours for the retention table.
-        static let youngRetention = Color(hex: 0x64c476)
-        static let matureRetention = Color(hex: 0x31a354)
-        static let pass = Color(hex: 0x3bc464)
-        static let fail = Color(hex: 0xc43b3b)
+        /// A day stays this big at least; a narrower window scrolls the year.
+        static let calendarMinCell: CGFloat = 9
+        static let calendarWeeks = 54
+        static let calendarEmpty = Palette.selection
+        static let calendarHoverBorder: CGFloat = 1.5
+        static let calendarTooltipGap: CGFloat = 6
+
+        /// A graph's colour at strength `t` (0 to 1): mixed into the canvas
+        /// rather than faded, so the bars stay opaque over the running total.
+        static func shade(_ colour: Color, _ t: Double) -> Color {
+            Palette.canvas.mix(with: colour, by: min(max(t, 0), 1))
+        }
+
+        /// The queue colours, for the kinds of card and review: new blue,
+        /// learning coral (relearning full, first learning lighter), review
+        /// green (mature full, young lighter).
+        static let newCards = Colors.newCards
+        static let learning = shade(Colors.learnCards, 0.55)
+        static let relearning = Colors.learnCards
+        static let young = shade(Colors.reviewCards, 0.55)
+        static let mature = Colors.reviewCards
+        static let filtered = Palette.violet
+        /// Desktop's yellow for suspended cards, in the palette's warmth.
+        static let suspended = Palette.dynamic(0xC99A16, 0xE3BE4E)
+        static let buried = Palette.tertiary
+        /// The retention table's columns.
+        static let youngRetention = young
+        static let matureRetention = mature
+        static let pass = Colors.reviewCards
+        static let fail = Colors.learnCards
+        /// Again, Hard, Good and Easy, as the answer buttons colour them.
+        static let grades = [Palette.coral, Palette.amber, Palette.green, Palette.blue]
         static let cardInfoSize = CGSize(width: 640, height: 760)
         static let cardInfoMinSize = CGSize(width: 560, height: 300)
         /// Desktop's colours for a review log's type and a failed rating: the

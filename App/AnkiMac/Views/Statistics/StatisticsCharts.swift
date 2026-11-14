@@ -38,10 +38,11 @@ private struct ChartHover<Tip: View>: View {
                         // Beside the pointer, on whichever side has room.
                         ChartTooltip { tip(hovered) }
                             .alignmentGuide(.leading) { size in
-                                pointer.x > bounds.width / 2 ? size.width - pointer.x + offset : -pointer.x - offset
+                                let x = pointer.x > bounds.width / 2 ? pointer.x - offset - size.width : pointer.x + offset
+                                return -min(max(x, plot.minX), max(plot.maxX - size.width, plot.minX))
                             }
                             .alignmentGuide(.top) { size in
-                                max(-pointer.y - offset, size.height - bounds.height)
+                                -max(min(pointer.y + offset, bounds.height - size.height), plot.minY)
                             }
                             .allowsHitTesting(false)
                     }
@@ -59,8 +60,9 @@ struct ChartTooltip<Content: View>: View {
             .font(Theme.Statistics.tooltipFont)
             .fixedSize()
             .padding(Theme.Spacing.small)
+            .foregroundStyle(Theme.Palette.text)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Statistics.tooltipRadius))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Statistics.tooltipRadius).strokeBorder(.separator))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Statistics.tooltipRadius).strokeBorder(Theme.Palette.hairline))
             .shadow(radius: 4, y: 2)
     }
 }
@@ -68,6 +70,60 @@ struct ChartTooltip<Content: View>: View {
 /// Which bar of `bounds` contains `x`.
 private func barIndex(_ x: Double, in bounds: [(Double, Double)]) -> Int? {
     bounds.firstIndex { x >= $0.0 && x < $0.1 } ?? (bounds.last.map { x == $0.1 } == true ? bounds.count - 1 : nil)
+}
+
+/// A colour key beside a label in a table or tooltip.
+struct Swatch: View {
+    let colour: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: Theme.Statistics.swatchRadius)
+            .fill(colour)
+            .strokeBorder(Theme.Palette.hairline)
+            .frame(width: Theme.Statistics.swatchSize, height: Theme.Statistics.swatchSize)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: Accessibility
+
+extension EnvironmentValues {
+    /// The graph a chart is drawn for, which names it to VoiceOver.
+    @Entry var graphTitle = ""
+}
+
+/// What VoiceOver and Audio Graphs read for a chart: one value per bar,
+/// each with the words its tooltip shows.
+struct BarsDescriptor: AXChartDescriptorRepresentable {
+    struct Point {
+        let x: String
+        let value: Double
+        let label: String
+    }
+
+    let title: String
+    let points: [Point]
+    var valueLabel: (Double) -> String = { localizedNumber($0) }
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let top = max(points.map(\.value).max() ?? 0, 1)
+        let x = AXCategoricalDataAxisDescriptor(title: title, categoryOrder: points.map(\.x))
+        let y = AXNumericDataAxisDescriptor(title: title, range: 0...top, gridlinePositions: []) { valueLabel($0) }
+        let series = AXDataSeriesDescriptor(
+            name: title, isContinuous: false,
+            dataPoints: points.map { AXDataPoint(x: $0.x, y: $0.value, label: $0.label) })
+        return AXChartDescriptor(title: title, summary: nil, xAxis: x, yAxis: y, additionalAxes: [], series: [series])
+    }
+}
+
+extension View {
+    /// Names a chart and hands VoiceOver its bars.
+    func chartAccessibility(_ title: String, _ points: [BarsDescriptor.Point],
+                            valueLabel: @escaping (Double) -> String = { localizedNumber($0) }) -> some View {
+        accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
+            .accessibilityChartDescriptor(BarsDescriptor(title: title, points: points, valueLabel: valueLabel))
+    }
 }
 
 // MARK: Marks
@@ -139,6 +195,7 @@ private func valueMarks(
 struct HistogramChart: View {
     let histogram: Histogram
     let search: (String) -> Void
+    @Environment(\.graphTitle) private var title
     @State private var hovered: Int?
 
     var body: some View {
@@ -149,10 +206,11 @@ struct HistogramChart: View {
         let areaScale = area.max > 0 ? axis.max / area.max : 0
         let spans = bins.map { ($0.x0, $0.x1) }
         Chart {
-            if let hovered { bar(spans[hovered], to: axis.max, Theme.Statistics.hoverColumn) }
             if histogram.showArea, areaScale > 0 {
                 RunningTotal(spans: spans, cumulative: cumulative, scale: areaScale)
             }
+            // Over the running total, which would otherwise hide it.
+            if let hovered { bar(spans[hovered], to: axis.max, Theme.Statistics.hoverColumn) }
             ForEach(bins.indices, id: \.self) { index in
                 bar(inset(spans[index]), to: bins[index].value, histogram.colour(bins[index].x1))
             }
@@ -185,6 +243,12 @@ struct HistogramChart: View {
                 hovered: $hovered)
         }
         .frame(height: Theme.Statistics.chartHeight)
+        .chartAccessibility(title, bins.indices.map { index in
+            let percent = histogram.showArea && histogram.total > 0 ? cumulative[index] / histogram.total * 100 : 0
+            return .init(
+                x: histogram.xTickFormat(bins[index].x0), value: bins[index].value,
+                label: histogram.hoverText(bins[index], cumulative[index], percent))
+        })
     }
 }
 
@@ -193,6 +257,7 @@ struct HistogramChart: View {
 /// Upstream's Reviews graph: each bar stacks the five kinds of review.
 struct ReviewsChart: View {
     let graph: ReviewsGraph
+    @Environment(\.graphTitle) private var title
     @State private var hovered: Int?
 
     var body: some View {
@@ -203,8 +268,8 @@ struct ReviewsChart: View {
         let areaScale = area.max > 0 ? axis.max / area.max : 0
         let spans = bars.map { ($0.x0, $0.x1) }
         Chart {
-            if let hovered { bar(spans[hovered], to: axis.max, Theme.Statistics.hoverColumn) }
             if areaScale > 0 { RunningTotal(spans: spans, cumulative: cumulative, scale: areaScale) }
+            if let hovered { bar(spans[hovered], to: axis.max, Theme.Statistics.hoverColumn) }
             ForEach(bars) { segments($0) }
         }
         .chartXScale(domain: graph.domain.0...graph.domain.1)
@@ -229,6 +294,10 @@ struct ReviewsChart: View {
                 tap: nil, hovered: $hovered)
         }
         .frame(height: Theme.Statistics.chartHeight)
+        .chartAccessibility(title, bars.map { bar in
+            let kinds = ReviewKind.allCases.reversed().map { "\($0.label) \(graph.valueLabel(bar.totals[$0.rawValue]))" }
+            return .init(x: graph.dayRange(bar), value: bar.sum, label: kinds.joined(separator: ", "))
+        }, valueLabel: graph.valueLabel)
     }
 
     /// One bar's five kinds, stacked mature first.
@@ -236,7 +305,7 @@ struct ReviewsChart: View {
         ForEach(ReviewKind.allCases) { kind in
             bar(
                 inset((reviews.x0, reviews.x1)), from: reviews.top(kind) - reviews.totals[kind.rawValue],
-                to: reviews.top(kind), graph.colour(kind, at: reviews.x0))
+                to: reviews.top(kind), kind.colour)
         }
     }
 
@@ -249,7 +318,7 @@ struct ReviewsChart: View {
             ForEach(ReviewKind.allCases.reversed()) { kind in
                 GridRow {
                     HStack(spacing: Theme.Spacing.xSmall) {
-                        Text("■").foregroundStyle(graph.colour(kind, at: graph.domain.1))
+                        Swatch(colour: kind.colour)
                         Text(kind.label)
                     }
                     Text(graph.valueLabel(bar.totals[kind.rawValue]))
@@ -260,7 +329,6 @@ struct ReviewsChart: View {
                 Text(graph.valueLabel(cumulative))
             }
         }
-        .monospacedDigit()
     }
 }
 
@@ -270,6 +338,7 @@ struct ReviewsChart: View {
 /// shaded curve on a 0-100% scale.
 struct HoursChart: View {
     let graph: HoursGraph
+    @Environment(\.graphTitle) private var title
     @State private var hovered: Int?
 
     var body: some View {
@@ -300,9 +369,27 @@ struct HoursChart: View {
         .chartOverlay { proxy in
             ChartHover(
                 proxy: proxy, hit: { (0..<24).contains(Int(floor($0))) ? Int(floor($0)) : nil },
-                tip: { Text(graph.tooltip(graph.hours[$0])) }, tap: nil, hovered: $hovered)
+                tip: { tooltip(graph.hours[$0]) }, tap: nil, hovered: $hovered)
         }
         .frame(height: Theme.Statistics.chartHeight)
+        .chartAccessibility(title, graph.hours.map {
+            .init(x: String($0.id), value: Double($0.total), label: graph.tooltip($0))
+        })
+    }
+
+    private func tooltip(_ hour: HoursGraph.Hour) -> some View {
+        let lines = graph.tooltipLines(hour)
+        return VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+            Text(lines.range)
+            HStack(spacing: Theme.Spacing.xSmall) {
+                Swatch(colour: graph.colour(hour))
+                Text(lines.reviews)
+            }
+            HStack(spacing: Theme.Spacing.xSmall) {
+                Swatch(colour: Theme.Statistics.areaFill)
+                Text(lines.correct)
+            }
+        }
     }
 }
 
@@ -311,6 +398,7 @@ struct HoursChart: View {
 /// Presses of each answer button, grouped by learning, young and mature.
 struct ButtonsChart: View {
     let graph: ButtonsGraph
+    @Environment(\.graphTitle) private var title
     @State private var hovered: Int?
 
     /// d3's band scale for four buttons in a group, padded by a band each side.
@@ -328,7 +416,7 @@ struct ButtonsChart: View {
         Chart {
             if let hovered { bar(span(bars[hovered]), to: axis.max, Theme.Statistics.hoverColumn) }
             ForEach(bars) { button in
-                bar(span(button), to: Double(button.count), ButtonsGraph.colour(button.button).opacity(0.8))
+                bar(span(button), to: Double(button.count), ButtonsGraph.colour(button.button))
             }
         }
         .chartXScale(domain: 0.0...3.0)
@@ -347,51 +435,122 @@ struct ButtonsChart: View {
                 tip: { Text(graph.tooltip(bars[$0])) }, tap: nil, hovered: $hovered)
         }
         .frame(height: Theme.Statistics.chartHeight)
+        .chartAccessibility(title, bars.map {
+            .init(x: "\($0.group.label) \($0.button)", value: Double($0.count), label: graph.tooltip($0))
+        })
     }
 }
 
 // MARK: Calendar
 
-/// A year of review counts, one square per day, a column per week.
+/// A year of review counts, one square per day, a column per week. In a
+/// narrow window the days keep a size that can be read and clicked, and
+/// the year scrolls, starting at today.
 struct CalendarChart: View {
     let graph: CalendarGraph
     let setFirstWeekday: (CalendarGraph.Weekday) -> Void
     let search: (String) -> Void
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.graphTitle) private var title
+    @State private var hovered: CalendarGraph.Day?
 
     var body: some View {
         let byPosition = Dictionary(graph.days.map { ($0.week * 7 + $0.weekday, $0) }) { first, _ in first }
         let symbols = Calendar.current.veryShortWeekdaySymbols
-        Grid(horizontalSpacing: Theme.Statistics.calendarGap, verticalSpacing: Theme.Statistics.calendarGap) {
-            ForEach(0..<7, id: \.self) { row in
-                GridRow {
-                    let weekday = graph.weekdays[row]
-                    let choice = CalendarGraph.Weekday(rawValue: weekday)
-                    Text(symbols[weekday])
-                        .font(Theme.Statistics.axisFont.monospaced())
-                        .foregroundStyle(.secondary)
-                        .frame(width: Theme.Statistics.calendarLabelWidth, alignment: .trailing)
-                        .contentShape(Rectangle())
-                        .onTapGesture { if let choice { setFirstWeekday(choice) } }
-                    ForEach(0..<54, id: \.self) { week in
-                        if let day = byPosition[week * 7 + row] {
-                            cell(day)
-                        } else {
-                            Color.clear.aspectRatio(1, contentMode: .fit)
+        let weeks = Theme.Statistics.calendarWeeks
+        let gap = Theme.Statistics.calendarGap
+        let minWidth = Theme.Statistics.calendarLabelWidth + CGFloat(weeks) * (Theme.Statistics.calendarMinCell + gap)
+        ScrollView(.horizontal) {
+            Grid(horizontalSpacing: gap, verticalSpacing: gap) {
+                ForEach(0..<7, id: \.self) { row in
+                    GridRow {
+                        weekday(graph.weekdays[row], symbols: symbols)
+                        ForEach(0..<weeks, id: \.self) { week in
+                            if let day = byPosition[week * 7 + row] {
+                                cell(day)
+                            } else {
+                                Color.clear.aspectRatio(1, contentMode: .fit)
+                            }
                         }
                     }
                 }
             }
+            .containerRelativeFrame(.horizontal) { width, _ in max(width, minWidth) }
         }
-        .frame(maxWidth: .infinity)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .defaultScrollAnchor(.trailing)
+        // Drawn outside the scroll view, which would clip it at the top row.
+        .overlayPreferenceValue(HoveredDayKey.self) { anchor in
+            GeometryReader { geometry in
+                if let anchor, let hovered {
+                    let cell = geometry[anchor], bounds = geometry.size
+                    let offset = Theme.Statistics.calendarTooltipGap
+                    ChartTooltip { Text(tooltip(hovered)) }
+                        .alignmentGuide(.leading) { size in
+                            -min(max(cell.midX - size.width / 2, 0), max(bounds.width - size.width, 0))
+                        }
+                        .alignmentGuide(.top) { size in size.height + offset - cell.minY }
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(summary)
+        .accessibilityChartDescriptor(BarsDescriptor(title: title, points: graph.days.filter { $0.count > 0 }.map {
+            let date = $0.date.formatted(date: .abbreviated, time: .omitted)
+            return .init(x: date, value: Double($0.count), label: "\(date), \(Tr.statisticsReviews(reviews: $0.count))")
+        }))
+    }
+
+    private var summary: String {
+        Tr.statisticsReviews(reviews: graph.days.reduce(0) { $0 + $1.count })
+    }
+
+    /// A weekday's letter, which makes that day start the week when clicked.
+    @ViewBuilder private func weekday(_ weekday: Int, symbols: [String]) -> some View {
+        let label = Text(symbols[weekday])
+            .font(Theme.Statistics.axisFont)
+            .foregroundStyle(Theme.Palette.secondary)
+            .frame(width: Theme.Statistics.calendarLabelWidth, alignment: .trailing)
+        if let choice = CalendarGraph.Weekday(rawValue: weekday) {
+            Button { setFirstWeekday(choice) } label: { label.contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Calendar.current.weekdaySymbols[weekday])
+                .accessibilityAddTraits(weekday == graph.weekdays.first ? .isSelected : [])
+        } else {
+            label
+        }
+    }
+
+    private func tooltip(_ day: CalendarGraph.Day) -> String {
+        "\(day.date.formatted(date: .complete, time: .omitted))\n\(Tr.statisticsReviews(reviews: day.count))"
     }
 
     private func cell(_ day: CalendarGraph.Day) -> some View {
-        RoundedRectangle(cornerRadius: 1.5)
-            .fill(graph.colour(day.count, dark: colorScheme == .dark))
+        let isHovered = hovered?.id == day.id
+        return RoundedRectangle(cornerRadius: Theme.Statistics.calendarRadius)
+            .fill(graph.colour(day.count))
             .aspectRatio(1, contentMode: .fit)
-            .help("\(day.date.formatted(date: .complete, time: .omitted))\n\(Tr.statisticsReviews(reviews: day.count))")
+            .overlay {
+                if isHovered {
+                    RoundedRectangle(cornerRadius: Theme.Statistics.calendarRadius)
+                        .strokeBorder(Theme.Palette.text, lineWidth: Theme.Statistics.calendarHoverBorder)
+                }
+            }
+            .anchorPreference(key: HoveredDayKey.self, value: .bounds) { isHovered ? $0 : nil }
+            .onHover { inside in
+                if inside { hovered = day } else if isHovered { hovered = nil }
+            }
+            .pointerStyle(day.count > 0 ? .link : nil)
             .onTapGesture { if day.count > 0 { search("\"prop:rated=\(day.day)\"") } }
+    }
+}
+
+/// Where the hovered day sits, for its tooltip.
+private struct HoveredDayKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 
@@ -405,9 +564,9 @@ struct CardCountsChart: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Theme.Spacing.xLarge) { pie; table }
-            VStack(spacing: Theme.Spacing.large) { pie; table }
+            VStack(alignment: .leading, spacing: Theme.Spacing.large) { pie; table }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var pie: some View {
@@ -418,6 +577,8 @@ struct CardCountsChart: View {
         .chartLegend(.hidden)
         .frame(width: Theme.Statistics.pieSize, height: Theme.Statistics.pieSize)
         .opacity(graph.total > 0 ? 1 : 0)
+        // The table beside it reads the same counts, as buttons.
+        .accessibilityHidden(true)
     }
 
     private var table: some View {
@@ -425,22 +586,27 @@ struct CardCountsChart: View {
             ForEach(graph.rows.filter(\.shown)) { row in
                 GridRow {
                     HStack(spacing: Theme.Spacing.xSmall) {
-                        Text("■").foregroundStyle(row.colour)
+                        Swatch(colour: row.colour)
                         Button(row.label) { search(row.search) }
                             .buttonStyle(.link)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Theme.Palette.text)
                     }
-                    Text(localizedNumber(Double(row.count))).gridColumnAlignment(.trailing)
-                    Text(graph.percent(row)).gridColumnAlignment(.trailing)
+                    Text(localizedNumber(Double(row.count))).font(Theme.Statistics.figures).gridColumnAlignment(.trailing)
+                    Text(graph.percent(row))
+                        .font(Theme.Statistics.figures)
+                        .foregroundStyle(Theme.Palette.secondary)
+                        .gridColumnAlignment(.trailing)
                 }
             }
             GridRow {
-                Text(Tr.statisticsCountsTotalCards).padding(.leading, Theme.Statistics.swatchIndent)
-                Text(localizedNumber(Double(graph.total)))
+                Text(Tr.statisticsCountsTotalCards)
+                    .foregroundStyle(Theme.Palette.secondary)
+                    .padding(.leading, Theme.Statistics.swatchIndent)
+                Text(localizedNumber(Double(graph.total))).font(Theme.Statistics.figures)
                 Text("")
             }
         }
-        .monospacedDigit()
+        .font(Theme.Statistics.tableFont)
         .fixedSize()
     }
 }
@@ -458,32 +624,32 @@ struct TrueRetentionTable: View {
                 header([
                     (Tr.statisticsTrueRetentionYoung, Theme.Statistics.youngRetention),
                     (Tr.statisticsTrueRetentionMature, Theme.Statistics.matureRetention),
-                    (Tr.statisticsTrueRetentionTotal, .primary),
-                    (Tr.statisticsTrueRetentionCount, .secondary),
+                    (Tr.statisticsTrueRetentionTotal, Theme.Palette.text),
+                    (Tr.statisticsTrueRetentionCount, Theme.Palette.secondary),
                 ])
                 ForEach(graph.rows) { row in
                     let passed = row.youngPassed + row.maturePassed, failed = row.youngFailed + row.matureFailed
                     GridRow {
-                        Text(row.title).bold().gridColumnAlignment(.leading)
+                        Text(row.title).font(Theme.Statistics.tableFont).gridColumnAlignment(.leading)
                         Text(TrueRetentionGraph.retention(passed: row.youngPassed, failed: row.youngFailed))
                             .foregroundStyle(Theme.Statistics.youngRetention)
                         Text(TrueRetentionGraph.retention(passed: row.maturePassed, failed: row.matureFailed))
                             .foregroundStyle(Theme.Statistics.matureRetention)
                         Text(TrueRetentionGraph.retention(passed: passed, failed: failed))
-                        Text(localizedNumber(Double(passed + failed))).foregroundStyle(.secondary)
+                        Text(localizedNumber(Double(passed + failed))).foregroundStyle(Theme.Palette.secondary)
                     }
                 }
             case .young, .mature:
                 header([
                     (Tr.statisticsTrueRetentionPass, Theme.Statistics.pass),
                     (Tr.statisticsTrueRetentionFail, Theme.Statistics.fail),
-                    (Tr.statisticsTrueRetentionRetention, .primary),
+                    (Tr.statisticsTrueRetentionRetention, Theme.Palette.text),
                 ])
                 ForEach(graph.rows) { row in
                     let passed = mode == .young ? row.youngPassed : row.maturePassed
                     let failed = mode == .young ? row.youngFailed : row.matureFailed
                     GridRow {
-                        Text(row.title).bold().gridColumnAlignment(.leading)
+                        Text(row.title).font(Theme.Statistics.tableFont).gridColumnAlignment(.leading)
                         Text(localizedNumber(Double(passed))).foregroundStyle(Theme.Statistics.pass)
                         Text(localizedNumber(Double(failed))).foregroundStyle(Theme.Statistics.fail)
                         Text(TrueRetentionGraph.retention(passed: passed, failed: failed))
@@ -491,16 +657,17 @@ struct TrueRetentionTable: View {
                 }
             }
         }
-        .monospacedDigit()
+        .font(Theme.Statistics.figures)
+        .foregroundStyle(Theme.Palette.text)
         .fixedSize()
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func header(_ columns: [(String, Color)]) -> some View {
         GridRow {
             Text("")
             ForEach(columns, id: \.0) { title, colour in
-                Text(title).bold().foregroundStyle(colour)
+                Text(title).font(Theme.Statistics.tableFont.weight(.semibold)).foregroundStyle(colour)
             }
         }
     }
@@ -514,16 +681,18 @@ struct GraphTable: View {
 
     var body: some View {
         if !rows.isEmpty {
-            Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.small, verticalSpacing: Theme.Spacing.xSmall) {
+            Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.medium, verticalSpacing: Theme.Spacing.xSmall) {
                 ForEach(rows, id: \.self) { row in
                     GridRow {
-                        Text("\(row.label):").gridColumnAlignment(.trailing)
-                        Text(row.value)
+                        Text(row.label).foregroundStyle(Theme.Palette.secondary)
+                        Text(row.value).foregroundStyle(Theme.Palette.text).monospacedDigit()
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            .monospacedDigit()
-            .frame(maxWidth: .infinity)
+            .font(Theme.Statistics.tableFont)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

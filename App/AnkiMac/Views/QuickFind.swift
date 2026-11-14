@@ -25,7 +25,7 @@ struct QuickFind: View {
     /// Places, then notes, then what to do with the text, each set off by a rule.
     private var groups: [[Hit]] {
         guard !query.isEmpty else { return [places] }
-        let named = flattened(model.decks).contains { $0.fullName.caseInsensitiveCompare(query) == .orderedSame }
+        let named = DeckNode.flattened(model.decks).contains { $0.fullName.caseInsensitiveCompare(query) == .orderedSame }
         let actions: [Hit] = (named ? [] : [.newDeck(query)]) + [.browse(query)]
         return [places, notes.map(Hit.note), actions].filter { !$0.isEmpty }
     }
@@ -37,7 +37,7 @@ struct QuickFind: View {
     /// Study Deck matches. Names that start with the first word come first.
     private var places: [Hit] {
         guard !query.isEmpty else {
-            let due = flattened(model.decks).filter { $0.children == nil && $0.dueCount > 0 }
+            let due = DeckNode.flattened(model.decks).filter { $0.children == nil && $0.dueCount > 0 }
                 .sorted { ($0.learnCount, $0.dueCount) > ($1.learnCount, $1.dueCount) }
             return [.today] + due.prefix(Theme.QuickFind.dueLimit).map(Hit.deck)
         }
@@ -46,7 +46,7 @@ struct QuickFind: View {
         let starts = { (name: String) in
             words.first.map { name.range(of: $0, options: [.caseInsensitive, .anchored]) != nil } ?? true
         }
-        let decks = flattened(model.decks).filter { matches($0.fullName) }
+        let decks = DeckNode.flattened(model.decks).filter { matches($0.fullName) }
         let today: [Hit] = matches("Today") ? [.today] : []
         return today + (decks.filter { starts($0.name) } + decks.filter { !starts($0.name) }).map(Hit.deck)
     }
@@ -237,9 +237,5 @@ struct QuickFind: View {
             model.addDeckAndShow(named: name)
         case .browse(let text): model.continueSearchInBrowser(text)
         }
-    }
-
-    private func flattened(_ decks: [DeckNode]) -> [DeckNode] {
-        decks.flatMap { [$0] + flattened($0.children ?? []) }
     }
 }

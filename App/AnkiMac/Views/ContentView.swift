@@ -126,9 +126,9 @@ struct ContentView: View {
             minWidth: Theme.Window.minWidth
                 + (layout.sidebarVisible && !layout.sidebarFloats && layout.pageWidth == nil ? Theme.Layout.sidebarWidth : 0),
             minHeight: Theme.Window.minHeight)
-        .onChange(of: model.selectedDeckID) { _, deckID in
-            // Picking another deck in the sidebar leaves the session.
-            if let session = model.session, session.deckID != deckID {
+        .onChange(of: model.page) { _, page in
+            // Picking another deck, Today or Statistics in the sidebar leaves the session.
+            if let session = model.session, page != .deck(session.deckID) {
                 model.stopStudying()
             }
         }
@@ -169,7 +169,11 @@ extension ContentView {
                 if let deck = model.selectedDeck {
                     DeckOverview(deck: deck)
                 } else if model.isLoaded {
-                    TodayView()
+                    if model.page == .statistics, let statistics = model.statistics {
+                        StatisticsView(model: statistics)
+                    } else {
+                        TodayView()
+                    }
                 }
             }
         }

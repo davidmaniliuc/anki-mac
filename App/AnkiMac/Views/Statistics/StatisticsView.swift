@@ -1,7 +1,8 @@
+import AppKit
 import Charts
 import SwiftUI
 
-/// Desktop's graphs, in its order. Each case is one card of the window: its
+/// Desktop's graphs, in its order. Each case is one card of the page: its
 /// title, when it applies, and (in `GraphCard`) its switches and chart.
 enum StatisticsGraph: CaseIterable, Identifiable {
     case today, futureDue, calendar, reviews, cardCounts, intervals, stability, ease, difficulty
@@ -56,34 +57,51 @@ enum StatisticsGraph: CaseIterable, Identifiable {
     }
 }
 
-/// The window's content: the graphs in one to three columns.
+/// The page's content: a header naming what the graphs cover, with the
+/// controls that choose it, then the graphs in one to three columns.
 struct StatisticsView: View {
     @Bindable var model: StatisticsModel
-    let savePDF: () -> Void
-    /// Opens the browser on a search, for clicks on bars and table rows.
-    let browse: (String) -> Void
-    /// One to three, as desktop's grid at the window's width.
-    @State private var columns = 1
+    @Environment(CollectionModel.self) private var collection
+    @Environment(\.compact) private var compact
+    @State private var width: CGFloat = 0
+    @FocusState private var searchFocused: Bool
+
+    private var margin: CGFloat { compact ? Theme.Layout.compactPageMargin : Theme.Layout.pageMargin }
+
+    /// One to three, as desktop's grid at the page's width.
+    private var columns: Int {
+        let gap = Theme.Statistics.columnGap
+        let room = width - 2 * margin + gap
+        return max(1, min(Theme.Statistics.maxColumns, Int(room / (Theme.Statistics.graphMinWidth + gap))))
+    }
 
     var body: some View {
         ScrollView {
-            if let data = model.data {
-                let graphs = StatisticsGraph.allCases.filter { $0.applies(fsrs: data.fsrs) }
-                let rows = stride(from: 0, to: graphs.count, by: columns).map { graphs[$0..<min($0 + columns, graphs.count)] }
-                Grid(horizontalSpacing: Theme.Spacing.large, verticalSpacing: Theme.Spacing.large) {
+            // Lazy, so only the graphs in sight are drawn.
+            LazyVStack(alignment: .leading, spacing: Theme.Statistics.rowGap) {
+                header
+                if let data = model.data {
+                    let graphs = StatisticsGraph.allCases.filter { $0.applies(fsrs: data.fsrs) }
+                    let rows = stride(from: 0, to: graphs.count, by: columns).map {
+                        graphs[$0..<min($0 + columns, graphs.count)]
+                    }
                     ForEach(rows, id: \.first) { row in
-                        GridRow {
-                            ForEach(row) { GraphCard(graph: $0, model: model, data: data, browse: browse) }
+                        HStack(alignment: .top, spacing: Theme.Statistics.columnGap) {
+                            ForEach(row) { GraphSection(graph: $0, model: model, data: data, browse: browse) }
+                            // A short last row keeps the columns' widths.
+                            ForEach(row.count..<columns, id: \.self) { _ in
+                                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                            }
                         }
                     }
                 }
-                .padding(Theme.Spacing.large)
             }
+            .padding(.horizontal, margin)
+            .padding(.top, compact ? 0 : Theme.Spacing.small)
+            .padding(.bottom, Theme.Layout.pageBottomPadding)
         }
-        .onGeometryChange(for: Int.self) { proxy in
-            let room = proxy.size.width - Theme.Spacing.large
-            return max(1, min(3, Int(room / (Theme.Statistics.graphMinWidth + Theme.Spacing.large))))
-        } action: { columns = $0 }
+        .pageScrolling()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .overlay {
             if model.data == nil {
                 if let error = model.errorMessage {
@@ -93,48 +111,180 @@ struct StatisticsView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar { toolbar }
     }
 
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Picker(Tr.statisticsTitle, selection: $model.scope) {
-                Text(Tr.statisticsRangeDeck).tag(StatisticsScope.deck)
-                Text(Tr.statisticsRangeCollection).tag(StatisticsScope.collection)
-                Text(Tr.statisticsRangeSearch).tag(StatisticsScope.search)
+    /// The title, with the controls at its trailing edge, or under it when
+    /// the page is too narrow for both; the search box under them.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+            // The eyebrow sits apart, so a long deck path doesn't push the controls under the title.
+            VStack(alignment: .leading, spacing: 6) {
+                // The sidebar's decks open their overview, so the deck is picked here, from its own name.
+                if model.scope == .deck {
+                    deckMenu
+                } else if !coverage.isEmpty {
+                    Eyebrow(coverage)
+                }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Theme.Spacing.large) {
+                        title
+                        Spacer(minLength: Theme.Spacing.small)
+                        controls
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+                        title
+                        controls
+                    }
+                }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-        }
-        ToolbarItem(placement: .principal) {
-            TextField(Tr.statisticsRangeSearch, text: $model.searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: Theme.Statistics.searchWidth)
-                .onSubmit { model.submitSearch() }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Picker(Tr.statisticsTitle, selection: $model.history) {
-                Text(Tr.statisticsRange1YearHistory).tag(RevlogHistory.year)
-                Text(Tr.statisticsRangeAllHistory).tag(RevlogHistory.all)
+            if model.scope == .search {
+                TextField(Tr.statisticsRangeSearch, text: $model.searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: Theme.Statistics.searchWidth)
+                    .focused($searchFocused)
+                    .onSubmit { model.submitSearch() }
+                    .onAppear { searchFocused = true }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-        }
-        // Only while loading: a hidden one still widens the Save PDF capsule.
-        if model.loading {
-            ToolbarItem(placement: .primaryAction) {
-                ProgressView().controlSize(.small)
-            }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            Button(action: savePDF) {
-                Label(Tr.statisticsSavePdf, systemImage: "square.and.arrow.down")
-            }
-            .help(Tr.statisticsSavePdf)
-            .disabled(model.data == nil)
         }
     }
+
+    private var title: some View {
+        PageTitle(eyebrow: "", title: Tr.statisticsTitle) {
+            Image(systemName: "chart.bar.fill")
+                .font(Theme.Fonts.titleSymbol)
+                .foregroundStyle(Theme.Palette.violet)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// What the graphs cover, over the title: the deck's path, the
+    /// collection, or the search.
+    private var coverage: String {
+        switch model.scope {
+        case .deck: model.deckName?.replacingOccurrences(of: "::", with: " › ") ?? ""
+        case .collection: Tr.statisticsRangeCollection
+        case .search: model.search
+        }
+    }
+
+    /// The deck's path as the eyebrow, which opens the deck tree as nested
+    /// menus, each parent first in its own.
+    private var deckMenu: some View {
+        Menu {
+            DeckMenuItems(decks: collection.decks, current: model.deckID, pick: model.show(deck:))
+        } label: {
+            HStack(spacing: Theme.Spacing.xSmall) {
+                Eyebrow(coverage.isEmpty ? Tr.statisticsRangeDeck : coverage)
+                Image(systemName: "chevron.down")
+                    .font(Theme.Statistics.menuChevron)
+                    .foregroundStyle(Theme.Palette.secondary)
+            }
+            .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        // The hover wash reaches past the eyebrow, which stays in line with the title.
+        .padding(.leading, -Theme.Statistics.menuPadding)
+        .accessibilityLabel(sentenceCase(Tr.statisticsRangeDeck))
+        .accessibilityValue(coverage)
+    }
+
+    private var controls: some View {
+        HStack(spacing: Theme.Spacing.medium) {
+            Segments(selection: $model.scope, choices: [.deck, .collection, .search]) {
+                switch $0 {
+                case .deck: sentenceCase(Tr.statisticsRangeDeck)
+                case .collection: sentenceCase(Tr.statisticsRangeCollection)
+                case .search: sentenceCase(Tr.statisticsRangeSearch)
+                }
+            }
+            Menu {
+                Picker(Tr.statisticsTitle, selection: $model.history) {
+                    Text(historyTitle(.year)).tag(RevlogHistory.year)
+                    Text(historyTitle(.all)).tag(RevlogHistory.all)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                HStack(spacing: Theme.Spacing.xSmall) {
+                    Text(historyTitle(model.history))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Theme.Statistics.menuChevron)
+                        .foregroundStyle(Theme.Palette.secondary)
+                }
+                .font(Theme.Fonts.chip)
+                .foregroundStyle(Theme.Palette.text)
+                .frame(height: Theme.Statistics.controlHeight)
+                .modifier(MenuHover(shape: Capsule(), fill: Theme.Palette.raised))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            IconButton("square.and.arrow.down", help: Tr.statisticsSavePdf, action: savePDF)
+                .disabled(model.data == nil)
+            // Last, and always laid out, so nothing moves while it comes and goes.
+            ProgressView().controlSize(.small)
+                .opacity(model.loading && model.data != nil ? 1 : 0)
+        }
+    }
+
+    private func historyTitle(_ history: RevlogHistory) -> String {
+        sentenceCase(history == .year ? Tr.statisticsRange1YearHistory : Tr.statisticsRangeAllHistory)
+    }
+
+    private func browse(_ search: String) {
+        BrowserWindowController.show(collection: collection)
+        BrowserWindowController.current?.model.search(text: search)
+    }
+
+    /// Saves every graph, one per row, on a single tall page, as desktop's
+    /// Save PDF button.
+    private func savePDF() {
+        guard let window = collection.mainWindow, let data = model.data else { return }
+        let format = DateFormatter()
+        format.dateFormat = "yyyy-MM-dd@HH-mm-ss"
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = "anki-\(Tr.statisticsStats)-\(format.string(from: .now)).pdf"
+        let content = StatisticsPrintView(model: model, data: data)
+            .environment(\.colorScheme, .light)
+            .background(Theme.Palette.canvas)
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            let renderer = ImageRenderer(content: content)
+            renderer.render { size, draw in
+                var box = CGRect(origin: .zero, size: size)
+                guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
+                context.beginPDFPage(nil)
+                draw(context)
+                context.endPDFPage()
+                context.closePDF()
+            }
+        }
+    }
+}
+
+/// Upstream's range names are lower case ("deck", "last 12 months"); as
+/// control labels they take a capital, as Mac controls do.
+private func sentenceCase(_ text: String) -> String {
+    text.prefix(1).uppercased() + text.dropFirst()
+}
+
+/// `text` with its numbers ("22", "2,1", "31,82%") set in `font`, as the
+/// Rounded Numbers Rule asks of upstream's sentences.
+private func roundedFigures(_ text: String, _ font: Font) -> AttributedString {
+    var result = AttributedString(text)
+    for match in text.matches(of: /\d[\d.,:%]*/) {
+        let digits = text[match.range].trimmingCharacters(in: CharacterSet(charactersIn: ".,:"))
+        guard let lower = AttributedString.Index(match.range.lowerBound, within: result),
+              let upper = AttributedString.Index(text.index(match.range.lowerBound, offsetBy: digits.count), within: result)
+        else { continue }
+        result[lower..<upper].font = font
+    }
+    return result
 }
 
 /// What a saved PDF leaves out: the switches, which can't be used on paper.
@@ -155,36 +305,23 @@ struct StatisticsPrintView: View {
     let data: GraphsResponse
 
     var body: some View {
-        VStack(spacing: Theme.Spacing.large) {
+        VStack(spacing: Theme.Statistics.rowGap) {
             ForEach(StatisticsGraph.allCases.filter { $0.applies(fsrs: data.fsrs) }) { graph in
-                GraphCard(graph: graph, model: model, data: data, browse: { _ in })
+                GraphSection(graph: graph, model: model, data: data, browse: { _ in })
             }
         }
-        .padding(Theme.Spacing.large)
+        .padding(Theme.Spacing.xLarge)
         .frame(width: Theme.Statistics.pdfWidth)
-        .groupBoxStyle(PrintedCard())
         .environment(\.statisticsPrinting, true)
     }
 }
 
-/// A card ImageRenderer can draw: the system GroupBox is an AppKit box, which
-/// it leaves out, keeping only the titles.
-private struct PrintedCard: GroupBoxStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-            configuration.label
-            configuration.content
-        }
-        .padding(Theme.Spacing.medium)
-        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: Theme.Statistics.printedCardRadius))
-    }
-}
+// MARK: Sections
 
-// MARK: Cards
-
-/// One graph: its title, subtitle, switches, chart and table, or desktop's
-/// "no data" when the range has nothing to show.
-private struct GraphCard: View {
+/// One graph, unboxed on the canvas under a hairline: its title, subtitle,
+/// switches, chart and table, or desktop's "no data" when the range has
+/// nothing to show.
+private struct GraphSection: View {
     let graph: StatisticsGraph
     @Bindable var model: StatisticsModel
     let data: GraphsResponse
@@ -192,35 +329,48 @@ private struct GraphCard: View {
     @Environment(\.statisticsPrinting) private var printing
 
     var body: some View {
-        GroupBox {
-            VStack(spacing: Theme.Spacing.medium) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
+                Text(graph.title)
+                    .font(Theme.Fonts.panelTitle)
+                    .foregroundStyle(Theme.Palette.text)
+                    .accessibilityAddTraits(.isHeader)
                 if let subtitle = graph.subtitle(model.controls) {
                     Text(subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        .font(Theme.Fonts.body)
+                        .foregroundStyle(Theme.Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                if !printing { controls }
-                content
             }
-            .padding(Theme.Spacing.small)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        } label: {
-            Text(graph.title).font(.headline)
+            if !printing { controls }
+            content.environment(\.graphTitle, graph.title)
         }
+        .padding(.top, Theme.Statistics.sectionPadding)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.Palette.hairline).frame(height: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private func search(_ query: String) {
         browse(model.search.isEmpty ? query : "\(model.search) \(query)")
     }
 
-    // MARK: Switches
+// MARK: Switches
 
-    @ViewBuilder private var controls: some View {
+    /// The switches on one line, or stacked when the column is too narrow.
+    private var controls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.medium) { switches }
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) { switches }
+        }
+    }
+
+    @ViewBuilder private var switches: some View {
         let history = model.history
         switch graph {
         case .futureDue:
-            HStack {
+            Group {
                 if data.futureDue.haveBacklog {
                     Toggle(Tr.statisticsBacklogCheckbox, isOn: $model.preferences.futureDueShowBacklog)
                 }
@@ -228,16 +378,23 @@ private struct GraphCard: View {
             }
         case .calendar:
             let years = CalendarGraph.years(history, current: Calendar.current.component(.year, from: .now))
-            HStack {
-                Button { model.controls.calendarYear -= 1 } label: { Image(systemName: "chevron.left") }
+            HStack(spacing: Theme.Spacing.xSmall) {
+                // Named by the year they go to: upstream has no words for them.
+                IconButton("chevron.left", help: String(model.controls.calendarYear - 1)) {
+                    model.controls.calendarYear -= 1
+                }
                     .disabled(model.controls.calendarYear <= years.lowerBound)
-                Text(String(model.controls.calendarYear)).monospacedDigit()
-                Button { model.controls.calendarYear += 1 } label: { Image(systemName: "chevron.right") }
+                Text(String(model.controls.calendarYear))
+                    .font(Theme.Statistics.figures)
+                    .foregroundStyle(Theme.Palette.text)
+                    .accessibilityAddTraits(.updatesFrequently)
+                IconButton("chevron.right", help: String(model.controls.calendarYear + 1)) {
+                    model.controls.calendarYear += 1
+                }
                     .disabled(model.controls.calendarYear >= years.upperBound)
             }
-            .buttonStyle(.borderless)
         case .reviews:
-            HStack {
+            Group {
                 Toggle(Tr.statisticsReviewsTimeCheckbox, isOn: $model.controls.reviewsShowTime)
                 RangePicker(selection: $model.controls.reviewsRange, choices: GraphRange.choices(history))
             }
@@ -270,11 +427,18 @@ private struct GraphCard: View {
         let controls = model.controls
         switch graph {
         case .today:
-            VStack(spacing: Theme.Spacing.xSmall) {
-                ForEach(TodayStats.lines(data), id: \.self) { Text($0) }
+            // Desktop's sentences, the first (what was studied) leading.
+            let lines = TodayStats.lines(data)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    Text(roundedFigures(line, index == 0 ? Theme.Statistics.todayLeadFigures : Theme.Statistics.todayFigures))
+                        .font(index == 0 ? Theme.Statistics.todayLead : Theme.Fonts.body)
+                        .foregroundStyle(index == 0 ? Theme.Palette.text : Theme.Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .futureDue:
             histogram(FutureDueGraph.histogram(
                 data, range: controls.futureDueRange, backlog: model.preferences.futureDueShowBacklog))
@@ -333,20 +497,107 @@ private struct GraphCard: View {
     }
 }
 
-/// A segmented switch between a graph's ranges.
-private struct RangePicker<Choice: Hashable & Identifiable & TitledChoice>: View {
+/// A switch between a graph's ranges.
+private struct RangePicker<Choice: Hashable & TitledChoice>: View {
     @Binding var selection: Choice
     let choices: [Choice]
 
     var body: some View {
-        Picker(selection: $selection) {
-            ForEach(choices) { Text($0.title).tag($0) }
-        } label: {
-            EmptyView()
+        Segments(selection: $selection, choices: choices) { sentenceCase($0.title) }
+    }
+}
+
+/// A row of quiet choices, the chosen one on the selection wash in Ink,
+/// so a page of switches doesn't fill with accent blue.
+private struct Segments<Choice: Hashable>: View {
+    @Binding var selection: Choice
+    let choices: [Choice]
+    let title: (Choice) -> String
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xxSmall) {
+            ForEach(choices, id: \.self) { choice in
+                let chosen = choice == selection
+                Button(title(choice)) { selection = choice }
+                    .buttonStyle(SegmentStyle(chosen: chosen))
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
+            }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
         .fixedSize()
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct SegmentStyle: ButtonStyle {
+    let chosen: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        SegmentBody(configuration: configuration, chosen: chosen)
+    }
+
+    private struct SegmentBody: View {
+        let configuration: Configuration
+        let chosen: Bool
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .font(Theme.Fonts.chip)
+                .foregroundStyle(chosen || hovered ? Theme.Palette.text : Theme.Palette.secondary)
+                .padding(.horizontal, Theme.Statistics.segmentPadding)
+                .frame(height: Theme.Statistics.controlHeight)
+                .background(Capsule().fill(
+                    chosen || configuration.isPressed ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear))
+                .contentShape(Capsule())
+                .onHover { hovered = $0 }
+        }
+    }
+}
+
+/// A menu's label as a quiet control: its own fill, if any, with the hover
+/// wash over it under the pointer.
+private struct MenuHover<S: InsettableShape>: ViewModifier {
+    let shape: S
+    var fill: Color = .clear
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, Theme.Statistics.menuPadding)
+            .padding(.vertical, Theme.Spacing.xxSmall)
+            .background {
+                shape.fill(fill)
+                shape.fill(hovered ? Theme.Palette.hover : .clear)
+            }
+            .overlay { if fill != .clear { shape.strokeBorder(Theme.Palette.hairline) } }
+            .contentShape(shape)
+            .onHover { hovered = $0 }
+    }
+}
+
+/// The deck tree as menu items. A deck with subdecks is a submenu that
+/// starts with the deck itself, since a submenu's own item can't be chosen.
+private struct DeckMenuItems: View {
+    let decks: [DeckNode]
+    let current: Int64?
+    let pick: (Int64) -> Void
+
+    var body: some View {
+        ForEach(decks) { deck in
+            if let children = deck.children {
+                Menu(deck.name) {
+                    item(deck)
+                    Divider()
+                    DeckMenuItems(decks: children, current: current, pick: pick)
+                }
+            } else {
+                item(deck)
+            }
+        }
+    }
+
+    private func item(_ deck: DeckNode) -> some View {
+        Toggle(deck.name, isOn: Binding { deck.id == current } set: { _ in pick(deck.id) })
     }
 }
 
@@ -363,8 +614,8 @@ extension TrueRetentionGraph.Mode: TitledChoice {}
 private struct NoData: View {
     var body: some View {
         Text(Tr.statisticsNoData)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .font(Theme.Fonts.lead)
+            .foregroundStyle(Theme.Palette.tertiary)
             .frame(maxWidth: .infinity, minHeight: Theme.Statistics.chartHeight)
     }
 }

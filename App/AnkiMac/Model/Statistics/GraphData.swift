@@ -24,7 +24,7 @@ enum GraphRange: Int, CaseIterable, Identifiable {
         history == .all ? allCases : [.month, .threeMonths, .year]
     }
 
-    /// Desktop's graphs that follow the window's history switch jump to all
+    /// Desktop's graphs that follow the page's history switch jump to all
     /// time with it, and back to a year when it is turned off.
     func following(_ history: RevlogHistory) -> GraphRange {
         if history == .all { return .allTime }
@@ -32,7 +32,7 @@ enum GraphRange: Int, CaseIterable, Identifiable {
     }
 }
 
-/// How much review history the backend gathers: the window's range switch.
+/// How much review history the backend gathers: the page's range switch.
 enum RevlogHistory: Hashable {
     case year, all
 
@@ -217,7 +217,7 @@ enum FutureDueGraph {
         let periodDays = xMax - xMin
         let histogram = Histogram(
             bins: bins, domain: (xMin, xMax), total: total, showArea: true,
-            colour: { ColorRamp.greens(GraphScale.linear($0, domain: (xMin, xMax), range: (0.7, 0.3))) },
+            colour: { Theme.Statistics.shade(Theme.Colors.reviewCards, GraphScale.linear($0, domain: (xMin, xMax), range: (1, 0.4))) },
             hoverText: { bin, cumulative, _ in
                 let days = dayLabel(bin.x0, bin.x1 == xMax ? bin.x1 + 1 : bin.x1)
                 return "\(days):\n\(Tr.statisticsCardsDue(cards: bin.value))\n"
@@ -259,15 +259,15 @@ enum ReviewKind: Int, CaseIterable, Identifiable {
         }
     }
 
-    /// Each kind's colour darkens towards today.
-    func colour(_ t: Double) -> Color {
-        let capped = 0.3 + 0.2 * t
+    /// The queue colours: review green for mature and young, learning
+    /// coral for relearning and learning.
+    var colour: Color {
         switch self {
-        case .mature: return ColorRamp.greens(0.4 + 0.3 * t)
-        case .young: return ColorRamp.greens(capped)
-        case .relearn: return ColorRamp.reds(capped)
-        case .learn: return ColorRamp.oranges(capped)
-        case .filtered: return ColorRamp.purples(capped)
+        case .mature: Theme.Statistics.mature
+        case .young: Theme.Statistics.young
+        case .relearn: Theme.Statistics.relearning
+        case .learn: Theme.Statistics.learning
+        case .filtered: Theme.Statistics.filtered
         }
     }
 
@@ -304,10 +304,6 @@ struct ReviewsGraph {
     var cumulative: [Double] {
         var sum = 0.0
         return bars.map { sum += $0.sum; return sum }
-    }
-
-    func colour(_ kind: ReviewKind, at x: Double) -> Color {
-        kind.colour(GraphScale.linear(x, domain: domain, range: (0, 1)))
     }
 
     func valueLabel(_ value: Double) -> String {
@@ -476,10 +472,10 @@ struct CalendarGraph {
         self.maxCount = maxCount
     }
 
-    func colour(_ count: Int, dark: Bool) -> Color {
-        guard count > 0 else { return dark ? Color(hex: 0x333333) : Color(hex: 0xdddddd) }
+    func colour(_ count: Int) -> Color {
+        guard count > 0 else { return Theme.Statistics.calendarEmpty }
         let t = (Double(count) / Double(maxCount)).squareRoot()
-        return ColorRamp.blues(0.2 + t * ((dark ? 0.8 : 1) - 0.2))
+        return Theme.Statistics.shade(Theme.Colors.newCards, 0.25 + 0.75 * t)
     }
 
     /// The years the arrows can reach.
@@ -504,8 +500,8 @@ struct CardCountsGraph {
     let total: Int
 
     static let colours: [Color] = [
-        Color(hex: 0x6baed6), Color(hex: 0xfd8d3c), Color(hex: 0xfb6a4a), Color(hex: 0x74c476),
-        Color(hex: 0x31a354), Color(hex: 0xffdc41), Color(hex: 0x808080),
+        Theme.Statistics.newCards, Theme.Statistics.learning, Theme.Statistics.relearning, Theme.Statistics.young,
+        Theme.Statistics.mature, Theme.Statistics.suspended, Theme.Statistics.buried,
     ]
 
     init(_ data: GraphsResponse, separateInactive: Bool) {
@@ -586,7 +582,7 @@ enum IntervalsGraph {
         guard total > 0 else { return (nil, []) }
         let histogram = Histogram(
             bins: bins, domain: domain, total: total, showArea: true,
-            colour: { ColorRamp.blues(GraphScale.linear($0, domain: (xMax, xMin), range: (0.7, 0.3))) },
+            colour: { Theme.Statistics.shade(Theme.Colors.newCards, GraphScale.linear($0, domain: (xMax, xMin), range: (1, 0.4))) },
             hoverText: { bin, _, percent in
                 "\(intervalLabel(bin.x0, bin.x1, cards: bin.value, fsrs: fsrs))\n"
                     + "\(Tr.statisticsRunningTotal): \u{200e}\(localizedNumber(percent, 1))%"
@@ -779,7 +775,7 @@ enum AddedGraph {
         guard total > 0 else { return (nil, []) }
         let histogram = Histogram(
             bins: bins, domain: (xMin, xMax), total: total, showArea: true,
-            colour: { ColorRamp.blues(GraphScale.linear($0, domain: (xMax, xMin), range: (0.7, 0.3))) },
+            colour: { Theme.Statistics.shade(Theme.Colors.newCards, GraphScale.linear($0, domain: (xMax, xMin), range: (1, 0.4))) },
             hoverText: { bin, cumulative, _ in
                 "\(dayLabel(bin.x0, bin.x1)):\n\(Tr.statisticsCards(cards: bin.value))\n"
                     + "\(Tr.statisticsRunningTotal): \(Tr.statisticsCards(cards: cumulative))"
@@ -822,15 +818,25 @@ struct HoursGraph {
     }
 
     func colour(_ hour: Hour) -> Color {
-        ColorRamp.blues(0.1 + 0.7 * Double(hour.total) / Double(maxTotal))
+        Theme.Statistics.shade(Theme.Colors.newCards, 0.2 + 0.8 * Double(hour.total) / Double(maxTotal))
+    }
+
+    /// Upstream's lines, without the 📊 and 📈 that key them to the bar and
+    /// the line; the tooltip draws swatches instead.
+    func tooltipLines(_ hour: Hour) -> (range: String, reviews: String, correct: String) {
+        let plain = { (text: String) in
+            String(text.filter { !($0.unicodeScalars.first?.properties.isEmojiPresentation ?? false) })
+                .trimmingCharacters(in: .whitespaces)
+        }
+        return (
+            Tr.statisticsHoursRange(hourStart: String(hour.id), hourEnd: String(hour.id + 1)),
+            plain(Tr.statisticsHoursReviews(reviews: Tr.number(hour.total))),
+            plain(Tr.statisticsHoursCorrectReviews(percent: Tr.number(hour.ratio * 100), reviews: Tr.number(hour.correct))))
     }
 
     func tooltip(_ hour: Hour) -> String {
-        [
-            Tr.statisticsHoursRange(hourStart: String(hour.id), hourEnd: String(hour.id + 1)),
-            Tr.statisticsHoursReviews(reviews: Tr.number(hour.total)),
-            Tr.statisticsHoursCorrectReviews(percent: Tr.number(hour.ratio * 100), reviews: Tr.number(hour.correct)),
-        ].joined(separator: "\n")
+        let lines = tooltipLines(hour)
+        return [lines.range, lines.reviews, lines.correct].joined(separator: "\n")
     }
 }
 
@@ -877,7 +883,7 @@ struct ButtonsGraph {
     }
 
     static func colour(_ button: Int) -> Color {
-        ColorRamp.redYellowGreen(Double(button - 1) / 3)
+        Theme.Statistics.grades[button - 1]
     }
 
     func tooltip(_ bar: Bar) -> String {

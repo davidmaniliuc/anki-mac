@@ -2,7 +2,7 @@ import AnkiKit
 import Foundation
 import Observation
 
-/// What the Statistics window covers: the current deck, the whole
+/// What the Statistics page covers: the current deck, the whole
 /// collection, or a search, as desktop's radio buttons and search box.
 enum StatisticsScope: Hashable {
     case deck, collection, search
@@ -35,7 +35,7 @@ struct GraphControls {
     }
 }
 
-/// The Statistics window's state: its scope and history range, the graph
+/// The Statistics page's state: its scope and history range, the graph
 /// preferences shared with desktop, and the backend's data for them.
 @Observable
 final class StatisticsModel {
@@ -60,6 +60,9 @@ final class StatisticsModel {
             reload()
         }
     }
+    /// The backend's current deck, whose graphs the deck scope shows.
+    private(set) var deckID: Int64?
+    private(set) var deckName: String?
     var controls = GraphControls()
     /// Desktop's graph preferences, saved to the collection on change.
     var preferences = Anki_Stats_GraphPreferences() {
@@ -91,8 +94,8 @@ final class StatisticsModel {
         if scope == .search { reload() } else { scope = .search }
     }
 
-    /// Reads the preferences, then the graphs. Called when the window opens
-    /// or is shown again for another deck.
+    /// Reads the preferences and the current deck, then the graphs. Called
+    /// when the page is shown, since the deck may have changed.
     func load() {
         loadTask?.cancel()
         loadTask = Task {
@@ -100,8 +103,21 @@ final class StatisticsModel {
                 preferences = loaded
                 preferencesLoaded = true
             }
+            if let deck = try? await backend.perform({ try $0.getCurrentDeck() }) {
+                deckID = deck.id
+                deckName = deck.name
+            }
             await fetch()
         }
+    }
+
+    /// Makes `deckID` the backend's current deck, as desktop's deck scope
+    /// reads it, and shows its graphs.
+    func show(deck deckID: Int64) {
+        var request = Anki_Decks_DeckId()
+        request.did = deckID
+        _ = try? backend.setCurrentDeck(request)
+        load()
     }
 
     func reload() {

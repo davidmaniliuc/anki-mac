@@ -2,7 +2,7 @@ import AnkiKit
 import AppKit
 import SwiftUI
 
-/// Today, the Browse and Statistics windows, then the decks: every deck,
+/// Today and Statistics, which show here, the Browse window, then the decks: every deck,
 /// top-level or not, is the same selectable row with one due count, the
 /// breakdown being in the overview. A deck with subdecks has a disclosure
 /// arrow and sits apart from its neighbours by space alone. Up and Down move through the rows, Left and Right fold and
@@ -60,12 +60,13 @@ struct DeckSidebar: View {
     // MARK: Rows
 
     @ViewBuilder private var places: some View {
-        SidebarRowShell(selected: model.selectedDeckID == nil) {
-            model.selectedDeckID = nil
+        let today = model.page == .today
+        SidebarRowShell(selected: today) {
+            model.page = .today
             layout.picked()
         } content: {
             AnkiStar(size: 17).foregroundStyle(Theme.Palette.star).frame(width: 20)
-            Text("Today").font(Theme.Fonts.row).fontWeight(model.selectedDeckID == nil ? .semibold : .regular)
+            Text("Today").font(Theme.Fonts.row).fontWeight(today ? .semibold : .regular)
             Spacer(minLength: Theme.Spacing.xSmall)
             Text(model.decks.reduce(0) { $0 + $1.dueCount }, format: .number)
                 .font(Theme.Fonts.sidebarCount).foregroundStyle(Theme.Palette.secondary)
@@ -73,19 +74,24 @@ struct DeckSidebar: View {
         place("Browse", "magnifyingglass", Theme.Palette.teal, key: "B") {
             BrowserWindowController.show(collection: model)
         }
-        place(Tr.statisticsTitle, "chart.bar.fill", Theme.Palette.violet, key: "T") {
-            StatisticsWindowController.show(collection: model)
+        place(Tr.statisticsTitle, "chart.bar.fill", Theme.Palette.violet, key: "T", selected: model.page == .statistics) {
+            model.showStatistics()
+            layout.picked()
         }
     }
 
-    /// A row that opens a window rather than showing something here.
-    private func place(_ title: String, _ symbol: String, _ tint: Color, key: String, action: @escaping () -> Void) -> some View {
-        SidebarRowShell(selected: false, action: action) {
+    /// A row with a key, for Browse, which opens a window, and Statistics,
+    /// which shows here.
+    private func place(
+        _ title: String, _ symbol: String, _ tint: Color, key: String, selected: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        SidebarRowShell(selected: selected, action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 20)
-            Text(title).font(Theme.Fonts.row)
+            Text(title).font(Theme.Fonts.row).fontWeight(selected ? .semibold : .regular)
             Spacer(minLength: Theme.Spacing.xSmall)
             // A key, not a count: drawn as one so it can't be read as a number.
             KeyCap(key)
@@ -208,12 +214,12 @@ struct DeckSidebar: View {
 
     // MARK: Keys
 
-    /// Today (nil) and every deck on screen, top to bottom.
-    private var visibleRows: [Int64?] {
-        var rows: [Int64?] = [nil]
+    /// Today, Statistics and every deck on screen, top to bottom.
+    private var visibleRows: [CollectionModel.MainPage] {
+        var rows: [CollectionModel.MainPage] = [.today, .statistics]
         func walk(_ nodes: [DeckNode]) {
             for node in nodes {
-                rows.append(node.id)
+                rows.append(.deck(node.id))
                 if expanded[node.id] ?? !node.collapsed { walk(node.children ?? []) }
             }
         }
@@ -242,16 +248,20 @@ struct DeckSidebar: View {
             return true
         }
         let rows = visibleRows
-        let index = rows.firstIndex(of: model.selectedDeckID) ?? 0
+        let index = rows.firstIndex(of: model.page) ?? 0
         switch event.keyCode {
-        case 126: model.selectedDeckID = rows[max(index - 1, 0)]
-        case 125: model.selectedDeckID = rows[min(index + 1, rows.count - 1)]
+        case 126: show(rows[max(index - 1, 0)])
+        case 125: show(rows[min(index + 1, rows.count - 1)])
         case 123, 124:
             guard let id = model.selectedDeckID, let node = model.deck(id), node.children != nil else { return false }
             expansion(node).wrappedValue = event.keyCode == 124
         default: return false
         }
         return true
+    }
+
+    private func show(_ page: CollectionModel.MainPage) {
+        if page == .statistics { model.showStatistics() } else { model.page = page }
     }
 }
 

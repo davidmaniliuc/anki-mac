@@ -210,7 +210,7 @@ struct StudyCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Study") {
-            Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
+            Button(Tr.statisticsTitle) { model.showStatistics() }
                 .keyboardShortcut("t", modifiers: [])
                 .disabled(!model.isLoaded)
             // "/" and Command-F are keys of the main window, not menu shortcuts, which would take them in other windows.

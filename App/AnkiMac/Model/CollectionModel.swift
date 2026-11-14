@@ -23,6 +23,11 @@ nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
     /// This deck's id and its subdecks'.
     var subtreeIDs: Set<Int64> { (children ?? []).reduce([id]) { $0.union($1.subtreeIDs) } }
 
+    /// Every deck in the tree, each before its subdecks.
+    static func flattened(_ decks: [DeckNode]) -> [DeckNode] {
+        decks.flatMap { [$0] + flattened($0.children ?? []) }
+    }
+
     init(_ node: Anki_Decks_DeckTreeNode, parent: String? = nil) {
         id = node.deckID
         name = node.name
@@ -108,7 +113,20 @@ final class CollectionModel {
     private(set) var learnLaterToday: (next: Date, count: Int)?
     private var activationTask: Task<Void, Never>?
     var backupTask: Task<Void, Never>?
-    var selectedDeckID: Int64?
+    /// What the main window's page shows. Statistics and a deck can't both be picked.
+    enum MainPage: Hashable {
+        case today, statistics, deck(Int64)
+    }
+    var page: MainPage = .today
+    /// The deck the page shows; nil for Today and for Statistics.
+    var selectedDeckID: Int64? {
+        get {
+            if case .deck(let id) = page { id } else { nil }
+        }
+        set { page = newValue.map(MainPage.deck) ?? .today }
+    }
+    /// Kept across visits to Statistics, so its switches persist; dropped with the profile.
+    private(set) var statistics: StatisticsModel?
     private(set) var session: StudySession?
     /// The session was started from Today, so ending it goes back there.
     private(set) var sessionReturnsToToday = false
@@ -299,7 +317,8 @@ final class CollectionModel {
         scope = nil
         profileName = nil
         decks = []
-        selectedDeckID = nil
+        page = .today
+        statistics = nil
         session = nil
         undoState = UndoState()
         backupRestored = false
@@ -563,7 +582,7 @@ final class CollectionModel {
             decks = tree.children.map { DeckNode($0) }
             self.undoState = undoState
             if let id = selectedDeckID, deck(id) == nil {
-                selectedDeckID = nil
+                page = .today
             }
             lastRefresh = Date()
             scheduleRollover(at: nextDayAt)
@@ -681,6 +700,21 @@ final class CollectionModel {
         }
     }
 
+    /// Shows the graphs of the selected deck, or of the deck the backend last
+    /// had current when none is selected.
+    func showStatistics() {
+        guard isLoaded, let backend else { return }
+        if let deckID = selectedDeckID {
+            var request = Anki_Decks_DeckId()
+            request.did = deckID
+            _ = try? backend.setCurrentDeck(request)
+        }
+        let statistics = statistics ?? StatisticsModel(backend: backend)
+        self.statistics = statistics
+        page = .statistics
+        statistics.load()
+    }
+
     /// Starts a deck from Today; ending its session comes back to Today.
     func studyFromToday(_ deckID: Int64) {
         selectedDeckID = deckID
@@ -692,7 +726,7 @@ final class CollectionModel {
     /// `keepingDeck` or another deck has been picked meanwhile.
     func stopStudying(keepingDeck: Bool = false) {
         if sessionReturnsToToday, !keepingDeck, let session, selectedDeckID == session.deckID {
-            selectedDeckID = nil
+            page = .today
         }
         sessionReturnsToToday = false
         session?.stop()

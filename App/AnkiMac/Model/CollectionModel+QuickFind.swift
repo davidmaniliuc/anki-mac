@@ -38,7 +38,7 @@ extension CollectionModel {
     func showToday() {
         quickFindPresented = false
         if session != nil { stopStudying() }
-        selectedDeckID = nil
+        page = .today
     }
 
     /// Shows the note in the Browser, with its cards listed.
