@@ -122,8 +122,10 @@ struct StatisticsView: View {
                 // The sidebar's decks open their overview, so the deck is picked here, from its own name.
                 if model.scope == .deck {
                     deckMenu
-                } else if !coverage.isEmpty {
-                    Eyebrow(coverage)
+                } else {
+                    // Always laid out, so the title stays put as the scope changes,
+                    // level with Today's under its greeting.
+                    Eyebrow(coverage.isEmpty ? " " : coverage)
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: Theme.Spacing.large) {
@@ -133,7 +135,7 @@ struct StatisticsView: View {
                     }
                     VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                         title
-                        controls
+                        controls.outdented()
                     }
                 }
             }
@@ -151,18 +153,18 @@ struct StatisticsView: View {
     private var title: some View {
         PageTitle(eyebrow: "", title: Tr.statisticsTitle) {
             Image(systemName: "chart.bar.fill")
-                .font(Theme.Fonts.titleSymbol)
+                .font(Theme.Statistics.titleSymbol)
                 .foregroundStyle(Theme.Palette.violet)
                 .accessibilityHidden(true)
         }
     }
 
-    /// What the graphs cover, over the title: the deck's path, the
-    /// collection, or the search.
+    /// What the graphs cover, over the title: the deck's path or the
+    /// search. The collection has none, as its segment already says it.
     private var coverage: String {
         switch model.scope {
         case .deck: model.deckName?.replacingOccurrences(of: "::", with: " › ") ?? ""
-        case .collection: Tr.statisticsRangeCollection
+        case .collection: ""
         case .search: model.search
         }
     }
@@ -223,11 +225,15 @@ struct StatisticsView: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
+            // The spinner takes Save PDF's place while the graphs load, so the
+            // controls reach the page's edge and nothing moves as it comes and goes.
+            let loading = model.loading && model.data != nil
             IconButton("square.and.arrow.down", help: Tr.statisticsSavePdf, action: savePDF)
-                .disabled(model.data == nil)
-            // Last, and always laid out, so nothing moves while it comes and goes.
-            ProgressView().controlSize(.small)
-                .opacity(model.loading && model.data != nil ? 1 : 0)
+                .disabled(model.data == nil || loading)
+                .opacity(loading ? 0 : 1)
+                .overlay {
+                    if loading { ProgressView().controlSize(.small) }
+                }
         }
     }
 
@@ -363,6 +369,17 @@ private struct GraphSection: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Theme.Spacing.medium) { switches }
             VStack(alignment: .leading, spacing: Theme.Spacing.small) { switches }
+        }
+        .outdented(switchesStartQuiet)
+    }
+
+    /// Whether the switches start with a quiet control (segments or the
+    /// calendar's arrows) rather than a checkbox, whose ink starts at its edge.
+    private var switchesStartQuiet: Bool {
+        switch graph {
+        case .futureDue: !data.futureDue.haveBacklog
+        case .reviews, .cardCounts, .today, .ease: false
+        default: true
         }
     }
 
@@ -525,6 +542,15 @@ private struct Segments<Choice: Hashable>: View {
         }
         .fixedSize()
         .accessibilityElement(children: .contain)
+    }
+}
+
+extension View {
+    /// For a row that starts with quiet controls: their first word lines up
+    /// with the text above, and the chosen one's wash reaches past it, as a
+    /// list row's does.
+    fileprivate func outdented(_ enabled: Bool = true) -> some View {
+        padding(.leading, enabled ? -Theme.Statistics.segmentPadding : 0)
     }
 }
 

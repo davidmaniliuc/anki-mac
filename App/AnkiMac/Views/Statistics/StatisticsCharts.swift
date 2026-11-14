@@ -452,6 +452,7 @@ struct CalendarChart: View {
     let search: (String) -> Void
     @Environment(\.graphTitle) private var title
     @State private var hovered: CalendarGraph.Day?
+    @State private var gridSize: CGSize = .zero
 
     var body: some View {
         let byPosition = Dictionary(graph.days.map { ($0.week * 7 + $0.weekday, $0) }) { first, _ in first }
@@ -475,6 +476,17 @@ struct CalendarChart: View {
                 }
             }
             .containerRelativeFrame(.horizontal) { width, _ in max(width, minWidth) }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { gridSize = $0 }
+            // One hover for the grid, the day found from where the pointer is:
+            // each day's own onHover keeps its place from before the year
+            // scrolled to today, and lights a day far from the pointer.
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let point): hovered = day(at: point, in: byPosition)
+                case .ended: hovered = nil
+                }
+            }
+            .pointerStyle((hovered?.count ?? 0) > 0 ? .link : nil)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .defaultScrollAnchor(.trailing)
@@ -522,6 +534,19 @@ struct CalendarChart: View {
         }
     }
 
+    /// The day under a point in the grid: the weekday letters take the
+    /// first column, then a column per week, each day owning the gap after it.
+    private func day(at point: CGPoint, in byPosition: [Int: CalendarGraph.Day]) -> CalendarGraph.Day? {
+        let weeks = Theme.Statistics.calendarWeeks, gap = Theme.Statistics.calendarGap
+        let label = Theme.Statistics.calendarLabelWidth + gap
+        let column = (gridSize.width - label + gap) / CGFloat(weeks)
+        let row = (gridSize.height + gap) / 7
+        guard point.x >= label, column > 0, row > 0 else { return nil }
+        let week = Int((point.x - label) / column), weekday = Int(point.y / row)
+        guard (0..<weeks).contains(week), (0..<7).contains(weekday) else { return nil }
+        return byPosition[week * 7 + weekday]
+    }
+
     private func tooltip(_ day: CalendarGraph.Day) -> String {
         "\(day.date.formatted(date: .complete, time: .omitted))\n\(Tr.statisticsReviews(reviews: day.count))"
     }
@@ -538,10 +563,6 @@ struct CalendarChart: View {
                 }
             }
             .anchorPreference(key: HoveredDayKey.self, value: .bounds) { isHovered ? $0 : nil }
-            .onHover { inside in
-                if inside { hovered = day } else if isHovered { hovered = nil }
-            }
-            .pointerStyle(day.count > 0 ? .link : nil)
             .onTapGesture { if day.count > 0 { search("\"prop:rated=\(day.day)\"") } }
     }
 }

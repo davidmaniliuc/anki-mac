@@ -192,7 +192,8 @@ struct PageTitle<Icon: View>: View {
                 Eyebrow(eyebrow)
             }
             HStack(spacing: Theme.Spacing.medium) {
-                icon
+                // One width for every page's icon, so the title starts in the same place on each.
+                icon.frame(width: Theme.Layout.titleIconWidth)
                 Text(title)
                     .font(compact ? Theme.Fonts.compactTitle : Theme.Fonts.title)
                     .lineLimit(lineLimit)
@@ -313,25 +314,33 @@ struct DeckListRow: View {
                 }
             }
             Spacer(minLength: Theme.Spacing.small)
-            if compact {
-                Text(deck.dueCount, format: .number).font(Theme.Fonts.sidebarCount)
-                    .foregroundStyle(Theme.Palette.secondary)
-            } else {
-                DueCounts(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount)
-                    .font(Theme.Fonts.studyCounts)
+            // The play button takes the counts' place under the pointer, so
+            // at rest they keep to the page's edge, under the title's action.
+            let playing = hovered && deck.dueCount > 0
+            Group {
+                if compact {
+                    Text(deck.dueCount, format: .number).font(Theme.Fonts.sidebarCount)
+                        .foregroundStyle(Theme.Palette.secondary)
+                } else {
+                    DueCounts(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount)
+                        .font(Theme.Fonts.studyCounts)
+                }
             }
-            Button(action: study) {
-                Image(systemName: "play.fill").font(.system(size: 10))
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(Theme.Palette.accent))
-                    .foregroundStyle(.white)
+            .opacity(playing ? 0 : 1)
+            .overlay(alignment: .trailing) {
+                Button(action: study) {
+                    Image(systemName: "play.fill").font(.system(size: 10))
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Theme.Palette.accent))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .opacity(playing ? 1 : 0)
+                .disabled(!playing)
+                .focusable(false)
+                .help("Study \(deck.name)")
+                .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .opacity(hovered && deck.dueCount > 0 ? 1 : 0)
-            .disabled(deck.dueCount == 0)
-            .focusable(false)
-            .help("Study \(deck.name)")
-            .accessibilityHidden(true)
         }
         .padding(.horizontal, Theme.Layout.washOutset)
         .frame(height: Theme.Layout.listRowHeight)

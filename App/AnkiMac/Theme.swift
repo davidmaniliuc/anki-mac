@@ -90,6 +90,9 @@ enum Theme {
         static let arrowScroll: CGFloat = 60
         /// Each level of a deck tree steps in this far.
         static let indent: CGFloat = 14
+        /// The slot a page title's icon sits in, centred: the deck ring, the
+        /// Anki star and the title symbols all fit it.
+        static let titleIconWidth: CGFloat = 26
         static let pageWidth: CGFloat = 680
         static let pageMargin: CGFloat = 56
         /// Room under a page's last block, so it doesn't end on the window's edge.
@@ -313,6 +316,9 @@ enum Theme {
         /// Room around a menu's label for its hover wash.
         static let menuPadding: CGFloat = Spacing.small
         static let menuChevron = Font.system(size: 9, weight: .bold)
+        /// The chart symbol is wider than it is tall, so it is set smaller
+        /// than the other title symbols to fit the title's icon slot.
+        static let titleSymbol = Font.system(size: 20, weight: .medium)
         /// Desktop asks d3 for about 7 ticks along x and 5 up y.
         static let xTickCount: Double = 7
         static let yTickCount: Double = 5
