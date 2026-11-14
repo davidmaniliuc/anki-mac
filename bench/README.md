@@ -1,21 +1,24 @@
 # Benchmarks
 
-Two harnesses run the same scenario on the same fixtures:
+The harnesses run the same scenario on the same fixtures:
 
 | Script | Measures |
 |---|---|
 | `run_baseline.py` | The official Anki desktop app, end to end, driven by `anki_bench_addon` inside a throwaway base folder (sync and update checks off). |
 | `run_ankikit.py` | `ankikit-bench`: the same backend calls through our Swift bridge, with no UI. This is the floor the SwiftUI app builds on. |
 | `run_app.py` | The AnkiMac app, end to end. Launched with `-BenchEventsPath`, `App/AnkiMac/BenchDriver.swift` plays the desktop add-on's scenario and writes the same event file. |
+| `compare.py` | Prints the tables in `COMPARISON.md` from the latest result files. |
 
 Scenario: launch → deck list → idle memory → study the deck with the most due cards (30 answers, Good) → browser searches → stats (Swift only, for now) → quit.
+
+The current end-to-end comparison, with method and caveats: **[COMPARISON.md](COMPARISON.md)** (2026-11-14, Anki 26.09.4). The tables further down are the earlier 2026-11-08 run and are kept as history.
 
 ## Fixtures
 
 Built by `make_fixtures.py` (run it with Anki's bundled Python) into `fixtures/`, which is gitignored:
 
-- `user`: a copy of the real profile (601 cards, 4,806 media files). The original is never opened.
-- `large`: synthetic, 50,000 notes across 40 decks, 30,000 in review, 180,000 revlog rows.
+- `user`: a copy of the real profile (700 cards, 28 decks, 4,806 media files). The original is never opened.
+- `large`: synthetic, 50,000 notes across 46 decks, 30,000 in review, 180,000 revlog rows.
 
 ```sh
 ~/Library/Application\ Support/AnkiProgramFiles/.venv/bin/python -I bench/make_fixtures.py

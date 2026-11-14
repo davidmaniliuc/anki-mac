@@ -21,14 +21,21 @@ import tempfile
 import time
 from pathlib import Path
 
+BENCH = Path(__file__).resolve().parent
+ANKI = "/Applications/Anki.app/Contents/MacOS/Anki"
+
+# Prefer the app bundle's own Python packages: Anki leaves an older
+# AnkiProgramFiles venv in place after an update, and importing from it would
+# label the results with the version that is not the one being measured.
+APP_PACKAGES = Path(ANKI).parents[1] / "Resources/app_packages"
+if APP_PACKAGES.is_dir():
+    sys.path.insert(0, str(APP_PACKAGES))
+
 from anki.utils import int_version, version_with_build
 
 # -I leaves this folder off the path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import descendants, footprint, read_events, summarize
-
-BENCH = Path(__file__).resolve().parent
-ANKI = "/Applications/Anki.app/Contents/MacOS/Anki"
 PROFILE = "User 1"
 TIMEOUT_S = 180
 
