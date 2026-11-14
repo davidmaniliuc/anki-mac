@@ -140,8 +140,6 @@ enum FullScreenTitlebar {
         else { return }
         bar.subviews.first { $0.identifier == pillID }?.removeFromSuperview()
         updates.removeValue(forKey: ObjectIdentifier(window)).map(NotificationCenter.default.removeObserver)
-        strip(bar, of: window, on)
-        window.contentView.map { hideScrollBackdrops($0, on) }
         guard on else { return }
 
         let pill = NSGlassEffectView()
@@ -155,66 +153,29 @@ enum FullScreenTitlebar {
             pill.centerYAnchor.constraint(equalTo: close.centerYAnchor),
             pill.heightAnchor.constraint(equalToConstant: Theme.Window.lightsPillHeight),
         ])
-        observe(window, bar)
-    }
-
-    private static func observe(_ window: NSWindow, _ bar: NSView) {
         // The bar moves into its own window once full screen has settled,
-        // and AppKit shows the backdrop again as it comes down.
+        // and AppKit paints the backstop again as it comes down.
         updates[ObjectIdentifier(window)] = NotificationCenter.default.addObserver(
             forName: NSWindow.didUpdateNotification, object: nil, queue: .main
-        ) { [weak bar, weak window] note in
-            guard let bar, let updated = note.object as? NSWindow else { return }
-            if updated === bar.window, let window { strip(bar, of: window, true) }
-            if updated === window { window?.contentView.map { hideScrollBackdrops($0, true) } }
-        }
-    }
-
-    /// Leaves only the lights and the pill showing in the bar: everything
-    /// else in it and around it is faded, and its backdrop layers hidden,
-    /// up to the root of the bar's own window.
-    private static func strip(_ bar: NSView, of window: NSWindow, _ on: Bool) {
-        var kept: NSView?
-        var view: NSView? = bar
-        while let current = view {
-            for layer in current.layer?.sublayers ?? [] where !(layer.delegate is NSView) && layer.isHidden != on {
-                layer.isHidden = on
-            }
-            for sub in current.subviews where sub !== kept && sub.alphaValue != (on ? 0 : 1) {
-                if current === bar, sub.identifier == pillID || sub is NSButton { continue }
-                sub.alphaValue = on ? 0 : 1
-            }
-            if on { dropBackstop(current) }
-            kept = current
-            // Past the title bar's container only in the bar's own window:
-            // in the content window that is the frame, with the content in it.
-            view = current === bar || bar.window !== window ? current.superview : nil
+        ) { [weak bar] note in
+            guard let bar, note.object as? NSWindow === bar.window else { return }
+            dropBackstop(above: bar)
         }
     }
 
     /// The bar's window paints an opaque grey behind the bar, in a layer of
-    /// its content view's that is not among the view's sublayers.
-    private static func dropBackstop(_ view: NSView) {
+    /// its content view's (`NSToolbarFullScreenContentView`).
+    private static func dropBackstop(above bar: NSView) {
         let needs = NSSelectorFromString("needsOpaqueBackstop"), set = NSSelectorFromString("setNeedsOpaqueBackstop:")
-        guard view.responds(to: needs), view.responds(to: set) else { return }
+        var view = bar.superview
+        while let current = view, !(current.responds(to: needs) && current.responds(to: set)) { view = current.superview }
+        guard let view else { return }
         if view.value(forKey: "needsOpaqueBackstop") as? Bool == true {
             view.setValue(false, forKey: "needsOpaqueBackstop")
         }
         if let ivar = class_getInstanceVariable(type(of: view), "opaqueBackstopLayer"),
            let layer = object_getIvar(view, ivar) as? CALayer, !layer.isHidden {
             layer.isHidden = true
-        }
-    }
-
-    /// Each scroll view under the bar keeps a backdrop over its top edge,
-    /// as tall as the band and growing under the bar as it comes down. With
-    /// the toolbar gone from the window it draws a flat grey, which reads
-    /// as a box behind the see-through bar.
-    private static func hideScrollBackdrops(_ view: NSView, _ hidden: Bool) {
-        guard view is NSScrollView else { return view.subviews.forEach { hideScrollBackdrops($0, hidden) } }
-        let isBackdrop = { (layer: CALayer) in String(describing: type(of: layer)).contains("Backdrop") }
-        for backdrop in view.subviews where backdrop.layer.map(isBackdrop) == true && backdrop.isHidden != hidden {
-            backdrop.isHidden = hidden
         }
     }
 }
