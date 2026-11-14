@@ -58,13 +58,18 @@ final class FieldTextView: NSTextView {
 
     override func becomeFirstResponder() -> Bool {
         let became = super.becomeFirstResponder()
-        if became { editor?.focusedView = self }
+        if became {
+            editor?.focusedView = self
+            editor?.focusedField = field.index
+        }
         return became
     }
 
     override func resignFirstResponder() -> Bool {
         pendingChord = nil
-        return super.resignFirstResponder()
+        let resigned = super.resignFirstResponder()
+        if resigned, editor?.focusedField == field.index { editor?.focusedField = nil }
+        return resigned
     }
 
     // MARK: Editing rules

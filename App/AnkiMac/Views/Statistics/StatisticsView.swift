@@ -195,7 +195,7 @@ struct StatisticsView: View {
 
     private var controls: some View {
         HStack(spacing: Theme.Spacing.medium) {
-            Segments(selection: $model.scope, choices: [.deck, .collection, .search]) {
+            QuietSegments(selection: $model.scope, choices: [.deck, .collection, .search]) {
                 switch $0 {
                 case .deck: sentenceCase(Tr.statisticsRangeDeck)
                 case .collection: sentenceCase(Tr.statisticsRangeCollection)
@@ -218,7 +218,7 @@ struct StatisticsView: View {
                 }
                 .font(Theme.Fonts.chip)
                 .foregroundStyle(Theme.Palette.text)
-                .frame(height: Theme.Statistics.controlHeight)
+                .frame(height: Theme.Layout.controlHeight)
                 .modifier(MenuHover(shape: Capsule(), fill: Theme.Palette.raised))
             }
             .menuStyle(.button)
@@ -520,28 +520,7 @@ private struct RangePicker<Choice: Hashable & TitledChoice>: View {
     let choices: [Choice]
 
     var body: some View {
-        Segments(selection: $selection, choices: choices) { sentenceCase($0.title) }
-    }
-}
-
-/// A row of quiet choices, the chosen one on the selection wash in Ink,
-/// so a page of switches doesn't fill with accent blue.
-private struct Segments<Choice: Hashable>: View {
-    @Binding var selection: Choice
-    let choices: [Choice]
-    let title: (Choice) -> String
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.xxSmall) {
-            ForEach(choices, id: \.self) { choice in
-                let chosen = choice == selection
-                Button(title(choice)) { selection = choice }
-                    .buttonStyle(SegmentStyle(chosen: chosen))
-                    .accessibilityAddTraits(chosen ? .isSelected : [])
-            }
-        }
-        .fixedSize()
-        .accessibilityElement(children: .contain)
+        QuietSegments(selection: $selection, choices: choices) { sentenceCase($0.title) }
     }
 }
 
@@ -550,33 +529,7 @@ extension View {
     /// with the text above, and the chosen one's wash reaches past it, as a
     /// list row's does.
     fileprivate func outdented(_ enabled: Bool = true) -> some View {
-        padding(.leading, enabled ? -Theme.Statistics.segmentPadding : 0)
-    }
-}
-
-private struct SegmentStyle: ButtonStyle {
-    let chosen: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        SegmentBody(configuration: configuration, chosen: chosen)
-    }
-
-    private struct SegmentBody: View {
-        let configuration: Configuration
-        let chosen: Bool
-        @State private var hovered = false
-
-        var body: some View {
-            configuration.label
-                .font(Theme.Fonts.chip)
-                .foregroundStyle(chosen || hovered ? Theme.Palette.text : Theme.Palette.secondary)
-                .padding(.horizontal, Theme.Statistics.segmentPadding)
-                .frame(height: Theme.Statistics.controlHeight)
-                .background(Capsule().fill(
-                    chosen || configuration.isPressed ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear))
-                .contentShape(Capsule())
-                .onHover { hovered = $0 }
-        }
+        padding(.leading, enabled ? -Theme.Layout.segmentPadding : 0)
     }
 }
 

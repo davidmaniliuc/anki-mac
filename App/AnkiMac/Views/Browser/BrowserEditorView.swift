@@ -15,7 +15,7 @@ struct BrowserEditorView: View {
             VStack(spacing: 0) {
                 NoteEditorView(editor: model.editor, cardLayout: cardLayout)
                 Divider()
-                TagField(tags: $model.tags, complete: model.completeTags)
+                TagRow(tags: $model.tags, complete: model.completeTags)
                     .padding(Theme.Spacing.medium)
             }
         }

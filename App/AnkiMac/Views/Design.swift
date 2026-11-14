@@ -605,25 +605,80 @@ struct IconButton: View {
 }
 
 /// Secondary text and icons that brighten on hover and dip when pressed.
+/// `selected` holds the Ink and selection wash of a switch that is on.
 struct QuietButtonStyle: ButtonStyle {
+    var selected = false
+    /// Room either side of the label; dense bars set their own size and use none.
+    var inset = Theme.Spacing.xSmall
+
     func makeBody(configuration: Configuration) -> some View {
-        QuietBody(configuration: configuration)
+        QuietBody(configuration: configuration, selected: selected, inset: inset)
     }
 
     private struct QuietBody: View {
         let configuration: Configuration
+        let selected: Bool
+        let inset: CGFloat
         @Environment(\.isEnabled) private var isEnabled
         @State private var hovered = false
 
         var body: some View {
             configuration.label
-                .padding(.horizontal, Theme.Spacing.xSmall)
-                .foregroundStyle(hovered && isEnabled ? Theme.Palette.text : Theme.Palette.secondary)
+                .padding(.horizontal, inset)
+                .foregroundStyle(selected || hovered && isEnabled ? Theme.Palette.text : Theme.Palette.secondary)
                 .opacity(isEnabled ? 1 : 0.4)
                 .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
-                    .fill(configuration.isPressed ? Theme.Palette.selection : hovered && isEnabled ? Theme.Palette.hover : .clear))
+                    .fill(configuration.isPressed || selected ? Theme.Palette.selection
+                        : hovered && isEnabled ? Theme.Palette.hover : .clear))
                 .contentShape(.rect)
                 .onHover { hovered = $0 }
+        }
+    }
+}
+
+/// A row of quiet choices, the chosen one on the selection wash in Ink,
+/// so a page of switches doesn't fill with accent blue.
+struct QuietSegments<Choice: Hashable>: View {
+    @Binding var selection: Choice
+    let choices: [Choice]
+    let title: (Choice) -> String
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xxSmall) {
+            ForEach(choices, id: \.self) { choice in
+                let chosen = choice == selection
+                Button(title(choice)) { selection = choice }
+                    .buttonStyle(SegmentStyle(chosen: chosen))
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+    }
+
+    private struct SegmentStyle: ButtonStyle {
+        let chosen: Bool
+
+        func makeBody(configuration: Configuration) -> some View {
+            SegmentBody(configuration: configuration, chosen: chosen)
+        }
+
+        private struct SegmentBody: View {
+            let configuration: Configuration
+            let chosen: Bool
+            @State private var hovered = false
+
+            var body: some View {
+                configuration.label
+                    .font(Theme.Fonts.chip)
+                    .foregroundStyle(chosen || hovered ? Theme.Palette.text : Theme.Palette.secondary)
+                    .padding(.horizontal, Theme.Layout.segmentPadding)
+                    .frame(height: Theme.Layout.controlHeight)
+                    .background(Capsule().fill(
+                        chosen || configuration.isPressed ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear))
+                    .contentShape(Capsule())
+                    .onHover { hovered = $0 }
+            }
         }
     }
 }

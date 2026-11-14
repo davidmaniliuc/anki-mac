@@ -49,3 +49,29 @@ final class ColorCommand: NSObject {
     let kind: ColorKind
     init(_ kind: ColorKind) { self.kind = kind }
 }
+
+/// The target of the system colour panel while it picks the format bar's text
+/// or highlight colour: a pick becomes the editor's colour and is applied.
+final class EditorColorPanel: NSObject {
+    static let shared = EditorColorPanel()
+    private var kind = ColorKind.text
+    private var apply: () -> Void = {}
+
+    func show(_ kind: ColorKind, apply: @escaping () -> Void) {
+        self.kind = kind
+        self.apply = apply
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = false
+        panel.isContinuous = false
+        panel.color = NSColor(EditorColors.shared.color(kind))
+        panel.setTarget(self)
+        panel.setAction(#selector(picked(_:)))
+        panel.orderFront(nil)
+    }
+
+    @objc private func picked(_ panel: NSColorPanel) {
+        let color = Color(nsColor: panel.color)
+        if kind == .text { EditorColors.shared.text = color } else { EditorColors.shared.highlight = color }
+        apply()
+    }
+}

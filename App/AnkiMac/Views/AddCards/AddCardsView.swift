@@ -28,7 +28,7 @@ struct AddCardsView: View {
                 cardLayout: actions.cardLayout)
             hints
             Divider()
-            TagField(tags: $model.tags, complete: model.completeTags)
+            TagRow(tags: $model.tags, complete: model.completeTags)
                 .padding(Theme.Spacing.medium)
         }
         .overlay(alignment: .bottom) {
@@ -94,10 +94,27 @@ struct AddCardsView: View {
     }
 }
 
+/// The editors' tags: a tag symbol before the field, with no box of its own.
+struct TagRow: View {
+    @Binding var tags: [String]
+    let complete: (String) -> [String]
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            Image(systemName: "tag")
+                .font(Theme.Editor.tagSymbol)
+                .foregroundStyle(Theme.Palette.secondary)
+                .accessibilityHidden(true)
+            TagField(tags: $tags, complete: complete, borderless: true)
+        }
+    }
+}
+
 /// Tags as tokens, completed from the collection's tags.
 struct TagField: NSViewRepresentable {
     @Binding var tags: [String]
     let complete: (String) -> [String]
+    var borderless = false
 
     func makeNSView(context: Context) -> NSTokenField {
         let field = NSTokenField()
@@ -106,6 +123,12 @@ struct TagField: NSViewRepresentable {
         field.placeholderString = Tr.editingTags
         field.setAccessibilityLabel(Tr.editingTags)
         field.completionDelay = 0.1
+        if borderless {
+            field.isBordered = false
+            field.isBezeled = false
+            field.drawsBackground = false
+            field.focusRingType = .none
+        }
         field.objectValue = tags
         return field
     }

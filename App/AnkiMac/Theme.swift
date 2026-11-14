@@ -93,6 +93,9 @@ enum Theme {
         /// The slot a page title's icon sits in, centred: the deck ring, the
         /// Anki star and the title symbols all fit it.
         static let titleIconWidth: CGFloat = 26
+        /// Quiet segments, scope and range switches, as tall as a chip.
+        static let controlHeight: CGFloat = 28
+        static let segmentPadding: CGFloat = 10
         static let pageWidth: CGFloat = 680
         static let pageMargin: CGFloat = 56
         /// Room under a page's last block, so it doesn't end on the window's edge.
@@ -310,9 +313,6 @@ enum Theme {
         static let pdfWidth: CGFloat = 760
         /// The search box under the header.
         static let searchWidth: CGFloat = 360
-        /// The scope, history and range switches, as tall as a chip.
-        static let controlHeight: CGFloat = 28
-        static let segmentPadding: CGFloat = 10
         /// Room around a menu's label for its hover wash.
         static let menuPadding: CGFloat = Spacing.small
         static let menuChevron = Font.system(size: 9, weight: .bold)
@@ -445,10 +445,20 @@ enum Theme {
         static let sourceMinHeight: CGFloat = 80
         static let mathEditorWidth: CGFloat = 320
         static let mathEditorMinHeight: CGFloat = 60
-        static let cornerRadius: CGFloat = 6
-        static let labelFont = Font.callout
+        /// A field's name over its text.
+        static let labelFont = Font.system(size: 12, weight: .medium)
         static let sourceFont = Font.body.monospaced()
-        static let fieldBackground = Color(nsColor: .textBackgroundColor)
+        /// The format bar's and the field labels' quiet buttons.
+        static let buttonSymbol = Font.system(size: 13, weight: .medium)
+        static let buttonSize = CGSize(width: 26, height: 24)
+        /// The small chevron beside a colour button, which opens the colour panel.
+        static let chevronSymbol = Font.system(size: 8, weight: .semibold)
+        static let chevronWidth: CGFloat = 14
+        /// Between the bar's groups of buttons.
+        static let dividerHeight: CGFloat = 14
+        /// The current colour under a colour button's glyph.
+        static let swatchSize = CGSize(width: 12, height: 3)
+        static let tagSymbol = Font.system(size: 12)
         static let fieldBorder = Color(nsColor: .separatorColor)
         /// Desktop's red tint on a first field that duplicates another note.
         static let duplicateBackground = Color.red.opacity(0.18)

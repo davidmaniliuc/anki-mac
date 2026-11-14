@@ -121,7 +121,7 @@ struct StudyEditSheet: View {
                     ord: Int(session.card?.queued.card.templateIdx ?? 0))
             }
             Divider()
-            TagField(tags: $model.tags, complete: model.completeTags)
+            TagRow(tags: $model.tags, complete: model.completeTags)
                 .padding(Theme.Spacing.medium)
             Divider()
             HStack {

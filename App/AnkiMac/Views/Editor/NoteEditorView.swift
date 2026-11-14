@@ -17,21 +17,20 @@ struct NoteEditorView: View {
         if let occlusion = editor.occlusion {
             // Desktop's Mask and Note tabs: the masks, or the remaining fields.
             VStack(spacing: 0) {
-                Picker(
-                    Tr.notetypesImageOcclusionName,
+                QuietSegments(
                     selection: Binding { occlusion.tab } set: {
                         editor.commitPendingEdits()
                         occlusion.tab = $0
-                    }
+                    }, choices: [.masks, .note]
                 ) {
-                    Text(Tr.notetypesOcclusionMask).tag(ImageOcclusionEditor.Tab.masks)
-                    Text(Tr.notetypesOcclusionNote).tag(ImageOcclusionEditor.Tab.note)
+                    switch $0 {
+                    case .masks: Tr.notetypesOcclusionMask
+                    case .note: Tr.notetypesOcclusionNote
+                    }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
+                .accessibilityLabel(Tr.notetypesImageOcclusionName)
                 .padding(.vertical, Theme.Spacing.small)
-                Divider()
+                Theme.Palette.hairline.frame(height: 1)
                 switch occlusion.tab {
                 case .masks: ImageOcclusionView(editor: occlusion)
                 case .note: fieldEditors(hiding: occlusion.hiddenFields)
@@ -47,16 +46,18 @@ struct NoteEditorView: View {
             FormatBar(editor: editor, cardLayout: cardLayout)
                 .padding(.horizontal, Theme.Spacing.medium)
                 .padding(.vertical, Theme.Spacing.small)
-            Divider()
+            Theme.Palette.hairline.frame(height: 1)
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                    ForEach(editor.fields.filter { !hidden.contains($0.index) }) { field in
+                let shown = editor.fields.filter { !hidden.contains($0.index) }
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(shown) { field in
                         FieldRow(
                             field: field, editor: editor, sticky: sticky,
                             duplicate: duplicateField == field.index)
+                        if field.id != shown.last?.id { Theme.Palette.hairline.frame(height: 1) }
                     }
                 }
-                .padding(Theme.Spacing.medium)
+                .padding(.horizontal, Theme.Spacing.medium)
             }
         }
     }
@@ -67,10 +68,12 @@ private struct FieldRow: View {
     let editor: NoteEditorModel
     let sticky: (isOn: (Int) -> Bool, toggle: (Int) -> Void)?
     let duplicate: Bool
+    @State private var hovered = false
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
         VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
-            HStack {
+            HStack(spacing: Theme.Spacing.xxSmall) {
                 Button {
                     editor.toggleCollapsed(field)
                 } label: {
@@ -82,7 +85,7 @@ private struct FieldRow: View {
                             .imageScale(.small)
                     }
                     .font(Theme.Editor.labelFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(editor.focusedField == field.index ? Theme.Palette.text : Theme.Palette.secondary)
                 }
                 .buttonStyle(.plain)
                 .help(field.collapsed ? Tr.editingExpandField : Tr.editingCollapseField)
@@ -90,24 +93,27 @@ private struct FieldRow: View {
                 .accessibilityValue(field.collapsed ? Tr.editingExpand : Tr.editingCollapse)
                 Spacer()
                 if let sticky {
-                    Toggle(isOn: Binding { sticky.isOn(field.index) } set: { _ in sticky.toggle(field.index) }) {
-                        Image(systemName: sticky.isOn(field.index) ? "pin.fill" : "pin")
+                    let pinned = sticky.isOn(field.index)
+                    Button {
+                        sticky.toggle(field.index)
+                    } label: {
+                        toggleGlyph(pinned ? "pin.fill" : "pin")
                     }
-                    .toggleStyle(.button)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(QuietButtonStyle(selected: pinned, inset: 0))
                     .help(Tr.editingToggleSticky)
                     .accessibilityLabel("\(Tr.editingToggleSticky): \(field.name)")
+                    .accessibilityAddTraits(pinned ? .isSelected : [])
                 }
                 if !field.plainText {
-                    Toggle(isOn: Binding { field.showingSource } set: { _ in
+                    Button {
                         field.toggleSource(mediaFolder: editor.mediaFolder)
-                    }) {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    } label: {
+                        toggleGlyph("chevron.left.forwardslash.chevron.right")
                     }
-                    .toggleStyle(.button)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(QuietButtonStyle(selected: field.showingSource, inset: 0))
                     .help("Show HTML (\u{2318}\u{21E7}X)")
                     .accessibilityLabel("Show HTML for \(field.name)")
+                    .accessibilityAddTraits(field.showingSource ? .isSelected : [])
                     // Hidden on a collapsed field, keeping its place so the pins line up.
                     .opacity(field.collapsed ? 0 : 1)
                     .disabled(field.collapsed)
@@ -132,14 +138,20 @@ private struct FieldRow: View {
                             .accessibilityLabel(field.name)
                     }
                 }
-                .background(
-                    duplicate ? Theme.Editor.duplicateBackground : Theme.Editor.fieldBackground,
-                    in: RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Editor.cornerRadius)
-                        .strokeBorder(Theme.Editor.fieldBorder))
+                // Code reads as a block, so its wash stays on.
+                .background(shape.fill(
+                    duplicate ? Theme.Editor.duplicateBackground
+                        : hovered || field.showingSource ? Theme.Palette.hover : .clear))
+                .onHover { hovered = $0 }
             }
         }
+        .padding(.vertical, Theme.Spacing.small)
+    }
+
+    private func toggleGlyph(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(Theme.Editor.buttonSymbol)
+            .frame(width: Theme.Editor.buttonSize.width, height: Theme.Editor.buttonSize.height)
     }
 }
 
@@ -193,90 +205,136 @@ struct FormatBar: View {
 
     var body: some View {
         // Wraps onto more lines in a narrow pane rather than clipping buttons.
-        FlowLayout(spacing: Theme.Spacing.small) {
+        FlowLayout(spacing: Theme.Spacing.xxSmall) {
             if let cardLayout {
-                Button("\(Tr.editingCards)…", action: cardLayout)
+                group {
+                    Button(action: cardLayout) {
+                        Text("\(Tr.editingCards)…")
+                            .font(Theme.Fonts.chip)
+                            .frame(height: Theme.Editor.buttonSize.height)
+                    }
+                    .buttonStyle(QuietButtonStyle())
                     .keyboardShortcut("l")
                     .help("\(Tr.editingCustomizeCardTemplates) (\u{2318}L)")
+                }
             }
-            ControlGroup {
+            group {
                 formatButton(.bold, "bold", "Bold", "\u{2318}B")
                 formatButton(.italic, "italic", "Italic", "\u{2318}I")
                 formatButton(.underline, "underline", "Underline", "\u{2318}U")
                 formatButton(.strikethrough, "strikethrough", "Strikethrough", nil)
             }
-            ControlGroup {
+            group {
                 formatButton(.superscript, "textformat.superscript", "Superscript", "\u{2318}\u{21E7}=")
                 formatButton(.subscript, "textformat.subscript", "Subscript", "\u{2318}=")
             }
-            colorControl(.text, "character", "Text Color", "F7")
-            colorControl(.highlight, "highlighter", "Highlight Color", nil)
-            Button {
-                send(#selector(FieldTextView.removeFieldFormatting(_:)))
-            } label: {
-                Label("Remove Formatting", systemImage: "eraser")
+            group {
+                colorControl(.text, "character", "Text Color", "F7")
+                colorControl(.highlight, "highlighter", "Highlight Color", nil)
             }
-            .help("Remove Formatting (\u{2318}R)")
-            Button {
-                send(#selector(FieldTextView.insertCloze(_:)))
-            } label: {
-                Label("Cloze Deletion", systemImage: "ellipsis.curlybraces")
+            group {
+                Button {
+                    send(#selector(FieldTextView.removeFieldFormatting(_:)))
+                } label: {
+                    glyph("Remove Formatting", "eraser")
+                }
+                .buttonStyle(QuietButtonStyle(inset: 0))
+                .help("Remove Formatting (\u{2318}R)")
             }
-            .help("Cloze Deletion (\u{2318}\u{21E7}C)")
-            Button {
-                send(#selector(FieldTextView.attachMedia(_:)))
-            } label: {
-                Label(Tr.editingAttachPicturesaudiovideo, systemImage: "paperclip")
+            group(divided: false) {
+                Button {
+                    send(#selector(FieldTextView.insertCloze(_:)))
+                } label: {
+                    glyph("Cloze Deletion", "ellipsis.curlybraces")
+                }
+                .buttonStyle(QuietButtonStyle(inset: 0))
+                .help("Cloze Deletion (\u{2318}\u{21E7}C)")
+                Button {
+                    send(#selector(FieldTextView.attachMedia(_:)))
+                } label: {
+                    glyph(Tr.editingAttachPicturesaudiovideo, "paperclip")
+                }
+                .buttonStyle(QuietButtonStyle(inset: 0))
+                .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
+                Button {
+                    send(#selector(FieldTextView.recordAudio(_:)))
+                } label: {
+                    glyph(Tr.editingRecordAudio, "mic")
+                }
+                .buttonStyle(QuietButtonStyle(inset: 0))
+                .help("\(Tr.editingRecordAudio) (F5)")
+                Menu {
+                    EquationButtons(send: { send($0) })
+                } label: {
+                    glyph(Tr.editingEquations, "function")
+                }
+                .menuStyle(.button)
+                .buttonStyle(QuietButtonStyle(inset: 0))
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(Tr.editingEquations)
             }
-            .help("\(Tr.editingAttachPicturesaudiovideo) (F3)")
-            Button {
-                send(#selector(FieldTextView.recordAudio(_:)))
-            } label: {
-                Label(Tr.editingRecordAudio, systemImage: "mic")
-            }
-            .help("\(Tr.editingRecordAudio) (F5)")
-            Menu {
-                EquationButtons(send: { send($0) })
-            } label: {
-                Label(Tr.editingEquations, systemImage: "function")
-            }
-            .menuIndicator(.hidden)
-            .help(Tr.editingEquations)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .labelStyle(.iconOnly)
-        .controlSize(.small)
+    }
+
+    /// Buttons that belong together, then a hairline; the line trails the
+    /// group so a wrapped row never starts with one.
+    private func group<Content: View>(divided: Bool = true, @ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: Theme.Spacing.xxSmall) {
+            content()
+            if divided {
+                Theme.Palette.hairline
+                    .frame(width: 1, height: Theme.Editor.dividerHeight)
+                    .padding(.horizontal, Theme.Spacing.xSmall)
+            }
+        }
+    }
+
+    private func glyph(_ title: String, _ symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(Theme.Editor.buttonSymbol)
+            .frame(width: Theme.Editor.buttonSize.width, height: Theme.Editor.buttonSize.height)
     }
 
     private func formatButton(_ format: InlineFormat, _ symbol: String, _ title: String, _ shortcut: String?) -> some View {
         Button {
             send(#selector(FieldTextView.toggleFieldFormat(_:)), FormatCommand(format))
         } label: {
-            Label(title, systemImage: symbol)
+            glyph(title, symbol)
         }
+        .buttonStyle(QuietButtonStyle(inset: 0))
         .help(shortcut.map { "\(title) (\($0))" } ?? title)
     }
 
     /// Desktop's colour button and its picker: the button applies the last
-    /// colour, picking one applies it too.
+    /// colour, which shows in a bar under its glyph; the chevron opens the
+    /// colour panel, and picking there applies the colour too.
     private func colorControl(_ kind: ColorKind, _ symbol: String, _ title: String, _ shortcut: String?) -> some View {
-        let colors = EditorColors.shared
-        return HStack(spacing: Theme.Spacing.xxSmall) {
-            Button {
-                send(#selector(FieldTextView.applyFieldColor(_:)), ColorCommand(kind))
-            } label: {
-                Label(title, systemImage: symbol)
+        let apply = { send(#selector(FieldTextView.applyFieldColor(_:)), ColorCommand(kind)) }
+        return HStack(spacing: 0) {
+            Button(action: apply) {
+                glyph(title, symbol)
+                    .overlay(alignment: .bottom) {
+                        RoundedRectangle(cornerRadius: Theme.Editor.swatchSize.height / 2)
+                            .fill(EditorColors.shared.color(kind))
+                            .frame(width: Theme.Editor.swatchSize.width, height: Theme.Editor.swatchSize.height)
+                            .padding(.bottom, Theme.Spacing.xxSmall)
+                    }
             }
+            .buttonStyle(QuietButtonStyle(inset: 0))
             .help(shortcut.map { "\(title) (\($0))" } ?? title)
-            ColorPicker(title, selection: Binding {
-                colors.color(kind)
-            } set: { color in
-                if kind == .text { colors.text = color } else { colors.highlight = color }
-                send(#selector(FieldTextView.applyFieldColor(_:)), ColorCommand(kind))
-            }, supportsOpacity: false)
-            .labelsHidden()
-            .controlSize(.mini)
+            Button {
+                EditorColorPanel.shared.show(kind, apply: apply)
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(Theme.Editor.chevronSymbol)
+                    .frame(width: Theme.Editor.chevronWidth, height: Theme.Editor.buttonSize.height)
+            }
+            .buttonStyle(QuietButtonStyle(inset: 0))
             .help("Change Color")
+            .accessibilityLabel(title)
         }
     }
 

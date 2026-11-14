@@ -115,6 +115,8 @@ final class NoteEditorModel {
     /// The field the format bar acts on: the last one focused, so the bar
     /// works even while its window isn't key.
     @ObservationIgnored weak var focusedView: NSView?
+    /// The field that has focus now, for its label to show.
+    var focusedField: Int?
     /// Which fields the user collapsed, per note type, for as long as this
     /// editor is open, as desktop's session options.
     @ObservationIgnored private var collapsedByNotetype: [Int64: [Bool]] = [:]
