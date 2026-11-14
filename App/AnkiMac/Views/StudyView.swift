@@ -94,10 +94,10 @@ struct StudyView: View {
         Binding { session?.failure != nil } set: { if !$0 { session?.failure = nil } }
     }
 
-    /// The card on a quiet rounded surface. Its page paints the same colour
-    /// behind the card (Theme.Palette.cardSurface), so the two read as one.
+    /// The card, straight on the canvas in the reading column. Its page
+    /// paints the canvas colour (Theme.Palette.canvasHex), so there is no
+    /// box around it, as desktop draws none.
     @ViewBuilder private var card: some View {
-        let shape = RoundedRectangle(cornerRadius: compact ? Theme.Study.compactCardRadius : Theme.Study.cardRadius)
         Group {
             if model.reviewerReady, let webView = model.reviewer.webView {
                 CardWebView(webView: webView)
@@ -112,12 +112,10 @@ struct StudyView: View {
                         }
                     }
             } else {
-                Theme.Palette.surface
+                Color.clear
             }
         }
         .frame(maxWidth: Theme.Study.cardMaxWidth, minHeight: Theme.Study.cardMinHeight)
-        .clipShape(shape)
-        .overlay(shape.strokeBorder(Theme.Palette.hairline))
         .padding(.horizontal, compact ? Theme.Study.compactMargin : Theme.Study.margin)
         .padding(.top, compact ? Theme.Spacing.xSmall : Theme.Spacing.small)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -348,8 +346,8 @@ struct StudyView: View {
     }
 }
 
-/// The marked star in the top-left corner of the card and the flag in the
-/// top-right, where desktop draws them inside the page. Study and the
+/// The marked star at the top left of the card's column and the flag at the
+/// top right, where desktop draws them inside the page. Study and the
 /// browser's previewer show it.
 struct CardIndicators: View {
     let flag: CardFlag
@@ -573,12 +571,14 @@ private struct AnswerBar: View {
         case .question:
             Button { session?.showAnswer() } label: {
                 HStack(spacing: 10) {
-                    Text("Show Answer").font(Theme.Fonts.button)
+                    Text(Tr.studyingShowAnswer).font(Theme.Fonts.button)
                     if !compact { KeyCap("Space") }
                 }
             }
-            .buttonStyle(GradeButtonStyle(color: Theme.Palette.text, emphasised: false))
-            .frame(width: Theme.Study.showAnswerWidth, height: Theme.Study.showAnswerHeight)
+            // Only a label and its key at rest: the card is what to look at.
+            .buttonStyle(GradeButtonStyle(color: Theme.Palette.text, emphasised: false, rests: false))
+            .frame(height: Theme.Study.showAnswerHeight)
+            .fixedSize()
         case .answer:
             if let session {
                 ForEach(Rating.allCases, id: \.self) { rating in

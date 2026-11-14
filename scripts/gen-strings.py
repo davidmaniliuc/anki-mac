@@ -74,6 +74,7 @@ EXTRA = [
     "decks-unmovable-cards",
     "search-view-in-browser",
     "studying-again",
+    "studying-show-answer",
     "studying-hard",
     "studying-good",
     "studying-easy",

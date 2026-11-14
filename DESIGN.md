@@ -5,7 +5,6 @@ colors:
   accent-blue: "#2F6BFF"
   canvas-paper: "#FAF9F6"
   sidebar-linen: "#F1EFEA"
-  card-white: "#FFFFFF"
   raised-oat: "#F6F4F0"
   hover-wash: "rgba(0, 0, 0, 0.04)"
   selection-wash: "rgba(0, 0, 0, 0.07)"
@@ -59,7 +58,6 @@ rounded:
   list-row: "10px"
   grade: "11px"
   panel: "12px"
-  card: "18px"
   pill: "9999px"
 spacing:
   xxs: "2px"
@@ -154,9 +152,8 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 - **Marked and flagged:** over the card, a marked note's star is Pencil with no shadow; flags keep their own flag colours.
 
 ### Neutral
-- **Canvas Paper** (canvas-paper): the main content and study background.
+- **Canvas Paper** (canvas-paper): the main content and study background. The card's web page paints it too, so the card sits on the desk with no edge.
 - **Sidebar Linen** (sidebar-linen): the sidebar, a step darker than the canvas (darker still in dark mode).
-- **Card White** (card-white): panels and behind the card. The card's web page paints the same value so the two meet seamlessly.
 - **Raised Oat** (raised-oat): chip button fill.
 - **Ink / Pencil / Faded Pencil** (ink, pencil, faded-pencil): primary text, secondary text and icons, tertiary text and zero counts.
 - **Hover, Selection, Hairline washes**: translucent black in light mode, translucent white in dark mode, so they work on any of the neutral layers.
@@ -195,18 +192,19 @@ Warm, low-chroma paper and ink, punctuated by one saturated blue and Anki's thre
 
 ## Layout
 
-- **Main window:** a 248px sidebar beside the content. As in Things 3, showing or hiding it grows or shrinks the window from its right edge, and the page keeps its width and slides across over the sidebar, which stays put; only in full screen, or with no room left on screen, does it push the page aside. Narrowing the window below 720px puts a docked sidebar away; where it can't widen the window it floats over the content behind a 30% black scrim and closes once something is picked. A page narrower than 472px is compact: type shrinks, margins tighten, and rows drop to a single total count. The minimum window is 360 × 340, small enough to study in a corner of the screen.
+- **Main window:** a 248px sidebar beside the content. As in Things 3, showing or hiding it grows or shrinks the window from its right edge, and the page keeps its width and slides across over the sidebar, which stays put; only in full screen, or with no room left on screen, does it push the page aside. Narrowing the window by hand only narrows the page: a docked sidebar stays until it is hidden, and the window can't get narrower than the sidebar plus the 360px minimum. Shown in a window under 720px that can't widen, the sidebar floats over the content behind a 30% black scrim and closes once something is picked. A page narrower than 472px is compact: type shrinks, margins tighten, and rows drop to a single total count. The minimum window is 360 × 340, small enough to study in a corner of the screen.
 - **Today is where the day starts:** the window opens on Today, with no deck selected. Its Study Now (Return) studies the first deck in its list (learning cards first, then the most due), as does a row's play button; a session started there ends back on Today, where the next deck is then first.
 - **Pages** (Today, deck overview): a single reading column capped at 680px, centred, with 56px side margins (18px compact) and 20px between blocks (12px compact). A named list (`PageSection`: an eyebrow over rows) sits a further 12px down, so the page reads in groups.
 - **Study:** when the session ends, its page (see Session end) takes the card's place in the same reading column as the other pages. The card is capped at 860px wide on the canvas, the answer bar sits at the bottom (18px vertical), and the deck name and counts sit in the title bar. The card, the answer bar and the deck name share one side edge: 40px from the window (12px compact), or the centred card's edge when the window is wider than the card; no grade button reaches past the card. Starting a session leaves the sidebar as it was.
 - **Spacing rhythm:** 2 / 4 / 8 / 12 / 20 / 32px. Sidebar rows are 30px with 14px of indent per deck level; list rows are 50px.
 - **Gestures:** a two-finger sideways swipe of 60px shows or hides the sidebar.
 - **Arrow keys:** Up and Down move through the sidebar's rows (Left and Right fold a deck) until the page is clicked or scrolled; from then on they scroll the page 60px at a time, until something is picked in the sidebar again.
-- **Notices:** after a change that has no page of its own, such as Delete Deck, a short message in a regular-material capsule sits near the bottom of the window for 2.5 seconds and is announced to VoiceOver, in desktop's words ("12 cards deleted from Spanish."). Undo brings the deck back.
+- **Notices:** after a change that has no page of its own, such as Delete Deck, a short message in a Liquid Glass capsule sits near the bottom of the window for 2.5 seconds and is announced to VoiceOver, in desktop's words ("12 cards deleted from Spanish."). Undo brings the deck back.
+- **Media sync:** when media takes more than half a second to sync, a two-line Liquid Glass capsule over the bottom of the window shows desktop's counts ("Added: 2↑ 0↓  ·  Checked: 140") with a spinner, which takes over from the Sync button's. It stays at least 1.2 seconds, only ever grows wider, and materializes rather than sliding. It ends on "Media sync complete." with a green check for 1.5 seconds, which VoiceOver announces.
 
 ## Elevation & Depth
 
-Flat by default, with tonal layering: Sidebar Linen, Canvas Paper and Card White are separate layers, divided by 1px hairlines. The only shadow in the main window is the one under the floating sidebar in compact mode (black at 35%, 24px radius, offset 6px right). It's there because the sidebar is above the content, not to decorate.
+Flat by default, with tonal layering: Sidebar Linen and Canvas Paper are separate layers, divided by 1px hairlines. The only shadow in the main window is the one under the floating sidebar in compact mode (black at 35%, 24px radius, offset 6px right). It's there because the sidebar is above the content, not to decorate.
 
 Liquid Glass and materials are for things that float over the flat desk: the study toast (a capsule of regular material over the card), popovers, menus, sheets and future floating panels such as a quick-find palette. Toolbar buttons are drawn plainly, without the toolbar's glass capsule, so the title bar stays part of the page. A toolbar holds only what has no other place: the overview's is Add Cards alone (Options is a chip on the page; Browse and Statistics are sidebar places).
 
@@ -217,7 +215,7 @@ Liquid Glass and materials are for things that float over the flat desk: the stu
 
 ## Shapes
 
-Gently rounded throughout, with radius growing with the size of the element: 4px key caps, 7px sidebar rows and quiet buttons, 9px primary button, 10px list rows, 11px grade buttons, 12px panels, 18px card. Chips and toasts are full capsules. Panels carry a 1px hairline border inside their edge. Icons are SF Symbols, plus two drawn shapes: the Anki star (an outlined, plump-pointed star tilted -14°) and the deck ring.
+Gently rounded throughout, with radius growing with the size of the element: 4px key caps, 7px sidebar rows and quiet buttons, 9px primary button, 10px list rows, 11px grade buttons, 12px panels. The study card has no shape of its own. Chips and toasts are full capsules. Panels carry a 1px hairline border inside their edge. Icons are SF Symbols, plus two drawn shapes: the Anki star (an outlined, plump-pointed star tilted -14°) and the deck ring.
 
 ## Components
 
@@ -227,13 +225,13 @@ Gently rounded throughout, with radius growing with the size of the element: 4px
 - **Quiet** (`QuietButtonStyle`, `IconButton`): no fill at rest, Pencil foreground. On hover the foreground brightens to Ink with a hover wash; pressed shows the selection wash. Disabled drops to 40% opacity. Used for toolbar icons (30 × 28) and the sidebar footer.
 
 ### Grade Buttons (signature)
-Again / Hard / Good / Easy (`GradeButtonStyle`). At rest each is a neutral hover wash with its label in the grade colour; the grade colour fills in only on hover (12%) and when pressed (22%), so the four read as one quiet row. Its number key follows the label in a KeyCap, and the next interval sits underneath in a rounded caption. They share the bar evenly up to 140px each and are 58px tall (48px compact). Good is the one outlined (1.5px, its colour at 55%), because it's the most common answer. Show Answer uses the same style in Ink, 200 × 38, with a Space KeyCap.
+Again / Hard / Good / Easy (`GradeButtonStyle`). At rest each is a neutral hover wash with its label in the grade colour; the grade colour fills in only on hover (12%) and when pressed (22%), so the four read as one quiet row. Its number key follows the label in a KeyCap, and the next interval sits underneath in a rounded caption. They share the bar evenly up to 140px each and are 58px tall (48px compact). Good is the one outlined (1.5px, its colour at 55%), because it's the most common answer. Show Answer uses the same style in Ink, 38px tall and as wide as its label and Space KeyCap, but with no wash or hairline at rest: the wash appears only under the pointer, so during the question the card is the only shape on the canvas.
 
 ### Cards / Containers
 - **Due summary** (`DueSummary`): unboxed, straight on the canvas. A 44px rounded numeral with "due" beside it in Pencil, and under it one line of queue counts ("12 new  3 learning  185 to review") with each number in its queue colour; a zero fades both the number and its word to Faded Pencil. The page's one action (Study Now) sits at the trailing edge, or below when the row is too narrow. With nothing due, the overview shows upstream's "Congratulations! You have finished this deck for now." as a headline, as desktop's overview does, and Today a single lead line: when learning cards come back later today, upstream's "The next learning card will be ready in 5 minutes. There are 3 learning cards due later today." (kept current each minute, and the counts refresh when that card comes due), otherwise "Nothing is due. Come back tomorrow."
 - **Today's list:** under the due summary, an upstream "Due" section lists each deck without subdecks that has cards due, learning first. The total comes from the top-level decks and follows their limits, so when the rows add up to more, a caption under them says so. The eyebrow greets by time of day and gives the date, redrawn each minute so it follows midnight.
 - **Session end** (`SessionFinished`): a page in the same column as Today and the overview, over the card. The deck's path is the eyebrow, upstream's whole "Congratulations! You have finished this deck for now." is the title (no line limit), and its icon is an outlined tick in Ink that draws itself once as the page appears. Under it, in lead Pencil, what the session did in desktop's timebox wording ("12 cards studied in 8 minutes."). Then desktop's congratulations notes from the backend (learning cards still due later today, limits reached), then Back to Deck (Back to Today when the session started there; Return, the page's one primary) with Custom Study… (C) and Unbury as chips, and last, behind a hairline, the deck's description when its Markdown option is on, as desktop shows it.
-- **The study card:** upstream's reviewer in a web view on Card White, up to 860px wide, 18px radius. Its contents are styled by the note type, never by the app.
+- **The study card:** upstream's reviewer in a web view straight on Canvas Paper, up to 860px wide, with no box, border or radius, as desktop draws none. The question reads as text on the desk, with only Show Answer below it. Its contents are styled by the note type, never by the app; a note type's own background fills the column.
 
 ### Navigation
 - **Sidebar:** Sidebar Linen. At the top, the "places": Today (Anki star, total due), then Browse and Statistics with coloured SF Symbols and their single-key shortcuts in KeyCaps, so they can't be read as counts. Below them sits the deck tree in 30px rows with a 7px radius and a selection wash for the selected row. Every deck, top-level or not, is the same row; a deck with subdecks has a disclosure arrow, and top-level decks with subdecks are set apart by 12px of space, never drawn as headings, since they can be selected and studied. Then a footer behind a hairline with New Deck and Sync. When something is waiting to sync, Sync carries a 7px accent dot at its top-right, and its tooltip and VoiceOver label say what ("Sync: changes are waiting"); when a one-way sync is needed its arrows also gain an exclamation mark, so the two states differ in shape, not only in words.

@@ -120,10 +120,10 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         </style>
         <link rel="stylesheet" href="/_anki/css/reviewer.css">
         <style>
-        /* The main window's card surface, so the page meets it seamlessly. */
-        html:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.light)); }
-        html.night-mode:root { --canvas: \(Theme.Palette.css(Theme.Palette.cardSurface.dark)); }
-        /* No rubber-banding: the card sits in a fixed panel, not a page. */
+        /* The main window's canvas, so the card sits on it with no edge. */
+        html:root { --canvas: \(Theme.Palette.css(Theme.Palette.canvasHex.light)); }
+        html.night-mode:root { --canvas: \(Theme.Palette.css(Theme.Palette.canvasHex.dark)); }
+        /* No rubber-banding: the card sits in a fixed column, not a page. */
         html, body { overscroll-behavior: none; }
         </style>
         </head>

@@ -14,7 +14,9 @@ import SwiftUI
 /// As in Things 3, showing or hiding the docked sidebar grows or shrinks
 /// the window by its width from the right edge, and the page keeps its size
 /// and slides across, over the sidebar, which stays put. Where the window can't change (full screen, or
-/// no room on screen) the sidebar pushes the page aside instead.
+/// no room on screen) the sidebar pushes the page aside instead. Narrowing
+/// the window by hand only narrows the page; the sidebar stays until it is
+/// hidden.
 @Observable final class WindowLayout {
     var sidebarVisible = !UserDefaults.standard.bool(forKey: "sidebarHidden") {
         didSet { if !sidebarFloats { UserDefaults.standard.set(!sidebarVisible, forKey: "sidebarHidden") } }
@@ -23,9 +25,6 @@ import SwiftUI
     /// The page's width, held while the window slides around it.
     var pageWidth: CGFloat?
     @ObservationIgnored weak var window: NSWindow?
-    /// Put away because the window got too narrow; it comes back when the
-    /// window is widened again.
-    @ObservationIgnored private var hiddenForWidth = false
     /// Up and Down move through the sidebar until the page is clicked or
     /// scrolled; then they scroll the page, until something is picked in
     /// the sidebar again.
@@ -37,7 +36,6 @@ import SwiftUI
     func toggleSidebar(_ visible: Bool? = nil) {
         let show = visible ?? !sidebarVisible
         guard show != sidebarVisible, pageWidth == nil else { return }
-        hiddenForWidth = false
         let sidebar = Theme.Layout.sidebarWidth
         if let window, !window.styleMask.contains(.fullScreen), let screen = window.screen?.visibleFrame {
             var frame = window.frame
@@ -79,22 +77,10 @@ import SwiftUI
     }
 
     /// The window crossed `compactWidth`, resized by hand or by going full
-    /// screen: a docked sidebar is put away when it gets narrow, and comes
-    /// back (or stops floating) when it gets wide.
+    /// screen: a floating sidebar docks once there is room for it.
     func windowWidthChanged(narrow: Bool) {
-        guard pageWidth == nil else { return }
-        if narrow {
-            guard sidebarVisible, !sidebarFloats else { return }
-            hiddenForWidth = true
-            withAnimation(.smooth(duration: 0.28)) { sidebarVisible = false }
-        } else {
-            let show = hiddenForWidth
-            hiddenForWidth = false
-            withAnimation(.smooth(duration: 0.28)) {
-                sidebarFloats = false
-                if show { sidebarVisible = true }
-            }
-        }
+        guard pageWidth == nil, !narrow, sidebarFloats else { return }
+        withAnimation(.smooth(duration: 0.28)) { sidebarFloats = false }
     }
 
     /// After picking something in the sidebar.
@@ -629,19 +615,22 @@ struct ChipButtonStyle: ButtonStyle {
 /// A rating: its label in its colour on a neutral wash; the colour fills in
 /// only under the pointer and when pressed, so four answers at rest read as
 /// one quiet row rather than four tinted blocks. It fills the width it is
-/// given, so the four share a row evenly.
+/// given, so the four share a row evenly. Without `rests`, it has no wash
+/// or hairline until the pointer is over it, as Show Answer does.
 struct GradeButtonStyle: ButtonStyle {
     let color: Color
     let emphasised: Bool
+    var rests = true
 
     func makeBody(configuration: Configuration) -> some View {
-        GradeBody(configuration: configuration, color: color, emphasised: emphasised)
+        GradeBody(configuration: configuration, color: color, emphasised: emphasised, rests: rests)
     }
 
     private struct GradeBody: View {
         let configuration: Configuration
         let color: Color
         let emphasised: Bool
+        let rests: Bool
         @State private var hovered = false
 
         var body: some View {
@@ -651,9 +640,10 @@ struct GradeButtonStyle: ButtonStyle {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(RoundedRectangle(cornerRadius: 11)
                     .fill(configuration.isPressed ? color.opacity(0.22)
-                        : hovered ? color.opacity(0.12) : Theme.Palette.hover))
+                        : hovered ? color.opacity(0.12) : rests ? Theme.Palette.hover : .clear))
                 .overlay(RoundedRectangle(cornerRadius: 11)
-                    .strokeBorder(emphasised ? color.opacity(0.55) : Theme.Palette.hairline, lineWidth: emphasised ? 1.5 : 1))
+                    .strokeBorder(emphasised ? color.opacity(0.55) : rests ? Theme.Palette.hairline : .clear,
+                        lineWidth: emphasised ? 1.5 : 1))
                 .contentShape(.rect)
                 .onHover { hovered = $0 }
         }

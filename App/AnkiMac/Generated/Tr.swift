@@ -1054,6 +1054,7 @@ nonisolated enum Tr {
     static let decksUnmovableCards = "Show any excluded cards"
     static let searchViewInBrowser = "View in browser"
     static let studyingAgain = "Again"
+    static let studyingShowAnswer = "Show Answer"
     static let studyingHard = "Hard"
     static let studyingGood = "Good"
     static let studyingEasy = "Easy"

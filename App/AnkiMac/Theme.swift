@@ -11,9 +11,8 @@ enum Theme {
     /// greys, one electric accent, and muted queue colours. Each colour has
     /// a light and a dark value and follows the system appearance.
     enum Palette {
-        static let canvas = dynamic(0xFAF9F6, 0x1D1C1A)
+        static let canvas = dynamic(canvasHex.light, canvasHex.dark)
         static let sidebar = dynamic(0xF1EFEA, 0x161513)
-        static let surface = dynamic(cardSurface.light, cardSurface.dark)
         static let raised = dynamic(0xF6F4F0, 0x2D2C29)
         static let hover = dynamic(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
         static let selection = dynamic(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
@@ -33,9 +32,9 @@ enum Theme {
         /// Anki's own star blue, for Today.
         static let star = dynamic(0x2E9BEA, 0x55B8F7)
 
-        /// Behind the card while studying. The card's web page paints the
-        /// same values (ReviewerWebController), so the two meet seamlessly.
-        static let cardSurface = (light: UInt32(0xFFFFFF), dark: UInt32(0x252421))
+        /// The card's web page paints the canvas too (ReviewerWebController),
+        /// so the card sits straight on the desk with no box around it.
+        static let canvasHex = (light: UInt32(0xFAF9F6), dark: UInt32(0x1D1C1A))
 
         static func css(_ hex: UInt32) -> String { String(format: "#%06X", hex) }
 
@@ -65,8 +64,8 @@ enum Theme {
     /// sidebar, and the width below which everything tightens up.
     enum Layout {
         static let sidebarWidth: CGFloat = 248
-        /// Below this window width a docked sidebar is put away, and one
-        /// that can't widen the window floats over the content instead.
+        /// Below this window width a sidebar that can't widen the window
+        /// floats over the content instead of docking.
         static let compactWidth: CGFloat = 720
         /// Below this page width (the window's, less a docked sidebar) type
         /// shrinks and margins tighten. Showing or hiding the sidebar
@@ -152,9 +151,8 @@ enum Theme {
         /// Answer buttons share the width evenly up to this, so none looks
         /// more important by size; in a small window they shrink together.
         static let answerButtonMaxWidth: CGFloat = 140
-        /// Show Answer is one line, so it is smaller than the grades and
-        /// sits in the middle of their row.
-        static let showAnswerWidth: CGFloat = 200
+        /// Show Answer is one line, so it is shorter than the grades, and
+        /// as wide as its label, in the middle of their row.
         static let showAnswerHeight: CGFloat = 38
         static let answerButtonHeight: CGFloat = 58
         static let compactAnswerButtonHeight: CGFloat = 48
@@ -169,14 +167,31 @@ enum Theme {
         static let titleActionsInset: CGFloat = 110
         /// Past the window controls and the sidebar button.
         static let titleControlsInset: CGFloat = 132
-        static let cardRadius: CGFloat = 18
-        static let compactCardRadius: CGFloat = 14
         /// How long the message after a card action stays over the card.
         static let feedbackDuration: Duration = .seconds(2.5)
         /// Keeps the message above the answer bar.
         static let feedbackBottomInset: CGFloat = 90
         static let editorWidth: CGFloat = 560
         static let editorHeight: CGFloat = 420
+    }
+
+    /// The media sync capsule over the main window.
+    enum MediaSync {
+        /// How often the backend is asked how media sync is going.
+        static let pollInterval: Duration = .milliseconds(250)
+        /// A media sync that finishes sooner than this shows nothing.
+        static let showDelay: Duration = .milliseconds(500)
+        /// Once shown, the capsule stays at least this long, so it never
+        /// flickers.
+        static let minimumShown: Duration = .seconds(1.2)
+        /// How long "complete" stays before the capsule goes.
+        static let completeHold: Duration = .seconds(1.5)
+        /// Wide enough for most counts, so the capsule rarely grows.
+        static let minWidth: CGFloat = 200
+        static let leadingInset: CGFloat = 10
+        /// The spinner and the checkmark that replaces it share this box.
+        static let iconSize: CGFloat = 16
+        static let lineSpacing: CGFloat = 1
     }
 
     enum Window {

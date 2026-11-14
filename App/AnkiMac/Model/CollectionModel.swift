@@ -71,6 +71,13 @@ nonisolated struct CollectionPaths: Sendable {
     }
 }
 
+/// What the media sync capsule says: the counts so far, kept on through
+/// "complete" so the capsule doesn't change size as it finishes.
+enum MediaSyncCapsuleState: Equatable {
+    case syncing(String)
+    case complete(String)
+}
+
 /// The open collection and the app-wide state built on it. One per app.
 @Observable
 final class CollectionModel {
@@ -152,7 +159,10 @@ final class CollectionModel {
     var syncAuth: Anki_Sync_SyncAuth?
     var syncStatus: Anki_Sync_SyncStatusResponse.Required = .noChanges
     var syncIsRunning = false
-    var syncMediaProgress = ""
+    /// The capsule over the main window while media syncs; nil when it
+    /// isn't shown. See monitorMediaSync for when it comes and goes.
+    private(set) var mediaSyncCapsule: MediaSyncCapsuleState?
+    @ObservationIgnored private var mediaSyncCapsuleTask: Task<Void, Never>?
     var syncLoginPresented = false
     var syncUsername = ""
     var syncConflictPresented = false
@@ -489,23 +499,49 @@ final class CollectionModel {
         }
     }
 
+    /// Syncs media, showing its progress in a capsule only once it has run
+    /// for a moment (most syncs move no media), keeping the capsule long
+    /// enough to read, and ending it on "complete".
     private func monitorMediaSync(_ backend: AnkiBackend) async {
+        guard let auth = syncAuth else { return }
+        mediaSyncCapsuleTask?.cancel()
+        mediaSyncCapsule = nil
+        let clock = ContinuousClock()
+        let started = clock.now
+        var shown: ContinuousClock.Instant?
+        var progress = ""
         do {
-            guard let auth = syncAuth else { return }
             try await backend.perform { try $0.syncMedia(auth) }
             while true {
                 let status = try await backend.perform { try $0.mediaSyncStatus() }
                 if status.hasProgress {
-                    let progress = status.progress
-                    syncMediaProgress = "Added: \(progress.added) · Removed: \(progress.removed) · Checked: \(progress.checked)"
+                    // The backend words each count itself ("Added: 2↑ 0↓").
+                    let counts = status.progress
+                    progress = [counts.added, counts.removed, counts.checked]
+                        .filter { !$0.isEmpty }.joined(separator: "  ·  ")
                 }
                 if !status.active { break }
-                try await Task.sleep(for: .milliseconds(250))
+                if shown == nil, clock.now - started >= Theme.MediaSync.showDelay { shown = clock.now }
+                if shown != nil { mediaSyncCapsule = .syncing(progress) }
+                try await Task.sleep(for: Theme.MediaSync.pollInterval)
             }
-            syncMediaProgress = Tr.syncMediaComplete
         } catch {
-            syncMediaProgress = Tr.syncMediaFailed
+            mediaSyncCapsule = nil
             syncAlert = ActionFailure.reason(error)
+            return
+        }
+        guard let shown else { return }
+        mediaSyncCapsule = .syncing(progress)
+        // Sync itself is done; the capsule finishes on its own time.
+        mediaSyncCapsuleTask = Task {
+            try? await clock.sleep(until: shown + Theme.MediaSync.minimumShown)
+            guard !Task.isCancelled else { return }
+            mediaSyncCapsule = .complete(progress)
+            NSAccessibility.post(
+                element: NSApp as Any, notification: .announcementRequested,
+                userInfo: [.announcement: Tr.syncMediaComplete])
+            try? await Task.sleep(for: Theme.MediaSync.completeHold)
+            if !Task.isCancelled { mediaSyncCapsule = nil }
         }
     }
 

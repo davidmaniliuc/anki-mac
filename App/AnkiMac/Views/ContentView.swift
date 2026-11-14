@@ -79,22 +79,39 @@ struct ContentView: View {
         .tint(Theme.Palette.accent)
         .onSidebarSwipe(in: { [weak model] in model?.mainWindow }) { layout.toggleSidebar($0) }
         .overlay(alignment: .bottom) {
-            if let notice = model.notice {
-                Text(notice)
-                    .padding(.horizontal, Theme.Spacing.medium)
-                    .padding(.vertical, Theme.Spacing.small)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.bottom, Theme.Spacing.xLarge)
-                    .transition(.opacity)
-                    .accessibilityAddTraits(.updatesFrequently)
+            // One container, so the two capsules materialize as glass and
+            // blend when they sit together.
+            GlassEffectContainer(spacing: Theme.Spacing.small) {
+                VStack(spacing: Theme.Spacing.small) {
+                    if let capsule = model.mediaSyncCapsule {
+                        MediaSyncCapsule(state: capsule)
+                            .glassEffectTransition(.materialize)
+                    }
+                    if let notice = model.notice {
+                        Text(notice)
+                            .padding(.horizontal, Theme.Spacing.medium)
+                            .padding(.vertical, Theme.Spacing.small)
+                            .glassEffect(in: Capsule())
+                            .glassEffectTransition(.materialize)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
+                }
             }
+            .padding(.bottom, Theme.Spacing.xLarge)
+            .animation(.default, value: model.notice)
+            .animation(.smooth, value: model.mediaSyncCapsule == nil)
         }
-        .animation(.default, value: model.notice)
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
         .navigationSubtitle(model.profileName ?? "")
         // Undo acts on the card being studied, or else on the deck list.
         .focusedSceneValue(\.cardTarget, model.session.map { $0 as any CardCommandTarget } ?? model)
-        .frame(minWidth: Theme.Window.minWidth, minHeight: Theme.Window.minHeight)
+        // A docked sidebar keeps its width, so the window can't be narrowed
+        // past it and the page's minimum. Not while the window slides,
+        // which would snap it to the new minimum.
+        .frame(
+            minWidth: Theme.Window.minWidth
+                + (layout.sidebarVisible && !layout.sidebarFloats && layout.pageWidth == nil ? Theme.Layout.sidebarWidth : 0),
+            minHeight: Theme.Window.minHeight)
         .onChange(of: model.selectedDeckID) { _, deckID in
             // Picking another deck in the sidebar leaves the session.
             if let session = model.session, session.deckID != deckID {
@@ -266,5 +283,65 @@ private struct DeckPrompts: ViewModifier {
                 else { return }
                 Task { await model.refreshDecks() }
             }
+    }
+}
+
+/// Media syncs after the collection, often for a while, so its progress
+/// floats over the window rather than squeezing into the Sync button.
+/// Always two lines, and it only ever grows, so the glass holds its shape
+/// while the counts change.
+private struct MediaSyncCapsule: View {
+    let state: MediaSyncCapsuleState
+    @State private var width: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            ZStack {
+                if case .complete = state {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.Palette.green)
+                        .transition(.opacity)
+                } else {
+                    ProgressView().controlSize(.small)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: Theme.MediaSync.iconSize, height: Theme.MediaSync.iconSize)
+            VStack(alignment: .leading, spacing: Theme.MediaSync.lineSpacing) {
+                Text(title).font(Theme.Fonts.chip)
+                if let detail {
+                    Text(detail)
+                        .font(Theme.Fonts.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = max(width, $0) }
+            .frame(minWidth: max(width, Theme.MediaSync.minWidth), alignment: .leading)
+        }
+        .padding(.leading, Theme.MediaSync.leadingInset)
+        .padding(.trailing, Theme.Spacing.medium)
+        .padding(.vertical, Theme.Spacing.small)
+        .glassEffect(in: Capsule())
+        .animation(.snappy(duration: 0.2), value: width)
+        .animation(.smooth(duration: 0.25), value: isComplete)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private var isComplete: Bool {
+        if case .complete = state { return true }
+        return false
+    }
+
+    private var title: String { isComplete ? Tr.syncMediaComplete : "Syncing Media" }
+
+    /// The counts, or that it's starting before the first count arrives.
+    private var detail: String? {
+        switch state {
+        case .syncing(let progress): progress.isEmpty ? Tr.syncMediaStarting : progress
+        case .complete(let progress): progress.isEmpty ? nil : progress
+        }
     }
 }

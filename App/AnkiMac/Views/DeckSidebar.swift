@@ -343,8 +343,9 @@ struct SidebarRowShell<Content: View>: View {
     }
 }
 
-/// Sync, with its progress while it runs (a click cancels), and a dot
-/// when something is waiting to sync.
+/// Sync, with a spinner while it runs (a click cancels), and a dot when
+/// something is waiting to sync. Media progress floats over the window,
+/// and while it shows, the spinner there is the only one.
 private struct SyncButton: View {
     @Environment(CollectionModel.self) private var model
 
@@ -353,13 +354,8 @@ private struct SyncButton: View {
             if model.syncIsRunning { model.cancelSync() } else { Task { await model.synchronize() } }
         } label: {
             Group {
-                if model.syncIsRunning {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        if !model.syncMediaProgress.isEmpty {
-                            Text(model.syncMediaProgress).font(Theme.Fonts.caption)
-                        }
-                    }
+                if model.syncIsRunning && model.mediaSyncCapsule == nil {
+                    ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: model.syncStatus == .fullSync
                         ? "exclamationmark.arrow.triangle.2.circlepath" : "arrow.triangle.2.circlepath")
