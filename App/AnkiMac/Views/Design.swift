@@ -500,6 +500,45 @@ struct AnkiStar: View {
     }
 }
 
+/// Two chevrons, stacked: pointing apart to unfold everything, toward each
+/// other to fold it (Obsidian's icons). Between the two they flatten and
+/// turn over, so a change of meaning animates.
+struct FoldAllGlyph: View {
+    /// 0 points the chevrons apart, 1 toward each other.
+    var folding: CGFloat
+
+    var body: some View {
+        ChevronPair(folding: folding)
+            .stroke(style: StrokeStyle(lineWidth: 1.75, lineCap: .round, lineJoin: .round))
+            .frame(width: 15, height: 15)
+            .accessibilityHidden(true)
+    }
+
+    private nonisolated struct ChevronPair: Shape {
+        var folding: CGFloat
+        var animatableData: CGFloat {
+            get { folding }
+            set { folding = newValue }
+        }
+
+        // Drawn on a 24-point grid, as Lucide's chevrons are.
+        func path(in rect: CGRect) -> Path {
+            let scale = min(rect.width, rect.height) / 24
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: rect.minX + x * scale, y: rect.minY + y * scale)
+            }
+            func lerp(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * folding }
+            var path = Path()
+            for (tip, arms) in [(lerp(3, 9), lerp(9, 3)), (lerp(21, 15), lerp(15, 21))] {
+                path.move(to: point(6, arms))
+                path.addLine(to: point(12, tip))
+                path.addLine(to: point(18, arms))
+            }
+            return path
+        }
+    }
+}
+
 /// A key's name in a small rounded box, shown beside the action it does.
 struct KeyCap: View {
     let key: String

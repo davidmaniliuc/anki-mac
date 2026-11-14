@@ -121,6 +121,7 @@ struct DeckSidebar: View {
             .buttonStyle(QuietButtonStyle())
             .disabled(!model.isLoaded)
             Spacer()
+            foldAllButton
             SyncButton()
         }
         .padding(.horizontal, Theme.Spacing.medium)
@@ -137,6 +138,47 @@ struct DeckSidebar: View {
             withAnimation(.smooth(duration: 0.2)) { expanded[node.id] = isExpanded }
             model.setCollapsed(node.id, !isExpanded)
         }
+    }
+
+    /// Folds every deck while any is open, as Obsidian's file list does, and
+    /// otherwise unfolds them all.
+    private var foldAllButton: some View {
+        let parents = parentDecks(model.decks)
+        let anyOpen = parents.contains { expansion($0).wrappedValue }
+        let label = anyOpen ? "Collapse All" : "Expand All"
+        return Button { setAllExpanded(!anyOpen, parents) } label: {
+            FoldAllGlyph(folding: anyOpen ? 1 : 0)
+                .frame(width: 30, height: 28)
+        }
+        .buttonStyle(QuietButtonStyle())
+        .help(label)
+        .accessibilityLabel(label)
+        .disabled(!model.isLoaded || parents.isEmpty)
+    }
+
+    private func parentDecks(_ nodes: [DeckNode]) -> [DeckNode] {
+        nodes.flatMap { node in
+            node.children.map { [node] + parentDecks($0) } ?? []
+        }
+    }
+
+    /// A selected deck that folding hides hands the selection to its
+    /// top-level deck, so the arrow keys carry on from a row on screen.
+    private func setAllExpanded(_ isExpanded: Bool, _ parents: [DeckNode]) {
+        withAnimation(.smooth(duration: 0.25)) {
+            for node in parents where expansion(node).wrappedValue != isExpanded {
+                expanded[node.id] = isExpanded
+                model.setCollapsed(node.id, !isExpanded)
+            }
+            if !isExpanded, let id = model.selectedDeckID,
+               let top = model.decks.first(where: { contains(id, $0.children ?? []) }) {
+                model.selectedDeckID = top.id
+            }
+        }
+    }
+
+    private func contains(_ deckID: Int64, _ nodes: [DeckNode]) -> Bool {
+        nodes.contains { $0.id == deckID || contains(deckID, $0.children ?? []) }
     }
 
     /// Expands the parents of a deck selected from elsewhere, such as one
