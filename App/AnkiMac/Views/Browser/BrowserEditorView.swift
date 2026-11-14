@@ -6,18 +6,22 @@ struct BrowserEditorView: View {
     let cardLayout: () -> Void
 
     var body: some View {
-        if model.noteID == nil {
-            ContentUnavailableView(
-                "No Note Selected", systemImage: "square.and.pencil",
-                description: Text("Select one card or note to edit it."))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            VStack(spacing: 0) {
-                NoteEditorView(editor: model.editor, cardLayout: cardLayout)
-                Divider()
-                TagRow(tags: $model.tags, complete: model.completeTags)
-                    .padding(Theme.Spacing.medium)
+        Group {
+            if model.noteID == nil {
+                ContentUnavailableView(
+                    "No Note Selected", systemImage: "square.and.pencil",
+                    description: Text("Select one card or note to edit it."))
+                .foregroundStyle(Theme.Palette.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    NoteEditorView(editor: model.editor, cardLayout: cardLayout)
+                    Theme.Palette.hairline.frame(height: 1)
+                    TagRow(tags: $model.tags, complete: model.completeTags)
+                        .padding(Theme.Spacing.medium)
+                }
             }
         }
+        .background(Theme.Palette.canvas, ignoresSafeAreaEdges: .all)
     }
 }

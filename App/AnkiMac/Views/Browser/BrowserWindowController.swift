@@ -13,8 +13,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     private let tableController: BrowserTableController
     private let editor: BrowserEditorModel?
     private let searchItem = NSSearchToolbarItem(itemIdentifier: .search)
-    private let modeControl = NSSegmentedControl(
-        labels: BrowserMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
     private let previewItem = NSToolbarItem(itemIdentifier: .preview)
     private let errorBar = SearchErrorBar()
     private var previewer: BrowserPreviewWindowController?
@@ -54,6 +52,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         window.minSize = NSSize(width: Theme.Browser.minWidth, height: Theme.Browser.minHeight)
         window.isRestorable = false
         window.isReleasedWhenClosed = false
+        window.backgroundColor = Theme.Palette.canvasNS
         window.delegate = self
         window.contentViewController = makeSplit()
         window.setFrameAutosaveName("Browser")
@@ -70,9 +69,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
         searchItem.searchField.sendsWholeSearchString = true
         searchItem.searchField.target = self
         searchItem.searchField.action = #selector(searchSubmitted(_:))
-        modeControl.target = self
-        modeControl.action = #selector(modeChanged(_:))
-        modeControl.toolTip = "Show one row per card or one row per note"
         previewItem.label = Tr.actionsPreview
         previewItem.toolTip = Tr.actionsPreview + " (\u{21E7}\u{2318}P)"
         previewItem.target = self
@@ -85,6 +81,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     private func makeSplit() -> NSSplitViewController {
         let split = NSSplitViewController()
+        split.splitView = HairlineSplitView()
+        split.splitView.isVertical = true
+        split.splitView.dividerStyle = .thin
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
         sidebarItem.minimumThickness = Theme.Sidebar.minWidth
         split.addSplitViewItem(sidebarItem)
@@ -116,10 +115,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
             if searchItem.searchField.stringValue != model.searchText {
                 searchItem.searchField.stringValue = model.searchText
             }
-        }
-        track { [weak self] in
-            guard let self else { return }
-            modeControl.selectedSegment = BrowserMode.allCases.firstIndex(of: model.mode) ?? 0
         }
         track { [weak self] in
             guard let self else { return }
@@ -198,10 +193,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
     private func showPreviewState() {
         previewItem.image = NSImage(
             systemSymbolName: previewer == nil ? "eye" : "eye.fill", accessibilityDescription: Tr.actionsPreview)
-    }
-
-    @objc private func modeChanged(_ control: NSSegmentedControl) {
-        model.setMode(BrowserMode.allCases[control.selectedSegment])
     }
 
     /// Shows the sheet for the model's prompt, and takes it down once the
@@ -294,7 +285,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, NSToo
             return previewItem
         case .mode:
             let item = NSToolbarItem(itemIdentifier: identifier)
-            item.view = modeControl
+            let switcher = NSHostingView(rootView: ModeSwitch(model: model))
+            switcher.setFrameSize(switcher.fittingSize)
+            item.view = switcher
+            item.toolTip = ModeSwitch.help
             item.label = "Show"
             // In a narrow window the search field shrinks to its button
             // first, rather than the switch going into the overflow menu.
@@ -310,6 +304,25 @@ private extension NSToolbarItem.Identifier {
     static let search = Self("search")
     static let mode = Self("mode")
     static let preview = Self("preview")
+}
+
+/// Cards or Notes, as quiet segments. The model's mode is the only state:
+/// picking one asks the model, and the segments follow it.
+private struct ModeSwitch: View {
+    static let help = "Show one row per card or one row per note"
+    let model: BrowserModel
+
+    var body: some View {
+        QuietSegments(
+            selection: Binding(get: { model.mode }, set: { model.setMode($0) }), choices: BrowserMode.allCases,
+            title: \.title)
+        .help(Self.help)
+    }
+}
+
+/// Draws the line between panes as a hairline, not the system's grey.
+private final class HairlineSplitView: NSSplitView {
+    override var dividerColor: NSColor { Theme.Palette.hairlineNS }
 }
 
 /// The browser that menu commands act on while its window is key. SwiftUI's
@@ -356,17 +369,16 @@ private final class DetailController: NSViewController {
 }
 
 /// The backend's explanation of a search it could not parse, above the
-/// results of the last search that worked.
-private final class SearchErrorBar: NSVisualEffectView {
+/// results of the last search that worked. Flat Raised Oat under a hairline.
+private final class SearchErrorBar: NSView {
     private let icon = NSImageView()
     private let label = NSTextField(wrappingLabelWithString: "")
 
     init() {
         super.init(frame: .zero)
-        material = .headerView
-        blendingMode = .withinWindow
         icon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Error")
         icon.symbolConfiguration = .preferringMulticolor()
+        label.textColor = Theme.Palette.textNS
         label.isSelectable = true
         let row = NSStackView(views: [icon, label])
         row.spacing = Theme.Spacing.small
@@ -386,6 +398,14 @@ private final class SearchErrorBar: NSVisualEffectView {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        Theme.Palette.raisedNS.setFill()
+        dirtyRect.fill()
+        Theme.Palette.hairlineNS.setFill()
+        NSRect(x: bounds.minX, y: isFlipped ? bounds.maxY - 1 : bounds.minY, width: bounds.width, height: 1)
+            .intersection(dirtyRect).fill()
+    }
 
     func show(_ message: String?) {
         isHidden = message == nil

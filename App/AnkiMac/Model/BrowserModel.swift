@@ -50,6 +50,19 @@ extension BrowserColumn {
     nonisolated func sorting(_ mode: BrowserMode) -> Anki_Search_BrowserColumns.Sorting {
         mode == .cards ? sortingCards : sortingNotes
     }
+
+    /// Counts, intervals, dates and scheduling figures, which the table sets
+    /// in the rounded face with tabular digits. The keys are the backend's
+    /// (rslib's browser_table.rs `Column`). "template" is the card's template
+    /// name in cards mode and a count of cards in notes mode.
+    nonisolated func isNumeric(_ mode: BrowserMode) -> Bool {
+        Self.numericKeys.contains(key) || (key == "template" && mode == .notes)
+    }
+
+    private nonisolated static let numericKeys: Set<String> = [
+        "cardDue", "cardEase", "cardLapses", "cardIvl", "cardReps", "cardMod", "noteCrt", "noteMod",
+        "originalPosition", "stability", "difficulty", "retrievability",
+    ]
 }
 
 nonisolated struct BrowserSort: Equatable, Sendable {

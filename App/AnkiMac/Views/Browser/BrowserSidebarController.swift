@@ -1,6 +1,7 @@
 import AppKit
 
-/// The browser's sidebar: a source-list NSOutlineView. A SwiftUI `List` took
+/// The browser's sidebar: an NSOutlineView on Sidebar Linen, its rows and
+/// selection drawn by hand in the main window's look. A SwiftUI `List` took
 /// about 70 ms of main thread to insert a 70-row sidebar; this takes a few.
 final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     let model: BrowserModel
@@ -23,7 +24,14 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func loadView() {
-        outline.style = .sourceList
+        // Plain, not a source list: no vibrancy and no system selection, so
+        // the rows (see `SidebarRowView`) and the linen are drawn here.
+        outline.style = .plain
+        outline.rowSizeStyle = .custom
+        outline.rowHeight = Theme.Browser.denseRowHeight
+        outline.intercellSpacing = .zero
+        outline.indentationPerLevel = Theme.Layout.indent
+        outline.backgroundColor = .clear
         outline.headerView = nil
         outline.floatsGroupRows = false
         outline.allowsMultipleSelection = true
@@ -42,7 +50,8 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        scroll.drawsBackground = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = Theme.Palette.sidebarNS
         view = scroll
         track { [weak self] in self?.show(self?.model.sidebar) }
     }
@@ -158,12 +167,22 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         (item as? Row)?.item != nil
     }
 
+    func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+        outlineView.makeView(withIdentifier: SidebarRowView.identifier, owner: nil) as? SidebarRowView ?? SidebarRowView()
+    }
+
+    /// A section's name has room above it, except the first.
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        guard let row = item as? Row, row.item == nil, row !== roots.first else { return Theme.Browser.denseRowHeight }
+        return Theme.Browser.denseRowHeight + Theme.Browser.sidebarHeaderGap
+    }
+
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         guard let row = item as? Row else { return nil }
         guard let sidebarItem = row.item else {
             let header = outlineView.makeView(withIdentifier: SidebarHeaderCell.identifier, owner: nil)
                 as? SidebarHeaderCell ?? SidebarHeaderCell()
-            header.textField?.stringValue = row.title
+            header.show(row.title)
             return header
         }
         let cell = outlineView.makeView(withIdentifier: SidebarCell.identifier, owner: nil) as? SidebarCell
@@ -220,6 +239,7 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     }
 }
 
+/// A section's name: an eyebrow, in Pencil.
 private final class SidebarHeaderCell: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("SidebarHeader")
 
@@ -227,19 +247,77 @@ private final class SidebarHeaderCell: NSTableCellView {
         super.init(frame: .zero)
         identifier = Self.identifier
         let label = NSTextField(labelWithString: "")
-        label.font = Theme.Browser.sidebarHeaderFont
-        label.textColor = .secondaryLabelColor
         addSubview(label)
         textField = label
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    func show(_ title: String) {
+        textField?.attributedStringValue = NSAttributedString(
+            string: title.uppercased(),
+            attributes: [
+                .font: Theme.Browser.headerFont, .foregroundColor: Theme.Palette.secondaryNS,
+                .kern: Theme.Fonts.eyebrowTracking,
+            ])
+        textField?.setAccessibilityLabel(title)
+    }
+
+    /// The name sits in the row's last 26px; any extra height is the gap above it.
     override func layout() {
         super.layout()
         guard let label = textField else { return }
         let height = label.intrinsicContentSize.height
-        label.frame = NSRect(x: 0, y: (bounds.height - height) / 2, width: bounds.width, height: height)
+        label.frame = NSRect(
+            x: 0, y: (Theme.Browser.denseRowHeight - height) / 2, width: bounds.width, height: height)
+    }
+}
+
+/// A sidebar row: the selection wash, and a hover wash under the pointer. A
+/// selected row's label steps forward to semibold, as the main sidebar's.
+private final class SidebarRowView: WashRowView {
+    static let identifier = NSUserInterfaceItemIdentifier("SidebarRow")
+
+    private var hovered = false {
+        didSet { if hovered != oldValue { needsDisplay = true } }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        identifier = Self.identifier
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override var isSelected: Bool {
+        didSet { cell?.showsSelection = isSelected }
+    }
+
+    private var cell: SidebarCell? { subviews.lazy.compactMap { $0 as? SidebarCell }.first }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        (subview as? SidebarCell)?.showsSelection = isSelected
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        hovered = false
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(
+            rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = !isGroupRowStyle }
+    override func mouseExited(with event: NSEvent) { hovered = false }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        super.drawBackground(in: dirtyRect)
+        if hovered, !isSelected { fillWash(Theme.Palette.hoverNS) }
     }
 }
 
@@ -262,10 +340,19 @@ final class SidebarCell: NSTableCellView {
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
 
+    /// Set by the row view: the selected row's name is semibold.
+    var showsSelection = false {
+        didSet { if showsSelection != oldValue { label.font = showsSelection ? Theme.Browser.sidebarSelectedFont : Theme.Browser.sidebarFont } }
+    }
+
     init() {
         super.init(frame: .zero)
         identifier = Self.identifier
+        label.font = Theme.Browser.sidebarFont
+        label.textColor = Theme.Palette.textNS
+        label.backgroundColor = Theme.Palette.canvasNS
         label.lineBreakMode = .byTruncatingTail
+        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: Theme.Browser.sidebarIconSize, weight: .regular)
         addSubview(icon)
         addSubview(label)
         imageView = icon
@@ -274,6 +361,7 @@ final class SidebarCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    /// Shows the name over the canvas, as a field being typed in.
     func beginEditing(delegate: NSTextFieldDelegate) {
         label.isEditable = true
         label.drawsBackground = true
@@ -294,20 +382,21 @@ final class SidebarCell: NSTableCellView {
         label.delegate = nil
         label.stringValue = title
         icon.image = NSImage(systemSymbolName: item.systemImage, accessibilityDescription: nil)
-        // Flags keep their colour; every other icon follows the accent colour.
+        // Flags keep their colour; every other icon is Pencil.
         if case .flag(let flag) = item {
             icon.contentTintColor = NSColor(Theme.flagColor(flag))
         } else {
-            icon.contentTintColor = .controlAccentColor
+            icon.contentTintColor = Theme.Palette.secondaryNS
         }
     }
 
     override func layout() {
         super.layout()
-        let side = Theme.Browser.sidebarIconSize
-        icon.frame = NSRect(x: 0, y: (bounds.height - side) / 2, width: side, height: side)
+        let slot = Theme.Browser.sidebarIconSlot
+        icon.frame = NSRect(x: 0, y: ((bounds.height - slot) / 2).rounded(), width: slot, height: slot)
         let height = label.intrinsicContentSize.height
-        let x = side + Theme.Spacing.small
-        label.frame = NSRect(x: x, y: (bounds.height - height) / 2, width: max(0, bounds.width - x), height: height)
+        let x = slot + Theme.Spacing.small
+        label.frame = NSRect(
+            x: x, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - x), height: height)
     }
 }

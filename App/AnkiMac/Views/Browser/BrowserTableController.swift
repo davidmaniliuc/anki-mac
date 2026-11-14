@@ -26,10 +26,21 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func loadView() {
-        table.style = .inset
-        // Striped by the row views (see `didAdd`): the table's own
-        // alternating colours are drawn on the CPU across the whole clip
-        // view, about 120 ms of the browser's first paint.
+        table.style = .plain
+        table.rowSizeStyle = .custom
+        table.rowHeight = Theme.Browser.denseRowHeight
+        // Cells pad their own text (`Theme.Browser.cellPadding`), so a
+        // column is as wide as its cell and the wash can reach the edge.
+        table.intercellSpacing = .zero
+        // No stripes and no grid: hairlines and the selection wash tell rows
+        // apart. The table's own alternating colours were drawn on the CPU
+        // across the whole clip view, about 120 ms of the browser's first
+        // paint, and the row views stay clear on the scroll view's canvas.
+        table.gridStyleMask = []
+        table.usesAlternatingRowBackgroundColors = false
+        table.backgroundColor = .clear
+        table.headerView = BrowserHeaderView(
+            frame: NSRect(x: 0, y: 0, width: 0, height: Theme.Browser.headerHeight))
         table.allowsMultipleSelection = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
@@ -49,6 +60,8 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
+        scroll.drawsBackground = true
+        scroll.backgroundColor = Theme.Palette.canvasNS
         view = scroll
         model.selectRow = { [weak self] row in
             self?.table.selectRowIndexes([row], byExtendingSelection: false)
@@ -105,7 +118,10 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             return
         }
         let content = data.cells[index]
-        cell.show(content.text, elide: content.elideMode, centered: model.columns[safe: index]?.alignment == .center)
+        let column = model.columns[safe: index]
+        cell.show(
+            content.text, elide: content.elideMode, centered: column?.alignment == .center,
+            numeric: column?.isNumeric(shownMode ?? model.mode) ?? false)
     }
 
     private func rebuildColumns(_ table: NSTableView, mode: BrowserMode, keys: [String]) {
@@ -119,7 +135,7 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         for key in keys {
             guard let column = model.columns.first(where: { $0.key == key }) else { continue }
             let tableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(key))
-            tableColumn.title = column.label(mode)
+            tableColumn.headerCell = BrowserHeaderCell(textCell: column.label(mode))
             tableColumn.headerToolTip = column.tooltip(mode)
             tableColumn.width = Theme.Browser.columnWidth
             tableColumn.minWidth = Theme.Browser.columnMinWidth
@@ -179,11 +195,6 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             ?? BrowserRowView()
         view.color = model.row(at: row)?.color ?? .default
         return view
-    }
-
-    func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int) {
-        let stripes = NSColor.alternatingContentBackgroundColors
-        rowView.backgroundColor = stripes[row % stripes.count]
     }
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -285,6 +296,7 @@ private final class BrowserCell: NSTableCellView {
         super.init(frame: .zero)
         identifier = Self.identifier
         label.font = Theme.Browser.cellFont
+        label.textColor = Theme.Palette.textNS
         addSubview(label)
         textField = label
     }
@@ -300,13 +312,18 @@ private final class BrowserCell: NSTableCellView {
             height: height)
     }
 
-    private static let lineHeight = NSTextField(labelWithString: "Xg").intrinsicContentSize.height
+    private static let lineHeight = {
+        let field = NSTextField(labelWithString: "Xg")
+        field.font = Theme.Browser.cellFont
+        return field.intrinsicContentSize.height
+    }()
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func show(_ text: String, elide: Anki_Search_BrowserRow.Cell.TextElideMode, centered: Bool) {
+    func show(_ text: String, elide: Anki_Search_BrowserRow.Cell.TextElideMode, centered: Bool, numeric: Bool) {
         label.stringValue = text
-        label.textColor = .labelColor
+        setFont(numeric ? Theme.Browser.numberFont : Theme.Browser.cellFont)
+        label.textColor = Theme.Palette.textNS
         label.alignment = centered ? .center : .natural
         label.lineBreakMode = switch elide {
         case .elideLeft: .byTruncatingHead
@@ -318,13 +335,20 @@ private final class BrowserCell: NSTableCellView {
     /// The card or note was deleted since the search ran.
     func showMissing() {
         label.stringValue = "(deleted)"
-        label.textColor = .secondaryLabelColor
+        setFont(Theme.Browser.cellFont)
+        label.textColor = Theme.Palette.secondaryNS
         label.alignment = .natural
+    }
+
+    private func setFont(_ font: NSFont) {
+        if label.font !== font { label.font = font }
     }
 }
 
-/// Tints the whole row for flags, marks, suspension and burying, as desktop.
-private final class BrowserRowView: NSTableRowView {
+/// Selects with a wash, and tints the whole row for flags, marks, suspension
+/// and burying, as desktop. The tint takes the wash's shape and goes over it,
+/// so a selected flagged row still shows its flag.
+private final class BrowserRowView: WashRowView {
     static let identifier = NSUserInterfaceItemIdentifier("BrowserRow")
 
     var color: Anki_Search_BrowserRow.Color = .default {
@@ -342,8 +366,61 @@ private final class BrowserRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
-        guard let tint = Theme.Browser.rowColor(color) else { return }
-        tint.setFill()
-        dirtyRect.fill(using: .sourceOver)
+        if let tint = Theme.Browser.rowColor(color) { fillWash(tint) }
+    }
+}
+
+/// A column's title in Pencil with its sort arrow, over the canvas, with a
+/// hairline under the row of them instead of the system's header material
+/// and its separators.
+private final class BrowserHeaderView: NSTableHeaderView {
+    override func draw(_ dirtyRect: NSRect) {
+        guard let table = tableView else { return }
+        Theme.Palette.canvasNS.setFill()
+        dirtyRect.fill()
+        let sort = table.sortDescriptors.first
+        for index in 0..<table.numberOfColumns {
+            let frame = headerRect(ofColumn: index)
+            guard frame.intersects(dirtyRect), let cell = table.tableColumns[index].headerCell as? BrowserHeaderCell
+            else { continue }
+            let key = table.tableColumns[index].sortDescriptorPrototype?.key
+            cell.sortAscending = key != nil && key == sort?.key ? sort?.ascending : nil
+            cell.draw(withFrame: frame, in: self)
+        }
+        Theme.Palette.hairlineNS.setFill()
+        NSRect(x: bounds.minX, y: isFlipped ? bounds.maxY - 1 : bounds.minY, width: bounds.width, height: 1)
+            .intersection(dirtyRect).fill()
+    }
+}
+
+private final class BrowserHeaderCell: NSTableHeaderCell {
+    /// nil when the table isn't sorted by this column.
+    var sortAscending: Bool?
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
+        drawInterior(withFrame: cellFrame, in: controlView)
+    }
+
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        let padding = Theme.Browser.cellPadding
+        var text = cellFrame.insetBy(dx: padding, dy: 0)
+        let indicator = sortIndicatorRect(forBounds: cellFrame)
+        if sortAscending != nil {
+            text.size.width = min(text.width, indicator.minX - Theme.Browser.headerIndicatorGap - text.minX)
+        }
+        let style = NSMutableParagraphStyle()
+        style.alignment = alignment
+        style.lineBreakMode = .byTruncatingTail
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Theme.Browser.headerFont, .foregroundColor: Theme.Palette.secondaryNS, .paragraphStyle: style,
+        ]
+        let title = stringValue as NSString
+        let height = title.size(withAttributes: attributes).height
+        text.origin.y += ((text.height - height) / 2).rounded()
+        text.size.height = height
+        title.draw(in: text, withAttributes: attributes)
+        if let sortAscending {
+            drawSortIndicator(withFrame: indicator, in: controlView, ascending: sortAscending, priority: 0)
+        }
     }
 }

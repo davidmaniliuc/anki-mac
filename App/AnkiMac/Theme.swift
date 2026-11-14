@@ -11,16 +11,28 @@ enum Theme {
     /// greys, one electric accent, and muted queue colours. Each colour has
     /// a light and a dark value and follows the system appearance.
     enum Palette {
-        static let canvas = dynamic(canvasHex.light, canvasHex.dark)
-        static let sidebar = dynamic(0xF1EFEA, 0x161513)
-        static let raised = dynamic(0xF6F4F0, 0x2D2C29)
-        static let hover = dynamic(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
-        static let selection = dynamic(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
-        static let hairline = dynamic(0x000000, 0xFFFFFF, alpha: (0.08, 0.07))
+        static let canvas = Color(nsColor: canvasNS)
+        static let sidebar = Color(nsColor: sidebarNS)
+        static let raised = Color(nsColor: raisedNS)
+        static let hover = Color(nsColor: hoverNS)
+        static let selection = Color(nsColor: selectionNS)
+        static let hairline = Color(nsColor: hairlineNS)
 
-        static let text = dynamic(0x1D1C1A, 0xEEECE8)
-        static let secondary = dynamic(0x6B675F, 0xA29E97)
+        static let text = Color(nsColor: textNS)
+        static let secondary = Color(nsColor: secondaryNS)
         static let tertiary = dynamic(0x9E9A92, 0x6E6A64)
+
+        /// The colours AppKit draws with (the Browser's outline, table and
+        /// header), and the SwiftUI ones above are built from these, so each
+        /// hex value is written once.
+        static let canvasNS = appKit(canvasHex.light, canvasHex.dark)
+        static let sidebarNS = appKit(0xF1EFEA, 0x161513)
+        static let raisedNS = appKit(0xF6F4F0, 0x2D2C29)
+        static let selectionNS = appKit(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
+        static let hoverNS = appKit(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
+        static let hairlineNS = appKit(0x000000, 0xFFFFFF, alpha: (0.08, 0.07))
+        static let textNS = appKit(0x1D1C1A, 0xEEECE8)
+        static let secondaryNS = appKit(0x6B675F, 0xA29E97)
 
         static let accent = dynamic(0x2F6BFF, 0x4C8BFF)
         static let blue = dynamic(0x1A5CFF, 0x6AA2FF)
@@ -39,14 +51,19 @@ enum Theme {
         static func css(_ hex: UInt32) -> String { String(format: "#%06X", hex) }
 
         static func dynamic(_ light: UInt32, _ dark: UInt32, alpha: (CGFloat, CGFloat) = (1, 1)) -> Color {
-            Color(nsColor: NSColor(name: nil) { appearance in
+            Color(nsColor: appKit(light, dark, alpha: alpha))
+        }
+
+        /// Follows the appearance of whatever it is drawn in.
+        static func appKit(_ light: UInt32, _ dark: UInt32, alpha: (CGFloat, CGFloat) = (1, 1)) -> NSColor {
+            NSColor(name: nil) { appearance in
                 let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
                 let hex = isDark ? dark : light
                 let alpha = isDark ? alpha.1 : alpha.0
                 return NSColor(
                     srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
                     blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
-            })
+            }
         }
     }
 
@@ -127,7 +144,8 @@ enum Theme {
         static let compactTitle = Font.system(size: 24, weight: .bold)
         /// A symbol standing as a page title's icon, the size of the deck ring there.
         static let titleSymbol = Font.system(size: 24, weight: .medium)
-        static let eyebrow = Font.system(size: 11, weight: .semibold)
+        static let eyebrowSize: CGFloat = 11
+        static let eyebrow = Font.system(size: eyebrowSize, weight: .semibold)
         static let eyebrowTracking: CGFloat = 0.8
         /// Sidebar rows: regular, so only the selected row (semibold) steps
         /// forward.
@@ -254,10 +272,42 @@ enum Theme {
         static let columnMinWidth: CGFloat = 40
         static let previewSize = CGSize(width: 480, height: 520)
         static let previewMinSize = CGSize(width: 300, height: 240)
-        static let cellFont = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        static let cellPadding: CGFloat = 4
-        static let sidebarIconSize: CGFloat = 16
-        static let sidebarHeaderFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+        /// Rows in the sidebar and the table: dense, as the Browser is the
+        /// window of many rows (see DESIGN.md, Browser).
+        static let denseRowHeight: CGFloat = 26
+        static let headerHeight: CGFloat = 28
+        /// A selection or hover wash keeps this far from the pane's edges.
+        static let rowInset: CGFloat = 8
+        /// Rows' washes stop this short of the row's top and bottom, so two
+        /// washes that aren't one selection don't touch.
+        static let rowWashGap: CGFloat = 1
+        static let cellFont = NSFont.systemFont(ofSize: 13)
+        /// Counts, intervals and dates, as the main window's Count face.
+        static let numberFont: NSFont = {
+            let base = NSFont.systemFont(ofSize: 12.5, weight: .medium)
+            let rounded = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+            let tabular = rounded.addingAttributes([
+                .featureSettings: [[
+                    NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
+                    NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector,
+                ]]
+            ])
+            return NSFont(descriptor: tabular, size: base.pointSize) ?? base
+        }()
+        /// Text starts this far into a cell, so the first column's text is
+        /// 12px from the pane's edge.
+        static let cellPadding: CGFloat = 12
+        /// Column titles and the sidebar's section names, as an eyebrow's face.
+        static let headerFont = NSFont.systemFont(ofSize: Fonts.eyebrowSize, weight: .semibold)
+        /// Keeps a column's title clear of its sort arrow.
+        static let headerIndicatorGap: CGFloat = 4
+        static let sidebarFont = NSFont.systemFont(ofSize: 13)
+        static let sidebarSelectedFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        static let sidebarIconSize: CGFloat = 14
+        /// The box an icon sits centred in, so labels line up whatever the symbol's width.
+        static let sidebarIconSlot: CGFloat = 18
+        /// Space above every section name but the first.
+        static let sidebarHeaderGap: CGFloat = Spacing.medium
         /// Sheets for the Cards and Notes actions (set due date, change deck...).
         static let sheetWidth: CGFloat = 420
         static let deckListHeight: CGFloat = 260
@@ -272,9 +322,9 @@ enum Theme {
         static let editorSaveDelay = Duration.milliseconds(600)
 
         /// Whole-row tints for flagged, marked, suspended and buried cards, in
-        /// desktop's colour scheme. Translucent, so the alternating row
-        /// background shows through; stronger in dark mode, where a faint tint
-        /// disappears.
+        /// desktop's colour scheme. Translucent, so the selection
+        /// wash under them shows through; stronger in dark mode, where a faint
+        /// tint disappears.
         static func rowColor(_ color: Anki_Search_BrowserRow.Color) -> NSColor? {
             rowColors[color]
         }
