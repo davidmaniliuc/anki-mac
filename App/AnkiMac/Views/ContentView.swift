@@ -101,6 +101,20 @@ struct ContentView: View {
             .animation(.default, value: model.notice)
             .animation(.smooth, value: model.mediaSyncCapsule == nil)
         }
+        .overlay(alignment: .top) {
+            if model.quickFindPresented {
+                ZStack(alignment: .top) {
+                    // A click anywhere else closes it, as in Things.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .ignoresSafeArea()
+                        .onTapGesture { model.quickFindPresented = false }
+                    QuickFind().padding(.top, Theme.QuickFind.topInset)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+            }
+        }
+        .animation(.snappy(duration: 0.15), value: model.quickFindPresented)
         .navigationTitle(model.selectedDeck?.name ?? "AnkiMac")
         .navigationSubtitle(model.profileName ?? "")
         // Undo acts on the card being studied, or else on the deck list.
@@ -259,9 +273,6 @@ private struct DeckPrompts: ViewModifier {
                     study: study,
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
-            }
-            .sheet(isPresented: Binding { model.studyDeckPresented } set: { model.studyDeckPresented = $0 }) {
-                StudyDeckSheet().environment(model)
             }
             .sheet(item: Binding { model.descriptionEdit } set: { model.descriptionEdit = $0 }) { edit in
                 DeckDescriptionSheet(edit: edit, cancel: { model.descriptionEdit = nil }, save: model.saveDescription)

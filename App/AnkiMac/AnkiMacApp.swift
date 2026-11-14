@@ -213,8 +213,8 @@ struct StudyCommands: Commands {
             Button(Tr.statisticsTitle) { StatisticsWindowController.show(collection: model) }
                 .keyboardShortcut("t", modifiers: [])
                 .disabled(!model.isLoaded)
-            // Desktop's "/" is a key of the main window, not a menu shortcut, which would take it while typing.
-            Button("\(Tr.decksStudyDeck)…") { model.studyDeckPresented = true }
+            // "/" and Command-F are keys of the main window, not menu shortcuts, which would take them in other windows.
+            Button("Quick Find…") { model.quickFindPresented = true }
                 .disabled(!model.isLoaded)
             Divider()
             let session = model.session

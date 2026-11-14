@@ -211,8 +211,21 @@ enum Theme {
         static let descriptionSheetSize = CGSize(width: 480, height: 360)
     }
 
-    enum StudyDeck {
-        static let sheetHeight: CGFloat = 420
+    enum QuickFind {
+        static let width: CGFloat = 400
+        static let topInset: CGFloat = 64
+        static let listMaxHeight: CGFloat = 420
+        static let fieldHeight: CGFloat = 36
+        static let cornerRadius: CGFloat = 20
+        /// The panel's radius less its padding, so the field's corners follow the panel's.
+        static let fieldRadius: CGFloat = 12
+        static let rowRadius: CGFloat = 10
+        static let rowPadding: CGFloat = 5
+        /// Tints the glass toward the canvas without hiding the page beneath.
+        static let tintOpacity = 0.3
+        static let noteLimit = 5
+        /// Decks listed before anything is typed, after Today.
+        static let dueLimit = 6
     }
 
     enum CustomStudy {

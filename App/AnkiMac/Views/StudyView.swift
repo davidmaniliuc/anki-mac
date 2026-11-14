@@ -191,9 +191,9 @@ struct StudyView: View {
             model.showOptions(deck)
             return true
         }
-        // "/" picks a deck to study, from the deck list, the overview and a session.
-        if modifiers.isEmpty, key == "/", model.isLoaded {
-            model.studyDeckPresented = true
+        // "/", desktop's Study Deck key, and Command-F open Quick Find, from Today, the overview and a session.
+        if (modifiers.isEmpty && key == "/") || (modifiers == .command && key == "f"), model.isLoaded {
+            model.quickFindPresented = true
             return true
         }
         // "f" creates a filtered deck; in a filtered deck's overview, "r" rebuilds and "e" empties it.
