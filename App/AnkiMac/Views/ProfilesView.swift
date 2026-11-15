@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Desktop's profile manager, in a small window of its own while no
-/// profile is open (see ProfilesWindowController): the profiles as rows, Open as the page's primary with Add,
+/// Desktop's profile manager, a sheet on the main window while no
+/// profile is open: the profiles as rows, Open as the page's primary with Add,
 /// Rename and Delete as chips, and behind a hairline Open Backup,
 /// Downgrade & Quit and Quit as quiet buttons. A profile is named in its
 /// row, as a deck is in the sidebar, not in desktop's prompt.
@@ -101,8 +101,7 @@ struct ProfilesView: View {
             .padding(.top, Theme.Spacing.medium)
         }
         .padding(.horizontal, Theme.Layout.pageMargin)
-        .padding(.top, Theme.Band.height)
-        .padding(.bottom, Theme.Layout.pageMargin)
+        .padding(.vertical, Theme.Layout.pageMargin)
         .frame(width: Theme.Profiles.width)
         .fixedSize(horizontal: false, vertical: true)
         .background(Theme.Palette.canvas.ignoresSafeArea())

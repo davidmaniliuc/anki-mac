@@ -8,6 +8,17 @@ struct ContentView: View {
 
     var body: some View {
         decks
+        // With no profile open there's nothing to use behind the profiles,
+        // so it is dimmed under their sheet.
+        .overlay {
+            if model.choosingProfile { Theme.Profiles.dim.ignoresSafeArea() }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.choosingProfile)
+        .sheet(isPresented: Binding { model.choosingProfile } set: { _ in }) {
+            ProfilesView()
+                .environment(model)
+                .interactiveDismissDisabled()
+        }
         .safeAreaPadding(.top, layout.fullScreen ? Theme.Window.fullScreenBand : 0)
         // The scroll views' edge effect fills the band with a backdrop of
         // what's behind the window, a grey strip once the toolbar has left
@@ -72,7 +83,7 @@ struct ContentView: View {
         })
         .alert(
             model.failure?.title ?? "",
-            // While a profile is picked this window is out of sight; the profiles' window says it.
+            // While a profile is picked the profiles' sheet says it.
             isPresented: Binding { model.failure != nil && !model.choosingProfile } set: { if !$0 { model.failure = nil } }
         ) {
             Button("OK") {}
