@@ -686,17 +686,23 @@ struct QuickFindButton: View {
     @Environment(CollectionModel.self) private var model
 
     var body: some View {
-        IconButton("magnifyingglass", help: "Quick Find (/)") { model.quickFindPresented = true }
+        IconButton("magnifyingglass", help: "Quick Find", shortcut: Tr.actionsShortcutKey(val: "/")) {
+            model.quickFindPresented = true
+        }
     }
 }
 
 struct IconButton: View {
     let symbol: String
     let help: String
+    /// Upstream's "Shortcut key: …" line, under the name in the help tag
+    /// and left out of the name VoiceOver reads.
+    let shortcut: String?
     let action: () -> Void
-    init(_ symbol: String, help: String, action: @escaping () -> Void) {
+    init(_ symbol: String, help: String, shortcut: String? = nil, action: @escaping () -> Void) {
         self.symbol = symbol
         self.help = help
+        self.shortcut = shortcut
         self.action = action
     }
 
@@ -706,8 +712,36 @@ struct IconButton: View {
                 .frame(width: 30, height: 28)
         }
         .buttonStyle(QuietButtonStyle())
-        .help(help)
+        .help(shortcut.map { "\(help)\n\($0)" } ?? help)
         .accessibilityLabel(help)
+    }
+}
+
+extension View {
+    /// The empty part of a band drawn over the title bar acts as the title
+    /// bar: dragging moves the window, and a double click does what the
+    /// user chose in Desktop & Dock, since the band covers the real one.
+    func titleBarBand() -> some View {
+        background {
+            Color.clear.contentShape(.rect)
+                .gesture(WindowDragGesture())
+                .simultaneousGesture(TapGesture(count: 2).onEnded {
+                    NSApp.currentEvent?.window?.performTitleBarDoubleClick()
+                })
+        }
+    }
+}
+
+extension NSWindow {
+    /// Zoom (the default, and the closest to Fill), Minimize, or nothing.
+    func performTitleBarDoubleClick() {
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "None": break
+        case "Minimize": performMiniaturize(nil)
+        case nil where UserDefaults.standard.bool(forKey: "AppleMiniaturizeOnDoubleClick"):
+            performMiniaturize(nil)
+        default: performZoom(nil)
+        }
     }
 }
 

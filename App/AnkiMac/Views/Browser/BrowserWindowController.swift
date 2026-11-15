@@ -471,7 +471,7 @@ struct BrowserHeaderActions: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.xxSmall) {
             if inEditor == (chrome.hasEditor && !chrome.editorCollapsed) {
-                IconButton(chrome.previewOpen ? "eye.fill" : "eye", help: Tr.actionsPreview + " (\u{21E7}\u{2318}P)") {
+                IconButton(chrome.previewOpen ? "eye.fill" : "eye", help: Tr.actionsPreview, shortcut: Tr.actionsShortcutKey(val: "\u{21E7}\u{2318}P")) {
                     chrome.togglePreview()
                 }
                 // As desktop, a preview needs exactly one card selected.

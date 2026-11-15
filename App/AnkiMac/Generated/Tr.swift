@@ -1111,6 +1111,11 @@ nonisolated enum Tr {
     static func actionsShortcutKey(val: String) -> String {
         ("Shortcut key: " + val)
     }
+    static let qtMiscBackSideOnly = "Back Side Only"
+    static let qtMiscShortcutKeyLeftArrow = "Shortcut key: Left arrow"
+    static let qtMiscShortcutKeyRightArrowOrEnter = "Shortcut key: Right arrow or Enter"
+    static let qtAccelPreviousCard = "Previous Card"
+    static let qtAccelNextCard = "Next Card"
     static func actionsOptionsFor(val: String) -> String {
         ("Options for " + val)
     }

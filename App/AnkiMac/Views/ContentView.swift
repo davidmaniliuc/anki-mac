@@ -26,7 +26,7 @@ struct ContentView: View {
         .scrollEdgeEffectHidden(layout.fullScreen, for: .top)
         .overlay(alignment: .topLeading) {
             if layout.fullScreen {
-                IconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") { layout.toggleSidebar() }
+                IconButton("sidebar.left", help: "Toggle Sidebar", shortcut: Tr.actionsShortcutKey(val: "⌃⌘S")) { layout.toggleSidebar() }
                     .frame(height: Theme.Window.fullScreenBand)
                     .padding(.leading, Theme.Spacing.small)
             }
@@ -56,7 +56,7 @@ struct ContentView: View {
             // stays, hidden: without it the toolbar goes and the bar shrinks
             // to a plain title bar, the lights moving with it.
             ToolbarItem(placement: .navigation) {
-                IconButton("sidebar.left", help: "Toggle Sidebar (⌃⌘S)") { layout.toggleSidebar() }
+                IconButton("sidebar.left", help: "Toggle Sidebar", shortcut: Tr.actionsShortcutKey(val: "⌃⌘S")) { layout.toggleSidebar() }
                     .opacity(layout.fullScreen ? 0 : 1)
                     .allowsHitTesting(!layout.fullScreen)
                     .accessibilityHidden(layout.fullScreen)

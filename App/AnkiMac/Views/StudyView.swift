@@ -119,12 +119,17 @@ struct StudyView: View {
     private var actions: some View {
         HStack(spacing: 0) {
             let undoState = session?.undoState ?? UndoState()
-            IconButton("arrow.uturn.backward", help: undoState.canUndo ? "\(undoState.undoTitle) (U)" : "Undo") {
+            IconButton(
+                "arrow.uturn.backward", help: undoState.canUndo ? undoState.undoTitle : "Undo",
+                shortcut: undoState.canUndo ? Tr.actionsShortcutKey(val: "U") : nil
+            ) {
                 session?.undo()
             }
             .disabled(!undoState.canUndo)
             if !compact, let session {
-                IconButton("pencil", help: "Edit Note (E)") { session.editCurrentNote() }
+                IconButton("pencil", help: "Edit Note", shortcut: Tr.actionsShortcutKey(val: "E")) {
+                    session.editCurrentNote()
+                }
                 Menu {
                     flagItems(session)
                 } label: {
@@ -150,7 +155,7 @@ struct StudyView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("More (M)")
-            IconButton("xmark", help: "End Session (Esc)") { model.stopStudying() }
+            IconButton("xmark", help: "End Session", shortcut: Tr.actionsShortcutKey(val: "Esc")) { model.stopStudying() }
         }
     }
 

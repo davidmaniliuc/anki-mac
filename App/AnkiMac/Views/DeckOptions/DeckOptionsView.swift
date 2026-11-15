@@ -765,7 +765,7 @@ private struct PresetBand: View {
         .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Band.leading)
         .padding(.trailing, Theme.Spacing.medium)
         .frame(height: Theme.Band.height)
-        .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
+        .titleBarBand()
         .alert(naming?.title ?? "", isPresented: Binding { naming != nil } set: { if !$0 { naming = nil } }) {
             TextField(Tr.deckConfigNamePrompt, text: $name)
             Button(Tr.actionsCancel, role: .cancel) {}

@@ -76,7 +76,7 @@ struct AddCardsView: View {
         .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Band.leading)
         .padding(.trailing, Theme.Spacing.medium)
         .frame(height: Theme.Band.height)
-        .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
+        .titleBarBand()
     }
 
     private var notetypeMenu: some View {
