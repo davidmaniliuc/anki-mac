@@ -50,7 +50,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
 
         // The title names the window in the Window menu; the band draws its own.
-        window.title = "Browse"
+        window.title = Tr.qtMiscBrowse
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.minSize = NSSize(width: Theme.Browser.minWidth, height: Theme.Browser.minHeight)
@@ -77,7 +77,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.toolbar = toolbar
         window.toolbarStyle = .unified
 
-        searchField.placeholderString = "Search"
+        searchField.placeholderString = Tr.actionsSearch
         searchField.sendsWholeSearchString = true
         searchField.target = self
         searchField.action = #selector(searchSubmitted(_:))
@@ -110,9 +110,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             viewController: DetailController(header: header, errorBar: errorBar, table: tableController)))
         if let editor {
             // An inspector, so a narrow window can fold it away.
-            let host = NSHostingController(rootView: BrowserEditorView(model: editor) { [model] in
+            let view = BrowserEditorView(model: editor, browser: model, chrome: chrome) { [model] in
                 CardTemplatesWindowController.show(collection: model.collection, note: editor.currentNote, ord: editor.cardOrd)
-            })
+            }
+            let host = NSHostingController(rootView: view)
             // By default the pane's SwiftUI size would cap the window's:
             // "No Note Selected" is short, and the window couldn't grow taller.
             host.sizingOptions = []
@@ -381,7 +382,7 @@ private final class BrowserHeaderBar: NSView {
         super.init(frame: .zero)
         let title = NSHostingView(rootView: HeaderTitle(model: model, chrome: chrome))
         let mode = NSHostingView(rootView: ModeSwitch(model: model))
-        let actions = NSHostingView(rootView: HeaderActions(model: model, chrome: chrome))
+        let actions = NSHostingView(rootView: BrowserHeaderActions(model: model, chrome: chrome, inEditor: false))
         // The band lies in the toolbar's safe area, which would push
         // SwiftUI's content down out of sight.
         title.safeAreaRegions = []
@@ -434,9 +435,10 @@ private struct HeaderTitle: View {
                 IconButton("sidebar.left", help: "Show Sidebar") { chrome.toggleSidebar() }
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text("Browse")
+                Text(Tr.qtMiscBrowse)
                     .font(Theme.Browser.titleFont)
                     .foregroundStyle(Theme.Palette.text)
+                    .lineLimit(1)
                 Text(model.toast ?? status)
                     .font(Theme.Fonts.caption)
                     .foregroundStyle(Theme.Palette.secondary)
@@ -444,7 +446,8 @@ private struct HeaderTitle: View {
             }
         }
         .padding(.leading, chrome.sidebarCollapsed ? chrome.sidebarToggleLeading : Theme.Browser.cellPadding)
-        .fixedSize()
+        // In a narrow pane the counts lose their end before the search field goes.
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var status: String {
@@ -456,21 +459,27 @@ private struct HeaderTitle: View {
     }
 }
 
-/// Preview, and the button that shows or hides the editor.
-private struct HeaderActions: View {
+/// Preview, and the button that shows or hides the editor. They sit at the
+/// window's top trailing corner: in the editor's band while it is shown, and
+/// at the end of the table's once it is hidden, so each place draws them
+/// only when it is that corner.
+struct BrowserHeaderActions: View {
     let model: BrowserModel
     let chrome: BrowserChrome
+    let inEditor: Bool
 
     var body: some View {
         HStack(spacing: Theme.Spacing.xxSmall) {
-            IconButton(chrome.previewOpen ? "eye.fill" : "eye", help: Tr.actionsPreview + " (\u{21E7}\u{2318}P)") {
-                chrome.togglePreview()
-            }
-            // As desktop, a preview needs exactly one card selected.
-            .disabled(!chrome.previewOpen && model.singleSelectedRow == nil)
-            if chrome.hasEditor {
-                IconButton("sidebar.right", help: chrome.editorCollapsed ? "Show Editor" : "Hide Editor") {
-                    chrome.toggleEditor()
+            if inEditor == (chrome.hasEditor && !chrome.editorCollapsed) {
+                IconButton(chrome.previewOpen ? "eye.fill" : "eye", help: Tr.actionsPreview + " (\u{21E7}\u{2318}P)") {
+                    chrome.togglePreview()
+                }
+                // As desktop, a preview needs exactly one card selected.
+                .disabled(!chrome.previewOpen && model.singleSelectedRow == nil)
+                if chrome.hasEditor {
+                    IconButton("sidebar.right", help: chrome.editorCollapsed ? "Show Editor" : "Hide Editor") {
+                        chrome.toggleEditor()
+                    }
                 }
             }
         }

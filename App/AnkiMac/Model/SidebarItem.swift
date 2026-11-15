@@ -117,22 +117,23 @@ nonisolated struct SidebarSection: Identifiable, Equatable, Sendable {
 
         let saved = backend.configStrings("savedFilters")
         sections.append(SidebarSection(
-            kind: .savedSearchRoot, title: "Saved Searches",
+            kind: .savedSearchRoot, title: Tr.browsingSidebarSavedSearches,
             nodes: saved.keys.sorted(using: .localizedStandard).map { name in
                 SidebarNode(item: .savedSearch(name: name, search: saved[name]!), title: name, children: nil)
             }))
 
         let states: [(Anki_Search_SearchNode.CardState, String)] = [
-            (.new, "New"), (.learn, "Learning"), (.review, "Review"), (.suspended, "Suspended"), (.buried, "Buried"),
+            (.new, Tr.actionsNew), (.learn, Tr.schedulingLearning), (.review, Tr.schedulingReview),
+            (.suspended, Tr.browsingSuspended), (.buried, Tr.browsingBuried),
         ]
         sections.append(SidebarSection(
-            kind: .cardStateRoot, title: "Card State",
+            kind: .cardStateRoot, title: Tr.browsingSidebarCardState,
             nodes: states.map { SidebarNode(item: .cardState($0.0), title: $0.1, children: nil) }))
 
         // Renamed flags keep their colour; the label comes from the config.
         let labels = backend.configStrings("flagLabels")
         sections.append(SidebarSection(
-            kind: .flagRoot, title: "Flags",
+            kind: .flagRoot, title: Tr.browsingSidebarFlags,
             nodes: CardFlag.assignable.map { flag in
                 let label = labels[String(flag.rawValue)].flatMap { $0.isEmpty ? nil : $0 } ?? flag.title
                 return SidebarNode(item: .flag(flag), title: label, children: nil)
@@ -141,16 +142,16 @@ nonisolated struct SidebarSection: Identifiable, Equatable, Sendable {
         var deckRequest = Anki_Decks_DeckTreeRequest()
         deckRequest.now = 0
         sections.append(SidebarSection(
-            kind: .deckRoot, title: "Decks", nodes: decks(try backend.deckTree(deckRequest).children, parent: nil)))
+            kind: .deckRoot, title: Tr.browsingSidebarDecks, nodes: decks(try backend.deckTree(deckRequest).children, parent: nil)))
 
         sections.append(SidebarSection(
-            kind: .notetypeRoot, title: "Note Types",
+            kind: .notetypeRoot, title: Tr.browsingSidebarNotetypes,
             nodes: try backend.getNotetypeNamesAndCounts().entries.map {
                 SidebarNode(item: .notetype(id: $0.id, name: $0.name), title: $0.name, children: nil)
             }))
 
         sections.append(SidebarSection(
-            kind: .tagRoot, title: "Tags", nodes: tags(try backend.tagTree().children, parent: nil)))
+            kind: .tagRoot, title: Tr.browsingSidebarTags, nodes: tags(try backend.tagTree().children, parent: nil)))
         return sections
     }
 

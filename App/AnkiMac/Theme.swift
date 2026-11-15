@@ -341,6 +341,9 @@ enum Theme {
         /// Text starts this far into a cell, so the first column's text is
         /// 12px from the pane's edge.
         static let cellPadding: CGFloat = 12
+        /// A label draws its text this far inside its frame; cells take it
+        /// off, so their text starts on the column title's edge.
+        static let labelInset: CGFloat = 2
         /// Column titles and the sidebar's section names, as an eyebrow's face.
         static let headerFont = NSFont.systemFont(ofSize: Fonts.eyebrowSize, weight: .semibold)
         /// Keeps a column's title clear of its sort arrow.

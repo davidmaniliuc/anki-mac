@@ -15,6 +15,9 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     /// Set while a reload opens rows again, which isn't the user's choice to save.
     private var restoringExpansion = false
     private var selectionCount = 0
+    /// The section Left Arrow folded and the row that was selected in it,
+    /// for Right Arrow to bring back.
+    private var keyFolded: (section: Row.ID, selected: Row.ID)?
     /// The row whose name is being edited in place.
     var editing: Row?
     var cancelledEdit = false
@@ -42,6 +45,11 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.allowsMultipleSelection = true
         outline.onDelete = { [weak self] in self?.deleteSelection() }
         outline.onToggleSection = { [weak self] row in self?.toggleSection(row) }
+        outline.onFoldSection = { [weak self] section, selected in
+            self?.keyFolded = (section.id, selected.id)
+            self?.outline.animator().collapseItem(section)
+        }
+        outline.onUnfoldSection = { [weak self] in self?.unfoldKeyFolded() ?? false }
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.delegate = self
@@ -94,6 +102,21 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         } else {
             outline.animator().expandItem(row)
         }
+    }
+
+    /// Right Arrow opens the section Left Arrow folded and selects its row
+    /// again, which is not a new search.
+    private func unfoldKeyFolded() -> Bool {
+        guard let folded = keyFolded, let section = roots.first(where: { $0.id == folded.section }) else { return false }
+        keyFolded = nil
+        outline.expandItem(section)
+        let row = allRows(section.children).first { $0.id == folded.selected }.map(outline.row(forItem:)) ?? -1
+        guard row >= 0 else { return true }
+        restoringSelection = true
+        defer { restoringSelection = false }
+        outline.selectRowIndexes([row], byExtendingSelection: false)
+        outline.scrollRowToVisible(row)
+        return true
     }
 
     /// A typed search replaces the sidebar's.
@@ -280,6 +303,7 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
             let header = outlineView.makeView(withIdentifier: SidebarHeaderCell.identifier, owner: nil)
                 as? SidebarHeaderCell ?? SidebarHeaderCell()
             header.show(row.title)
+            header.foldable = !row.children.isEmpty
             header.expanded = outlineView.isItemExpanded(row)
             return header
         }
@@ -342,21 +366,35 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
 final class SidebarHeaderCell: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("SidebarHeader")
     private let chevron = NSImageView()
+    /// Not the cell's `textField`: the outline restyles a group row's, and
+    /// dims the name far below Pencil.
+    private let label = NSTextField(labelWithString: "")
 
     var expanded = true {
-        didSet { chevron.frameCenterRotation = expanded ? -90 : 0 }
+        didSet {
+            chevron.frameCenterRotation = expanded ? -90 : 0
+            showChevron()
+        }
     }
 
     var hovered = false {
-        didSet { chevron.isHidden = !hovered }
+        didSet { showChevron() }
+    }
+
+    /// A section with no rows has nothing to fold, and shows no chevron.
+    var foldable = true {
+        didSet { showChevron() }
+    }
+
+    /// A folded section keeps its chevron, so it can be told from an empty one.
+    private func showChevron() {
+        chevron.isHidden = !foldable || (expanded && !hovered)
     }
 
     init() {
         super.init(frame: .zero)
         identifier = Self.identifier
-        let label = NSTextField(labelWithString: "")
         addSubview(label)
-        textField = label
         chevron.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
         chevron.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: Fonts.eyebrowSize, weight: .semibold)
         chevron.contentTintColor = Theme.Palette.secondaryNS
@@ -369,19 +407,18 @@ final class SidebarHeaderCell: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     func show(_ title: String) {
-        textField?.attributedStringValue = NSAttributedString(
+        label.attributedStringValue = NSAttributedString(
             string: title.uppercased(),
             attributes: [
                 .font: Theme.Browser.headerFont, .foregroundColor: Theme.Palette.secondaryNS,
                 .kern: Theme.Fonts.eyebrowTracking,
             ])
-        textField?.setAccessibilityLabel(title)
+        label.setAccessibilityLabel(title)
     }
 
     /// The name sits in the row's last 26px; any extra height is the gap above it.
     override func layout() {
         super.layout()
-        guard let label = textField else { return }
         let height = label.intrinsicContentSize.height
         let slot = Theme.Browser.sidebarIconSlot
         let y = (Theme.Browser.denseRowHeight - height) / 2
@@ -481,8 +518,23 @@ private final class SidebarContainer: NSView {
 /// own rows: section names start on the icons' edge, and a deck's triangle
 /// sits in the wash before its icon rather than in the pane's margin.
 final class SidebarOutlineView: NSOutlineView {
+    typealias Row = BrowserSidebarController.Row
+
     var onDelete: () -> Void = {}
-    var onToggleSection: (BrowserSidebarController.Row) -> Void = { _ in }
+    var onToggleSection: (Row) -> Void = { _ in }
+    /// Left Arrow on a row with nothing left to fold: its section, and the row.
+    var onFoldSection: (Row, Row) -> Void = { _, _ in }
+    /// Right Arrow with nothing selected; false when no section was folded by key.
+    var onUnfoldSection: () -> Bool = { false }
+
+    /// Room for a triangle before the icons, only in a section with rows
+    /// that fold (decks, nested tags): its rows step in, as the main
+    /// sidebar's deck tree does, and a flat section's start on its name's edge.
+    private func triangleSlot(_ row: Int) -> CGFloat {
+        guard var top = item(atRow: row) else { return 0 }
+        while let parent = parent(forItem: top) { top = parent }
+        return (top as? Row)?.children.contains { !$0.children.isEmpty } == true ? Theme.Layout.indent : 0
+    }
 
     /// The triangle's slot: one level of indent, before the row's icon.
     override func frameOfOutlineCell(atRow row: Int) -> NSRect {
@@ -497,7 +549,7 @@ final class SidebarOutlineView: NSOutlineView {
         let frame = super.frameOfCell(atColumn: column, row: row)
         let leading = Theme.Browser.sidebarLeading
         let level = CGFloat(max(0, level(forRow: row) - 1))
-        let x = isSection(row) ? leading : leading + Theme.Layout.indent + level * indentationPerLevel
+        let x = isSection(row) ? leading : leading + triangleSlot(row) + level * indentationPerLevel
         return NSRect(x: x, y: frame.minY, width: max(0, bounds.width - x - leading), height: frame.height)
     }
 
@@ -576,12 +628,29 @@ final class SidebarOutlineView: NSOutlineView {
     }
 
     override func keyDown(with event: NSEvent) {
-        // Delete and Forward Delete.
-        if event.keyCode == 51 || event.keyCode == 117 {
+        switch event.keyCode {
+        case 51, 117:
+            // Delete and Forward Delete.
             onDelete()
-        } else {
+        case 123 where foldsSection:
+            // Left Arrow. A section's name can't be selected, so the row
+            // under it folds it, once the row has nothing of its own to fold.
+            if let row = item(atRow: selectedRow) as? Row, let section = parent(forItem: row) as? Row {
+                onFoldSection(section, row)
+            }
+        case 124 where selectedRow < 0:
+            // Right Arrow.
+            if !onUnfoldSection() { super.keyDown(with: event) }
+        default:
             super.keyDown(with: event)
         }
+    }
+
+    /// Whether the one selected row is a section's own, with nothing open under it.
+    private var foldsSection: Bool {
+        guard selectedRowIndexes.count == 1, level(forRow: selectedRow) == 1, let row = item(atRow: selectedRow)
+        else { return false }
+        return !(isExpandable(row) && isItemExpanded(row))
     }
 }
 

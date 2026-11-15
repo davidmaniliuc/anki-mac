@@ -146,12 +146,12 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             tableColumn.headerToolTip = column.tooltip(mode)
             tableColumn.width = Theme.Browser.columnWidth
             tableColumn.minWidth = Theme.Browser.columnMinWidth
-            // A title lines up with its column's text: centred, or on the
-            // trailing edge over counts and dates.
-            if column.alignment == .center {
-                tableColumn.headerCell.alignment = .center
-            } else if column.isNumeric(mode) {
+            // A title lines up with its column's text: on the trailing edge
+            // over counts and dates, wherever upstream sets them, or centred.
+            if column.isNumeric(mode) {
                 tableColumn.headerCell.alignment = .right
+            } else if column.alignment == .center {
+                tableColumn.headerCell.alignment = .center
             }
             if column.sorting(mode) != .none {
                 tableColumn.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: true)
@@ -273,14 +273,14 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             item.state = card?.flag == flag ? .on : .off
             flags.addItem(item)
         }
-        let flagItem = NSMenuItem(title: "Flag", action: nil, keyEquivalent: "")
+        let flagItem = NSMenuItem(title: Tr.browsingFlag, action: nil, keyEquivalent: "")
         flagItem.submenu = flags
         menu.addItem(flagItem)
 
-        let suspend = menuItem("Suspend Card") { [weak self] in self?.model.toggleSuspend() }
+        let suspend = menuItem(Tr.actionsSuspendCard) { [weak self] in self?.model.toggleSuspend() }
         suspend.state = card?.isSuspended == true ? .on : .off
         menu.addItem(suspend)
-        let bury = menuItem("Bury Card") { [weak self] in self?.model.toggleBury() }
+        let bury = menuItem(Tr.studyingBuryCard) { [weak self] in self?.model.toggleBury() }
         bury.state = card?.isBuried == true ? .on : .off
         menu.addItem(bury)
         menu.addItem(menuItem("Change Deck…") { [weak self] in self?.model.askChangeDeck() })
@@ -317,7 +317,7 @@ private final class BrowserCell: NSTableCellView {
     // rest of a reload.
     override func layout() {
         super.layout()
-        let padding = Theme.Browser.cellPadding
+        let padding = Theme.Browser.cellPadding - Theme.Browser.labelInset
         let height = Self.lineHeight
         label.frame = NSRect(
             x: padding, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - 2 * padding),
@@ -334,10 +334,12 @@ private final class BrowserCell: NSTableCellView {
 
     func show(_ text: String, elide: Anki_Search_BrowserRow.Cell.TextElideMode, centered: Bool, numeric: Bool) {
         label.stringValue = text
-        setFont(numeric ? Theme.Browser.numberFont : Theme.Browser.cellFont)
+        // A figure is in the rounded face; words in a column of figures
+        // ("New #198", "(learning)") aren't.
+        setFont(numeric && text.first?.isNumber == true ? Theme.Browser.numberFont : Theme.Browser.cellFont)
         label.textColor = Theme.Palette.textNS
         // Counts and dates keep to the trailing edge, so their digits line up.
-        label.alignment = centered ? .center : numeric ? .right : .natural
+        label.alignment = numeric ? .right : centered ? .center : .natural
         label.lineBreakMode = switch elide {
         case .elideLeft: .byTruncatingHead
         case .elideMiddle: .byTruncatingMiddle

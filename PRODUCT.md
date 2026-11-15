@@ -4,9 +4,9 @@
 
 ## Platform
 
-macos
+ios
 
-Native macOS app in SwiftUI (deployment target macOS 26, the Liquid Glass era). Not one of the schema's `web`/`ios`/`android`/`adaptive` values; Apple's macOS HIG is the reference for native expectations.
+A native macOS app in SwiftUI and AppKit (deployment target macOS 26, the Liquid Glass era). The schema has no value for the Mac; `ios` is the nearest, since it names Apple's design language. Apple's macOS HIG is the reference for native expectations, so iPhone-only guidance (touch targets, Dynamic Type, edge swipes, the home indicator) doesn't apply.
 
 ## Users
 

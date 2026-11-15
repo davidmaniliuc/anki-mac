@@ -12,6 +12,9 @@ struct NoteEditorView: View {
     var duplicateField: Int?
     /// Opens the card layout editor for this note; nil hides the Cards button.
     var cardLayout: (() -> Void)?
+    /// The format bar's height where it has to line up with something beside
+    /// it (the Browser's column titles); nil gives it its own padding.
+    var barHeight: CGFloat?
 
     var body: some View {
         if let occlusion = editor.occlusion {
@@ -45,7 +48,8 @@ struct NoteEditorView: View {
         VStack(spacing: 0) {
             FormatBar(editor: editor, cardLayout: cardLayout)
                 .padding(.horizontal, Theme.Spacing.medium)
-                .padding(.vertical, Theme.Spacing.small)
+                .padding(.vertical, barHeight == nil ? Theme.Spacing.small : 0)
+                .frame(minHeight: barHeight)
             Theme.Palette.hairline.frame(height: 1)
             ScrollView {
                 let shown = editor.fields.filter { !hidden.contains($0.index) }
