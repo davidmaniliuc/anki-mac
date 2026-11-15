@@ -1,108 +1,109 @@
 import AnkiKit
 import SwiftUI
 
-/// Desktop's filtered deck dialog as a sheet on the main window: name, one
-/// or two searches, rescheduling and the preview delays, then Build (or
-/// Rebuild for an existing deck).
+/// Desktop's filtered deck dialog as a sheet on the main window, drawn as
+/// Deck Options' settings: the name, one or two searches, rescheduling and
+/// the preview delays, then Build (or Rebuild for an existing deck).
 struct FilteredDeckSheet: View {
     @Bindable var deck: FilteredDeckModel
     let cancel: () -> Void
     let built: (Int64) -> Void
     let showInBrowser: (String) -> Void
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            Form {
-                Section {
-                    TextField(label(Tr.actionsName), text: $deck.name)
+        SettingsSheet(
+            title: deck.title, width: Theme.FilteredDeck.width, maxHeight: Theme.FilteredDeck.maxHeight
+        ) {
+            OptionSection {
+                OptionRow(title: label(Tr.actionsName), revertible: false) {
+                    OptionTextField(text: $deck.name)
+                        .frame(width: Theme.FilteredDeck.textColumnWidth)
                 }
-                searchSection(Tr.actionsFilter, $deck.first)
-                    .focused($searchFocused)
-                Section {
-                    Toggle(Tr.decksEnableSecondFilter, isOn: $deck.secondEnabled)
+            }
+            OptionSection(title: Tr.actionsFilter) {
+                searchRows($deck.first, field: deck.firstField, focusOnAppear: true)
+                OptionActions {
+                    Button(Tr.decksUnmovableCards) { show { try deck.excludedCardsSearch() } }
+                        .help(Tr.searchViewInBrowser)
+                }
+            }
+            OptionSection(title: Tr.decksFilter2) {
+                OptionRow(title: Tr.decksEnableSecondFilter, revertible: false) {
+                    SwitchControl(title: Tr.decksEnableSecondFilter, isOn: $deck.secondEnabled)
                 }
                 if deck.secondEnabled {
-                    searchSection(Tr.decksFilter2, $deck.second)
-                }
-                Section {
-                    Toggle(Tr.decksRescheduleCardsBasedOnMyAnswers, isOn: $deck.reschedule)
-                    if !deck.reschedule {
-                        delay(Tr.studyingAgain, $deck.previewAgain)
-                        delay(Tr.studyingHard, $deck.previewHard)
-                        delay(Tr.studyingGood, $deck.previewGood)
-                    }
-                    Toggle("Create or update this deck even if empty", isOn: $deck.allowEmpty)
-                } header: {
-                    Text("Options")
-                } footer: {
-                    HStack {
-                        if !deck.reschedule {
-                            Text(Tr.decksZeroMinutesHint).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button(Tr.decksUnmovableCards) { show { try deck.excludedCardsSearch() } }
-                            .buttonStyle(.link)
-                            .help(Tr.searchViewInBrowser)
-                    }
-                    .font(.callout)
+                    searchRows($deck.second, field: deck.secondField)
                 }
             }
-            .formStyle(.grouped)
-            Divider()
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel, action: cancel)
-                    .keyboardShortcut(.cancelAction)
-                Button(deck.isNew ? Tr.decksBuild : Tr.actionsRebuild) {
-                    Task { if let id = await deck.build() { built(id) } }
+            OptionSection(title: Tr.actionsOptions) {
+                OptionRow(title: Tr.decksRescheduleCardsBasedOnMyAnswers, revertible: false) {
+                    SwitchControl(title: Tr.decksRescheduleCardsBasedOnMyAnswers, isOn: $deck.reschedule)
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(deck.building || deck.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                if !deck.reschedule {
+                    delay(Tr.studyingAgain, $deck.previewAgain)
+                    delay(Tr.studyingHard, $deck.previewHard)
+                    delay(Tr.studyingGood, $deck.previewGood)
+                    Text(Tr.decksZeroMinutesHint)
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Palette.secondary)
+                        .optionNote()
+                }
+                OptionRow(title: Tr.decksCreateEvenIfEmpty, revertible: false) {
+                    SwitchControl(title: Tr.decksCreateEvenIfEmpty, isOn: $deck.allowEmpty)
+                }
             }
-            .padding(Theme.Spacing.large)
+        } footer: {
+            if deck.building {
+                ProgressView().controlSize(.small)
+            } else if let error = deck.error {
+                OptionWarning(text: error, level: .danger).lineLimit(2)
+            }
+            Spacer(minLength: Theme.Spacing.small)
+            DialogButtons(
+                action: deck.isNew ? Tr.decksBuild : Tr.actionsRebuild,
+                disabled: deck.building || deck.name.trimmingCharacters(in: .whitespaces).isEmpty,
+                cancelDisabled: deck.building, cancel: cancel,
+                submit: { Task { if let id = await deck.build() { built(id) } } })
         }
-        .frame(width: Theme.FilteredDeck.sheetWidth, height: Theme.FilteredDeck.sheetHeight)
-        .navigationTitle(Tr.actionsOptionsFor(val: deck.name))
-        .onAppear { searchFocused = true }
-        .alert(
-            deck.error ?? "", isPresented: Binding { deck.error != nil } set: { if !$0 { deck.error = nil } }
-        ) {
-            Button("OK") {}
-        }
+        .task { await deck.loadSidebar() }
     }
 
-    private func searchSection(_ title: String, _ search: Binding<FilteredSearch>) -> some View {
-        Section {
-            HStack {
-                TextField("Search", text: search.search)
-                Button("Search", systemImage: "magnifyingglass") {
+    /// A filter's search in the Browser's field, chips and suggestions and
+    /// all, with a quiet button that shows it in the Browser, then how many
+    /// cards it takes and in what order.
+    @ViewBuilder
+    private func searchRows(
+        _ search: Binding<FilteredSearch>, field: FilteredSearchField, focusOnAppear: Bool = false
+    ) -> some View {
+        OptionRow(title: Tr.actionsSearch, revertible: false) {
+            HStack(spacing: Theme.Spacing.xxSmall) {
+                BrowserSearchField(model: field, focusOnAppear: focusOnAppear)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(Tr.actionsSearch)
+                IconButton("arrow.up.forward.app", help: Tr.searchViewInBrowser) {
                     show { try deck.normalisedSearch(search.wrappedValue.search) }
                 }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help(Tr.searchViewInBrowser)
+                // Its hover room hangs past the edge, so the glyph ends
+                // where the controls below do.
+                .padding(.trailing, -Theme.Spacing.small)
             }
-            TextField(Tr.decksLimitTo, value: search.limit, format: .number)
-            Picker(sentenceStart(Tr.decksCardsSelectedBy), selection: search.order) {
-                ForEach(deck.orders, id: \.order) { order in
-                    Text(order.label).tag(order.order)
-                }
-            }
-        } header: {
-            Text(title)
+            .frame(width: Theme.FilteredDeck.textColumnWidth)
+        }
+        OptionRow(title: Tr.decksLimitTo, revertible: false) {
+            NumberField(
+                value: Binding { Double(search.wrappedValue.limit) } set: { search.wrappedValue.limit = Int($0) },
+                range: 1...99999)
+        }
+        OptionRow(title: sentenceStart(Tr.decksCardsSelectedBy), revertible: false) {
+            OptionPicker(selection: search.order, choices: deck.orders.map { ($0.order, $0.label) })
         }
     }
 
     private func delay(_ button: String, _ seconds: Binding<Int>) -> some View {
-        LabeledContent(Tr.decksDelayForButton(button: button)) {
-            HStack(spacing: Theme.Spacing.xSmall) {
-                TextField(Tr.decksDelayForButton(button: button), value: seconds, format: .number)
-                    .labelsHidden()
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: Theme.FilteredDeck.secondsWidth)
-                Text(Tr.schedulingSeconds).foregroundStyle(.secondary)
-            }
+        OptionRow(title: Tr.decksDelayForButton(button: button), revertible: false) {
+            NumberField(
+                value: Binding { Double(seconds.wrappedValue) } set: { seconds.wrappedValue = Int($0) },
+                range: 0...99999, unit: Tr.schedulingSeconds)
         }
     }
 
@@ -115,12 +116,12 @@ struct FilteredDeckSheet: View {
         }
     }
 
-    /// "Name:" as a form label.
+    /// "Name:" as a row's title.
     private func label(_ text: String) -> String {
         text.hasSuffix(":") ? String(text.dropLast()) : text
     }
 
-    /// "cards selected by" as a label of its own.
+    /// "cards selected by" as a title of its own.
     private func sentenceStart(_ text: String) -> String {
         text.prefix(1).uppercased() + text.dropFirst()
     }

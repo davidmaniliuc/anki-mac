@@ -37,6 +37,34 @@ nonisolated struct SearchQuery: Equatable {
         text = words.joined(separator: " ")
     }
 
+    /// The field's chips, as the backend wrote them, then a row picked from
+    /// its suggestions and the text, joined by AND.
+    static func node(chips: [String], adding item: SidebarItem? = nil, text: String) -> Anki_Search_SearchNode {
+        var nodes = chips.map { raw in
+            var node = Anki_Search_SearchNode()
+            node.parsableText = raw
+            return node
+        }
+        if let item { nodes.append(item.searchNode) }
+        let text = text.replacing(/\s/, with: " ").trimmingCharacters(in: .whitespaces)
+        if !text.isEmpty {
+            var node = Anki_Search_SearchNode()
+            node.parsableText = text
+            nodes.append(node)
+        }
+        var node = Anki_Search_SearchNode()
+        if nodes.count > 1 {
+            var group = Anki_Search_SearchNode.Group()
+            group.nodes = nodes
+            group.joiner = .and
+            node.group = group
+        } else {
+            node = nodes.first ?? node
+            if nodes.isEmpty { node.parsableText = "" }
+        }
+        return node
+    }
+
     /// The top-level terms, split on spaces outside quotes and brackets.
     static func terms(_ search: String) -> [String] {
         var terms: [String] = []

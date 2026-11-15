@@ -59,20 +59,9 @@ private struct RecordingView: View {
                     .frame(height: Theme.Recording.meterHeight)
                     .accessibilityHidden(true)
             }
-            // A dialog's buttons, at its trailing edge with the default last.
-            HStack(spacing: Theme.Spacing.small) {
+            HStack {
                 Spacer()
-                Button(Tr.actionsCancel) { finish(false) }
-                    .buttonStyle(ChipButtonStyle())
-                    .keyboardShortcut(.cancelAction)
-                Button { finish(true) } label: {
-                    HStack(spacing: Theme.Layout.keyCapGap) {
-                        Text(Tr.actionsSave)
-                        KeyCap("↩", onAccent: true)
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle(compact: true))
-                .keyboardShortcut(.defaultAction)
+                DialogButtons(action: Tr.actionsSave, cancel: { finish(false) }, submit: { finish(true) })
             }
         }
         .padding(Theme.Spacing.large)

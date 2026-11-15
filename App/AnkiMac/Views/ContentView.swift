@@ -324,12 +324,14 @@ private struct DeckPrompts: ViewModifier {
         content
             .sheet(item: Binding { model.customStudy } set: { model.customStudy = $0 }) { study in
                 CustomStudySheet(
-                    study: study,
+                    study: study, deckName: model.deck(study.deckID)?.fullName ?? "",
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
             }
             .sheet(item: Binding { model.descriptionEdit } set: { model.descriptionEdit = $0 }) { edit in
-                DeckDescriptionSheet(edit: edit, cancel: { model.descriptionEdit = nil }, save: model.saveDescription)
+                DeckDescriptionSheet(
+                    edit: edit, deckName: model.deck(edit.id)?.fullName ?? "", cancel: { model.descriptionEdit = nil },
+                    save: model.saveDescription)
             }
             .confirmationDialog(
                 Tr.studyingWhatWouldYouLikeToUnbury,

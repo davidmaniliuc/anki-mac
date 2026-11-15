@@ -16,6 +16,8 @@ protocol CardCommandTarget: AnyObject {
     func redo()
     /// Whether Set Due Date, Reset and Reposition have a card to act on.
     var canScheduleCards: Bool { get }
+    /// Whether Reposition has new cards to move.
+    var canReposition: Bool { get }
     func toggleBury()
     func askSetDueDate()
     func askForget()
@@ -24,6 +26,7 @@ protocol CardCommandTarget: AnyObject {
 
 extension CardCommandTarget {
     var canScheduleCards: Bool { false }
+    var canReposition: Bool { canScheduleCards }
     func toggleBury() {}
     func askSetDueDate() {}
     func askForget() {}

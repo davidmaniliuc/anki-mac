@@ -362,6 +362,7 @@ struct CardCommands: Commands {
                     .keyboardShortcut("n", modifiers: [.command, .option])
                 Button("Reposition…") { target?.askReposition() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
+                    .disabled(!(target?.canReposition ?? false))
             }
             .disabled(!(target?.canScheduleCards ?? false))
             Divider()

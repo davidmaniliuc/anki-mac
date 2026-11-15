@@ -17,42 +17,20 @@ struct CsvImportSheet: View {
     }
 
     var body: some View {
-        // The settings scroll between the name and the buttons, which stay
-        // on the canvas with no hairline, as the main window's pages.
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) {
-                    fileSection
-                    optionsSection
-                    mappingSection
-                }
-                .padding(.horizontal, Theme.CsvImport.margin)
-                .padding(.top, Theme.Spacing.small)
-                .padding(.bottom, Theme.Spacing.large)
+        SettingsSheet(
+            title: draft.url.lastPathComponent, width: Theme.CsvImport.size.width,
+            height: Theme.CsvImport.size.height
+        ) {
+            Group {
+                fileSection
+                optionsSection
+                mappingSection
             }
-            .scrollEdgeEffectHidden(true, for: .vertical)
-            .clipped()
             // A re-query replaces the mapping, so an edit made meanwhile would be lost.
             .disabled(draft.isRefreshing)
+        } footer: {
             footer
         }
-        .frame(width: Theme.CsvImport.size.width, height: Theme.CsvImport.size.height)
-        .background(Theme.Palette.canvas.ignoresSafeArea())
-        .foregroundStyle(Theme.Palette.text)
-        .tint(Theme.Palette.accent)
-    }
-
-    private var header: some View {
-        Text(draft.url.lastPathComponent)
-            .font(Theme.Fonts.panelTitle)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .accessibilityAddTraits(.isHeader)
-            .padding(.horizontal, Theme.CsvImport.margin)
-            .padding(.top, Theme.CsvImport.margin)
-            .padding(.bottom, Theme.Spacing.medium)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Sections
@@ -203,35 +181,21 @@ struct CsvImportSheet: View {
 
     // MARK: Footer
 
-    /// What's happening, or what went wrong, then a dialog's buttons at its
-    /// trailing edge with the default last.
-    private var footer: some View {
-        HStack(spacing: Theme.Spacing.small) {
-            if draft.isRefreshing || model.packageOperationInProgress {
-                ProgressView().controlSize(.small)
-                Text(Tr.actionsProcessing)
-                    .font(Theme.Fonts.caption)
-                    .foregroundStyle(Theme.Palette.secondary)
-            } else if let error = draft.refreshError {
-                OptionWarning(text: error, level: .danger).lineLimit(2)
-            }
-            Spacer(minLength: Theme.Spacing.small)
-            Button(Tr.actionsCancel) { dismiss() }
-                .buttonStyle(ChipButtonStyle())
-                .keyboardShortcut(.cancelAction)
-                .disabled(model.packageOperationInProgress)
-            Button { model.importCsv(draft) } label: {
-                HStack(spacing: Theme.Layout.keyCapGap) {
-                    Text(Tr.actionsImport)
-                    KeyCap("\u{21A9}", onAccent: true)
-                }
-            }
-            .buttonStyle(PrimaryButtonStyle(compact: true))
-            .keyboardShortcut(.defaultAction)
-            .disabled(draft.isRefreshing || model.packageOperationInProgress)
+    /// What's happening, or what went wrong, then the dialog's buttons.
+    @ViewBuilder private var footer: some View {
+        if draft.isRefreshing || model.packageOperationInProgress {
+            ProgressView().controlSize(.small)
+            Text(Tr.actionsProcessing)
+                .font(Theme.Fonts.caption)
+                .foregroundStyle(Theme.Palette.secondary)
+        } else if let error = draft.refreshError {
+            OptionWarning(text: error, level: .danger).lineLimit(2)
         }
-        .padding(.horizontal, Theme.CsvImport.margin)
-        .padding(.vertical, Theme.Spacing.medium)
+        Spacer(minLength: Theme.Spacing.small)
+        DialogButtons(
+            action: Tr.actionsImport, disabled: draft.isRefreshing || model.packageOperationInProgress,
+            cancelDisabled: model.packageOperationInProgress, cancel: { dismiss() },
+            submit: { model.importCsv(draft) })
     }
 }
 

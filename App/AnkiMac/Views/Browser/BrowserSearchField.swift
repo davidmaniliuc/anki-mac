@@ -1,3 +1,4 @@
+import AnkiKit
 import AppKit
 import SwiftUI
 
@@ -8,11 +9,13 @@ import SwiftUI
 /// Return on "Search for" searches for the text. `deck:`, `tag:`, `note:`,
 /// `is:` and `flag:` before the word keep the list to that kind, and Down
 /// Arrow opens it with nothing typed. Delete on empty text selects the last
-/// chip, and again removes it; Esc takes back what was typed.
+/// chip, and again removes it; Esc takes back what was typed. A filtered
+/// deck's search is the same field (see `SearchFieldSource`).
 struct BrowserSearchField: View {
-    let model: BrowserModel
+    let model: any SearchFieldSource
     /// Called before each search the field starts, so the sidebar lets go of its rows.
-    let willSearch: () -> Void
+    var willSearch: () -> Void = {}
+    var focusOnAppear = true
 
     @State private var query = SearchQuery("", sidebar: [])
     @State private var text = ""
@@ -100,7 +103,7 @@ struct BrowserSearchField: View {
         }
         .onAppear {
             suggestions.pick = { [self] in pick($0) }
-            focused = true
+            if focusOnAppear { focused = true }
         }
         .onDisappear { suggestions.hide() }
     }
@@ -156,6 +159,7 @@ struct BrowserSearchField: View {
             set: { new in
                 text = new
                 selectedChip = nil
+                model.edited(chips: query.chips.map(\.raw), text: new)
                 refreshSuggestions(all: false)
             })
     }
@@ -170,7 +174,7 @@ struct BrowserSearchField: View {
         let word = word
         guard focused, all || !word.isEmpty else { return suggestions.hide() }
         let have = Set(query.chips.map(\.item.id))
-        let groups = SearchSuggestions.groups(for: word, in: model.sidebar, excluding: have)
+        let groups = SearchSuggestions.groups(for: word, in: model.sidebar, excluding: have, typed: text)
         let search = text.trimmingCharacters(in: .whitespaces)
         suggestions.show(groups, searchFor: search.isEmpty ? nil : search)
     }
@@ -189,11 +193,18 @@ struct BrowserSearchField: View {
                 selectedChip = nil
             } else if text != query.text {
                 text = query.text
+                model.edited(chips: query.chips.map(\.raw), text: text)
             } else {
                 return .ignored
             }
         case .return:
-            if suggestions.isShown { suggestions.pickHighlighted() } else { submit() }
+            if suggestions.isShown {
+                suggestions.pickHighlighted()
+            } else if model.searchesOnReturn {
+                submit()
+            } else {
+                return .ignored
+            }
         // A text field hands Backspace on as DEL, not as `.delete`.
         case .delete where text.isEmpty, KeyEquivalent("\u{7F}") where text.isEmpty:
             guard !query.chips.isEmpty else { return .ignored }
@@ -211,14 +222,20 @@ struct BrowserSearchField: View {
     // MARK: Searching
 
     /// A row from the suggestions takes the place of the word typed for it.
-    private func pick(_ item: SidebarItem?) {
+    private func pick(_ pick: SearchSuggestions.Pick) {
         suggestions.hide()
-        guard let item else { return submit() }
-        let word = word
         let rest = String(text.dropLast(word.count)).trimmingCharacters(in: .whitespaces)
-        text = rest
-        willSearch()
-        model.search(chips: query.chips.map(\.raw), adding: item, text: rest)
+        switch pick {
+        case .text:
+            submit()
+        case .item(let item):
+            text = rest
+            willSearch()
+            model.search(chips: query.chips.map(\.raw), adding: item, text: rest)
+        case .term(let term, _):
+            text = rest.isEmpty ? term : "\(rest) \(term)"
+            submit()
+        }
     }
 
     private func submit() {
@@ -252,13 +269,34 @@ struct BrowserSearchField: View {
 /// names match it.
 @Observable
 final class SearchSuggestions {
+    /// What a row stands for.
+    enum Pick {
+        /// "Search for" the text.
+        case text
+        case item(SidebarItem)
+        /// A search keyword with no sidebar row, such as `is:due`, which
+        /// stays text; with its symbol.
+        case term(String, systemImage: String)
+    }
+
     struct Row: Identifiable {
         let id: Int
-        /// nil for "Search for" the text.
-        let item: SidebarItem?
+        let pick: Pick
         let title: String
         /// A deck or tag's parents, after its name.
         let detail: String?
+
+        var item: SidebarItem? {
+            if case .item(let item) = pick { item } else { nil }
+        }
+
+        var systemImage: String {
+            switch pick {
+            case .text: "magnifyingglass"
+            case .item(let item): item.systemImage
+            case .term(_, let systemImage): systemImage
+            }
+        }
     }
 
     struct Group {
@@ -270,24 +308,24 @@ final class SearchSuggestions {
     private(set) var width: CGFloat = 0
     var highlighted = 0
     @ObservationIgnored weak var anchor: NSView?
-    @ObservationIgnored var pick: (SidebarItem?) -> Void = { _ in }
+    @ObservationIgnored var pick: (Pick) -> Void = { _ in }
     @ObservationIgnored private let list = FloatingList()
 
     var isShown: Bool { list.isShown }
 
     private var rows: [Row] { groups.flatMap(\.rows) }
 
-    func show(_ matches: [(title: String, items: [(SidebarItem, String)])], searchFor search: String?) {
+    func show(_ matches: [(title: String, items: [(Pick, String)])], searchFor search: String?) {
         var next = 0
-        func row(_ item: SidebarItem?, _ title: String) -> Row {
+        func row(_ pick: Pick, _ title: String) -> Row {
             defer { next += 1 }
-            switch item {
-            case .deck(_, let name)?, .tag(let name)?: return Self.pathRow(next, item, name)
-            default: return Row(id: next, item: item, title: title, detail: nil)
+            switch pick {
+            case .item(.deck(_, let name)), .item(.tag(let name)): return Self.pathRow(next, pick, name)
+            default: return Row(id: next, pick: pick, title: title, detail: nil)
             }
         }
         var groups: [Group] = []
-        if let search { groups.append(Group(title: nil, rows: [row(nil, "Search for \u{201C}\(search)\u{201D}")])) }
+        if let search { groups.append(Group(title: nil, rows: [row(.text, "Search for \u{201C}\(search)\u{201D}")])) }
         for match in matches {
             groups.append(Group(title: match.title, rows: match.items.map { row($0.0, $0.1) }))
         }
@@ -299,10 +337,10 @@ final class SearchSuggestions {
         list.show(SearchSuggestionList(suggestions: self), under: anchor, inset: inset)
     }
 
-    private static func pathRow(_ id: Int, _ item: SidebarItem?, _ name: String) -> Row {
+    private static func pathRow(_ id: Int, _ pick: Pick, _ name: String) -> Row {
         let parts = name.components(separatedBy: "::")
         let parents = parts.dropLast().joined(separator: " › ")
-        return Row(id: id, item: item, title: parts.last ?? name, detail: parents.isEmpty ? nil : parents)
+        return Row(id: id, pick: pick, title: parts.last ?? name, detail: parents.isEmpty ? nil : parents)
     }
 
     func hide() {
@@ -315,12 +353,12 @@ final class SearchSuggestions {
 
     func pickHighlighted() {
         guard rows.indices.contains(highlighted) else { return hide() }
-        pick(rows[highlighted].item)
+        pick(rows[highlighted].pick)
     }
 
     fileprivate func pick(row: Int) {
         guard rows.indices.contains(row) else { return }
-        pick(rows[row].item)
+        pick(rows[row].pick)
     }
 
     // MARK: Matching
@@ -334,12 +372,24 @@ final class SearchSuggestions {
         (.deckRoot, 5), (.tagRoot, 5), (.notetypeRoot, 4), (.cardStateRoot, 5), (.flagRoot, 7), (.savedSearchRoot, 3),
     ]
 
+    /// The card states' search keywords, which `is:` matches as well as
+    /// their names, so `is:l` finds Learning.
+    private static let stateKeywords: [Anki_Search_SearchNode.CardState: String] = [
+        .new: "new", .learn: "learn", .review: "review", .suspended: "suspended", .buried: "buried",
+    ]
+    /// `is:` keywords with no sidebar row, listed with the card states.
+    private static let stateTerms: [(keyword: String, title: String, systemImage: String)] = [
+        ("due", Tr.browsingSidebarDueToday, "calendar"),
+    ]
+
     /// The rows whose names match `word`, by kind; every kind's first rows
     /// when `word` is empty. A name that starts with the word comes first,
-    /// then one with a part that does, then one that has it anywhere.
+    /// then one with a part that does, then one that has it anywhere; after
+    /// `is:`, only a name or keyword that starts with it. `typed` is the
+    /// whole text, so a keyword already in it isn't offered again.
     static func groups(
-        for word: String, in sidebar: [SidebarSection], excluding: Set<SidebarItem.ID>
-    ) -> [(title: String, items: [(SidebarItem, String)])] {
+        for word: String, in sidebar: [SidebarSection], excluding: Set<SidebarItem.ID>, typed: String = ""
+    ) -> [(title: String, items: [(Pick, String)])] {
         var word = Substring(word)
         if word.hasPrefix("\"") { word = word.dropFirst() }
         var only: SidebarKind?
@@ -348,33 +398,49 @@ final class SearchSuggestions {
             word = word.dropFirst(prefix.count)
         }
         let needle = String(word)
-        var groups: [(title: String, items: [(SidebarItem, String)])] = []
+        let anchoredOnly = only == .cardStateRoot
+        var groups: [(title: String, items: [(Pick, String)])] = []
         for (kind, limit) in kinds where only == nil || only == kind {
             guard let section = sidebar.first(where: { $0.kind == kind }) else { continue }
-            var matches: [(rank: Int, item: SidebarItem, title: String)] = []
+            var matches: [(rank: Int, pick: Pick, title: String)] = []
             func visit(_ nodes: [SidebarNode]) {
                 for node in nodes {
                     let name = node.item.fullName.map { $0.replacing("::", with: " › ") } ?? node.title
-                    if !excluding.contains(node.id), let rank = rank(name, leaf: node.title, needle) {
-                        matches.append((rank, node.item, node.title))
+                    var keyword: String?
+                    if case .cardState(let state) = node.item { keyword = stateKeywords[state] }
+                    if !excluding.contains(node.id),
+                        let rank = rank(name, leaf: node.title, keyword: keyword, needle),
+                        !anchoredOnly || rank == 0
+                    {
+                        matches.append((rank, .item(node.item), node.title))
                     }
                     visit(node.children ?? [])
                 }
             }
             visit(section.nodes)
+            if kind == .cardStateRoot {
+                for term in stateTerms where !SearchQuery.terms(typed.lowercased()).dropLast().contains("is:\(term.keyword)") {
+                    if let rank = rank(term.title, leaf: term.title, keyword: term.keyword, needle),
+                        !anchoredOnly || rank == 0
+                    {
+                        matches.append((rank, .term("is:\(term.keyword)", systemImage: term.systemImage), term.title))
+                    }
+                }
+            }
             let best = matches.enumerated()
                 .sorted { ($0.element.rank, $0.offset) < ($1.element.rank, $1.offset) }
                 .prefix(only == nil ? limit : 12)
-                .map { ($0.element.item, $0.element.title) }
+                .map { ($0.element.pick, $0.element.title) }
             if !best.isEmpty { groups.append((section.title, best)) }
         }
         return groups
     }
 
-    private static func rank(_ name: String, leaf: String, _ needle: String) -> Int? {
+    private static func rank(_ name: String, leaf: String, keyword: String? = nil, _ needle: String) -> Int? {
         if needle.isEmpty { return 0 }
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .anchored]
         if leaf.range(of: needle, options: options) != nil { return 0 }
+        if let keyword, keyword.range(of: needle, options: options) != nil { return 0 }
         if name.components(separatedBy: " › ").contains(where: { $0.range(of: needle, options: options) != nil }) {
             return 1
         }
@@ -411,7 +477,7 @@ private struct SearchSuggestionList: View {
     private func row(_ row: SearchSuggestions.Row) -> some View {
         let highlighted = suggestions.highlighted == row.id
         return HStack(spacing: Theme.Spacing.small) {
-            Image(systemName: row.item?.systemImage ?? "magnifyingglass")
+            Image(systemName: row.systemImage)
                 .font(Theme.Tags.rowSymbol)
                 .foregroundStyle(highlighted ? Color.white : row.item?.tint ?? Theme.Palette.secondary)
                 .frame(width: Theme.Browser.sidebarIconSlot)
@@ -455,3 +521,26 @@ extension SidebarItem {
         }
     }
 }
+
+/// What the search field shows and searches: the Browser's table, or a
+/// filtered deck's search in its sheet.
+protocol SearchFieldSource: AnyObject {
+    /// The rows a chip or a suggestion can stand for.
+    var sidebar: [SidebarSection] { get }
+    /// The search as last applied, which the field splits into chips and text.
+    var searchText: String { get }
+    /// Whether Return searches. In a sheet it falls through to the default
+    /// button instead, and the typing counts as it goes (`edited`).
+    var searchesOnReturn: Bool { get }
+    func search(chips: [String], adding item: SidebarItem?, text: String)
+    /// The chips and the text as typed, before any search.
+    func edited(chips: [String], text: String)
+}
+
+extension SearchFieldSource {
+    var searchesOnReturn: Bool { true }
+    func edited(chips: [String], text: String) {}
+    func search(chips: [String], text: String) { search(chips: chips, adding: nil, text: text) }
+}
+
+extension BrowserModel: SearchFieldSource {}

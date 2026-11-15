@@ -80,8 +80,8 @@ extension BrowserModel {
     /// `days` as desktop takes it: "0" today, "1!" tomorrow and reset the
     /// interval, "3-7" a random day in the range. Remembered for next time.
     func setDueDate(days: String) {
-        guard let selection = answer(), !days.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        change(failing: "Couldn’t set the due date") { backend in
+        guard !days.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        answerPrompt { selection, backend in
             var request = Anki_Scheduler_SetDueDateRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.days = days
@@ -104,8 +104,7 @@ extension BrowserModel {
     /// Puts the cards back in the new queue. The backend saves both choices
     /// as the defaults for next time.
     func forget(restorePosition: Bool, resetCounts: Bool) {
-        guard let selection = answer() else { return }
-        change(failing: "Couldn’t reset the cards") { backend in
+        answerPrompt { selection, backend in
             var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.log = true
@@ -128,8 +127,7 @@ extension BrowserModel {
 
     /// Only new cards move; the backend leaves the rest of the selection alone.
     func reposition(start: Int, step: Int, randomize: Bool, shift: Bool) {
-        guard let selection = answer() else { return }
-        change(failing: "Couldn’t reposition the cards", searchAgain: true) { backend in
+        answerPrompt(searchAgain: true) { selection, backend in
             var request = Anki_Scheduler_SortCardsRequest()
             request.cardIds = try Self.cardIDs(selection, backend: backend)
             request.startingFrom = UInt32(max(start, 0))
@@ -282,6 +280,24 @@ extension BrowserModel {
         defer { promptSelection = nil }
         prompt = nil
         return promptSelection
+    }
+
+    /// Runs a prompt's answer on the rows it was asked about. A failure, such
+    /// as a due date that can't be read, stays on the sheet; once it's done
+    /// the sheet closes.
+    private func answerPrompt(
+        searchAgain: Bool = false, _ work: @escaping @Sendable (Selection, AnkiBackend) throws -> Void
+    ) {
+        // Taken while the answer runs, so a second press waits for it.
+        guard let selection = promptSelection else { return }
+        promptSelection = nil
+        promptError = nil
+        Task {
+            let done = await perform(
+                failing: "", searchAgain: searchAgain, failed: { self.promptError = ActionFailure.reason($0) },
+                { backend in try work(selection, backend) }, then: { _ in self.prompt = nil })
+            if !done { promptSelection = selection }
+        }
     }
 
     func cancelPrompt() {

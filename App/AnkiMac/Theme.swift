@@ -260,7 +260,6 @@ enum Theme {
     enum Overview {
         static let descriptionWidth: CGFloat = 520
         static let descriptionMaxHeight: CGFloat = 220
-        static let descriptionSheetSize = CGSize(width: 480, height: 360)
     }
 
     enum QuickFind {
@@ -308,16 +307,43 @@ enum Theme {
         static let boxInset: CGFloat = (DeckOptions.fieldHeight - chipHeight) / 2
     }
 
+    /// The main window's sheets drawn as Deck Options' settings (Custom
+    /// Study, a filtered deck, a description) share one width.
+    static let settingsSheetWidth: CGFloat = 560
+
+    /// Custom Study, drawn as Deck Options' settings.
     enum CustomStudy {
-        static let sheetWidth: CGFloat = 480
-        static let sheetHeight: CGFloat = 520
-        static let valueWidth: CGFloat = 64
+        static let width = settingsSheetWidth
+        /// Room for the six choices and Selective Study's tags; a limit's
+        /// sheet is shorter.
+        static let maxHeight: CGFloat = 600
+        /// Selective Study's tag fields; tags wrap within them.
+        static let tagFieldWidth: CGFloat = 240
     }
 
+    /// A filtered deck's options, drawn as Deck Options' settings.
     enum FilteredDeck {
-        static let sheetWidth: CGFloat = 480
-        static let sheetHeight: CGFloat = 560
-        static let secondsWidth: CGFloat = 60
+        static let width = settingsSheetWidth
+        /// Both filters and the delays scroll past this.
+        static let maxHeight: CGFloat = 660
+        /// The name and each search, so the boxes start in one column; wide
+        /// enough for a search of a few terms before it scrolls.
+        static let textColumnWidth: CGFloat = 340
+    }
+
+    /// The deck's description, as Deck Options' settings with the text under them.
+    enum DeckDescription {
+        static let width = settingsSheetWidth
+        static let textHeight: CGFloat = 240
+    }
+
+    /// The study screen's Set Due Date, Reset Card and Reposition prompts.
+    enum StudyPrompt {
+        static let width: CGFloat = 420
+        /// Room for "30-60!", the longest answer the examples suggest.
+        static let daysFieldWidth: CGFloat = 120
+        /// The due date's examples: "0", "1!", "3-7" in the rounded face.
+        static let hintFigures = Font.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit()
     }
 
     /// The band under the traffic lights that holds a utility window's
@@ -583,6 +609,8 @@ enum Theme {
         static let helpSymbol = Font.system(size: 12, weight: .medium)
         static let helpSize = CGSize(width: 22, height: 20)
         static let revertSymbol = Font.system(size: 11, weight: .semibold)
+        /// The chosen one of a few choices, at its row's trailing edge.
+        static let checkSymbol = Font.system(size: 12, weight: .semibold)
         static let revertSize = CGSize(width: 22, height: 22)
         static let globeSymbol = Font.system(size: 11)
         /// Pencil, not Faded Pencil: the globe is the only sign that a
@@ -675,7 +703,6 @@ enum Theme {
     /// The text import sheet, drawn as Deck Options' settings.
     enum CsvImport {
         static let size = CGSize(width: 600, height: 660)
-        static let margin = DeckOptions.margin
         /// The tag fields' width at a row's trailing edge; tags wrap within it.
         static let tagFieldWidth: CGFloat = 280
         /// The preview: the file's first rows, as dense as the Browser's table.

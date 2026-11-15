@@ -1012,6 +1012,25 @@ nonisolated enum Tr {
     static let statisticsAverageInterval = "Average interval"
     static let statisticsAverageEase = "Average ease"
     static let statisticsAverageDifficulty = "Average difficulty"
+    static func schedulingSetDueDatePrompt(cards: some TrNumber) -> String {
+        (cards.trValue == 1 ? "Show card in how many days?" : "Show cards in how many days?")
+    }
+    static let schedulingSetDueDatePromptHint = "0 = today 1! = tomorrow + change interval to 1 3-7 = random choice of 3-7 days"
+    static let schedulingResetCounts = "Reset repetition and lapse counts"
+    static let schedulingRestorePosition = "Restore original position where possible"
+    static let browsingRepositionNewCards = "Reposition New Cards"
+    static let browsingStartPosition = "Start position:"
+    static let browsingStep = "Step:"
+    static let browsingRandomizeOrder = "Randomize order"
+    static let browsingShiftPositionOfExistingCards = "Shift position of existing cards"
+    static func browsingQueueTop(val: String) -> String {
+        ("Queue top: " + val)
+    }
+    static func browsingQueueBottom(val: String) -> String {
+        ("Queue bottom: " + val)
+    }
+    static let actionsOptions = "Options"
+    static let decksCreateEvenIfEmpty = "Create/update this deck even if empty"
     static let browsingSidebarSavedSearches = "Saved Searches"
     static let browsingSidebarCardState = "Card State"
     static let browsingSidebarFlags = "Flags"
@@ -1361,7 +1380,6 @@ nonisolated enum Tr {
     }
     static let actionsSetDueDate = "Set Due Date"
     static let actionsForgetCard = "Reset Card"
-    static let actionsOptions = "Options"
     static let profilesOpen = "Open"
     static let profilesOpenBackup = "Open Backup..."
     static let profilesProfiles = "Profiles"

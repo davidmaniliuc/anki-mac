@@ -1,107 +1,25 @@
 import SwiftUI
 
-/// The sheet for the study screen's `StudySession.Prompt`, in the browser's
-/// prompt layout with the same wording.
+/// The sheet for the study screen's `StudySession.Prompt`, asked about the
+/// card on screen (see SchedulePrompts).
 struct StudyPromptSheet: View {
     let prompt: StudySession.Prompt
     let session: StudySession
 
     var body: some View {
+        let context = SchedulePromptContext(
+            error: session.promptError, cancel: { session.prompt = nil }, edited: { session.promptError = nil })
         switch prompt {
         case .setDueDate(let days):
-            DueDateForm(session: session, days: days)
+            SetDueDatePrompt(days: days, context: context) { session.setDueDate(days: $0) }
         case .forget(let restorePosition, let resetCounts):
-            ForgetForm(session: session, restorePosition: restorePosition, resetCounts: resetCounts)
-        case .reposition(let top, let bottom, let randomize, let shift):
-            RepositionForm(session: session, queueTop: top, queueBottom: bottom, randomize: randomize, shift: shift)
-        }
-    }
-}
-
-private struct DueDateForm: View {
-    let session: StudySession
-    @State var days: String
-    @FocusState private var focused: Bool
-
-    init(session: StudySession, days: String) {
-        self.session = session
-        _days = State(initialValue: days)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: "Show the card in how many days?", action: Tr.actionsSetDueDate,
-            canSubmit: !days.trimmingCharacters(in: .whitespaces).isEmpty,
-            cancel: { session.prompt = nil }, submit: { session.setDueDate(days: days) }
-        ) {
-            TextField("Days", text: $days, prompt: Text("0"))
-                .labelsHidden()
-                .focused($focused)
-                .onAppear { focused = true }
-            Text("0 = today\n1! = tomorrow + change interval to 1\n3-7 = random choice of 3-7 days")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct ForgetForm: View {
-    let session: StudySession
-    @State var restorePosition: Bool
-    @State var resetCounts: Bool
-
-    init(session: StudySession, restorePosition: Bool, resetCounts: Bool) {
-        self.session = session
-        _restorePosition = State(initialValue: restorePosition)
-        _resetCounts = State(initialValue: resetCounts)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: "Reset 1 card to new?", action: "Reset", cancel: { session.prompt = nil },
-            submit: { session.forget(restorePosition: restorePosition, resetCounts: resetCounts) }
-        ) {
-            Toggle("Restore original position where possible", isOn: $restorePosition)
-            Toggle("Reset repetition and lapse counts", isOn: $resetCounts)
-        }
-    }
-}
-
-private struct RepositionForm: View {
-    let session: StudySession
-    let queueTop: Int
-    let queueBottom: Int
-    @State var start = 0
-    @State var step = 1
-    @State var randomize: Bool
-    @State var shift: Bool
-    @FocusState private var focused: Bool
-
-    init(session: StudySession, queueTop: Int, queueBottom: Int, randomize: Bool, shift: Bool) {
-        self.session = session
-        self.queueTop = queueTop
-        self.queueBottom = queueBottom
-        _randomize = State(initialValue: randomize)
-        _shift = State(initialValue: shift)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: "Reposition 1 card", action: Tr.actionsReposition, cancel: { session.prompt = nil },
-            submit: { session.reposition(start: start, step: step, randomize: randomize, shift: shift) }
-        ) {
-            Text("The new queue runs from \(queueTop) to \(queueBottom).")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Form {
-                TextField("Start position:", value: $start, format: .number)
-                    .focused($focused)
-                    .onAppear { focused = true }
-                TextField("Step:", value: $step, format: .number)
-                Toggle("Randomize order", isOn: $randomize)
-                Toggle("Shift position of existing cards", isOn: $shift)
+            ResetCardPrompt(restorePosition: restorePosition, resetCounts: resetCounts, context: context) {
+                session.forget(restorePosition: $0, resetCounts: $1)
             }
-            .formStyle(.columns)
+        case .reposition(let top, let bottom, let randomize, let shift):
+            RepositionPrompt(queueTop: top, queueBottom: bottom, randomize: randomize, shift: shift, context: context) {
+                session.reposition(start: $0, step: $1, randomize: $2, shift: $3)
+            }
         }
     }
 }
@@ -114,25 +32,31 @@ struct StudyEditSheet: View {
     @Environment(CollectionModel.self) private var collection
 
     var body: some View {
+        // As Add's window: the editor on the canvas, a hairline, the tags,
+        // then the dialog's buttons with no hairline over them.
         VStack(spacing: 0) {
             NoteEditorView(editor: model.editor) {
                 CardTemplatesWindowController.show(
                     collection: collection, note: model.currentNote,
                     ord: Int(session.card?.queued.card.templateIdx ?? 0))
             }
-            Divider()
+            Theme.Palette.hairline.frame(height: 1)
             TagRow(tags: $model.tags, complete: model.completeTags)
                 .padding(Theme.Spacing.medium)
-            Divider()
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { session.finishEditing(save: false) }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { session.finishEditing(save: true) }
-                    .keyboardShortcut(.return, modifiers: .command)
+                // Return starts a new line in a field, so Save takes Command-Return.
+                DialogButtons(
+                    action: Tr.actionsSave, key: "\u{2318}\u{21A9}",
+                    shortcut: KeyboardShortcut(.return, modifiers: .command),
+                    cancel: { session.finishEditing(save: false) }, submit: { session.finishEditing(save: true) })
             }
-            .padding(Theme.Spacing.medium)
+            .padding(.horizontal, Theme.Spacing.medium)
+            .padding(.bottom, Theme.Spacing.medium)
         }
         .frame(width: Theme.Study.editorWidth, height: Theme.Study.editorHeight)
+        .background(Theme.Palette.canvas.ignoresSafeArea())
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
     }
 }

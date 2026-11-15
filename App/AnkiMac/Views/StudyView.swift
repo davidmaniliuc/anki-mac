@@ -311,7 +311,7 @@ struct StudyView: View {
             Button(Tr.actionsWithEllipsis(action: Tr.actionsSetDueDate)) { session.askSetDueDate() }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             Button(Tr.actionsReposition + "…") { session.askReposition() }
-                .disabled(session.currentQueue != .new)
+                .disabled(!session.canReposition)
             Button(Tr.actionsSuspendCard) { session.suspendCurrentCard() }
                 .keyboardShortcut("@", modifiers: [])
             Button(Tr.actionsOptions) { if let deck = model.selectedDeck { model.showOptions(deck) } }

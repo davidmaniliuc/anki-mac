@@ -986,6 +986,37 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// A dialog's buttons at its trailing edge, the default last: Cancel as a
+/// chip, then the action as the sheet's one primary, compact, with its key.
+struct DialogButtons: View {
+    let action: String
+    var key = "\u{21A9}"
+    var shortcut = KeyboardShortcut.defaultAction
+    var disabled = false
+    /// While the action runs, Cancel would leave it half done.
+    var cancelDisabled = false
+    let cancel: () -> Void
+    let submit: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            Button(Tr.actionsCancel, action: cancel)
+                .buttonStyle(ChipButtonStyle())
+                .keyboardShortcut(.cancelAction)
+                .disabled(cancelDisabled)
+            Button(action: submit) {
+                HStack(spacing: Theme.Layout.keyCapGap) {
+                    Text(action)
+                    KeyCap(key, onAccent: true)
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(compact: true))
+            .keyboardShortcut(shortcut)
+            .disabled(disabled)
+        }
+    }
+}
+
 /// Secondary actions, as small rounded chips that brighten under the
 /// pointer and dip when pressed.
 struct ChipButtonStyle: ButtonStyle {

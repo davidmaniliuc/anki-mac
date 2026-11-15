@@ -513,9 +513,16 @@ final class StudySession {
         }
     }
 
-    var prompt: Prompt?
+    var prompt: Prompt? {
+        didSet { promptError = nil }
+    }
+    /// Why the prompt's action failed, shown on its sheet so the answer can
+    /// be changed and tried again.
+    var promptError: String?
 
     var canScheduleCards: Bool { card != nil && !busy }
+    /// Only new cards can move.
+    var canReposition: Bool { canScheduleCards && currentQueue == .new }
 
     func askSetDueDate() {
         guard canScheduleCards else { return }
@@ -536,9 +543,8 @@ final class StudySession {
         }
     }
 
-    /// Only new cards can move, so the item does nothing for the others.
     func askReposition() {
-        guard canScheduleCards, currentQueue == .new else { return }
+        guard canReposition else { return }
         ask { backend in
             let defaults = try backend.repositionDefaults()
             let query: [String: Any] = [
@@ -558,9 +564,8 @@ final class StudySession {
     }
 
     func setDueDate(days: String) {
-        prompt = nil
         guard days.trimmingCharacters(in: .whitespaces).isEmpty == false else { return }
-        changeCard { card, backend in
+        answerPrompt { card, backend in
             var request = Anki_Scheduler_SetDueDateRequest()
             request.cardIds = [card.id]
             request.days = days
@@ -571,8 +576,7 @@ final class StudySession {
     }
 
     func forget(restorePosition: Bool, resetCounts: Bool) {
-        prompt = nil
-        changeCard { card, backend in
+        answerPrompt { card, backend in
             var request = Anki_Scheduler_ScheduleCardsAsNewRequest()
             request.cardIds = [card.id]
             request.log = true
@@ -585,8 +589,7 @@ final class StudySession {
     }
 
     func reposition(start: Int, step: Int, randomize: Bool, shift: Bool) {
-        prompt = nil
-        changeCard { card, backend in
+        answerPrompt { card, backend in
             var request = Anki_Scheduler_SortCardsRequest()
             request.cardIds = [card.id]
             request.startingFrom = UInt32(max(start, 0))
@@ -595,6 +598,30 @@ final class StudySession {
             request.shiftExisting = shift
             _ = try backend.sortCards(request)
             return Tr.actionsReposition
+        }
+    }
+
+    /// Runs the prompt's change on the card. A failure, such as a due date
+    /// that can't be read, stays on the sheet; once it's done the sheet
+    /// closes and the next card shows.
+    private func answerPrompt(_ change: @escaping @Sendable (Anki_Cards_Card, AnkiBackend) throws -> String) {
+        guard let card, !busy else { return }
+        busy = true
+        promptError = nil
+        let ids = card.queued.card
+        Task {
+            let message: String
+            do {
+                message = try await backend.perform { try change(ids, $0) }
+            } catch {
+                busy = false
+                promptError = ActionFailure.reason(error)
+                return
+            }
+            prompt = nil
+            audio.stop()
+            await loadNext(failing: "Couldn’t show the next card") { _ in }
+            showFeedback(message)
         }
     }
 

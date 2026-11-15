@@ -44,8 +44,17 @@ final class FilteredDeckModel: Identifiable {
     let orders: [(order: Anki_Decks_Deck.Filtered.SearchTerm.Order, label: String)]
     var error: String?
     private(set) var building = false
+    /// The Browser's sidebar, for the searches' chips and suggestions.
+    private(set) var sidebar: [SidebarSection] = []
+    /// Each search as the Browser's field shows it.
+    @ObservationIgnored lazy var firstField = FilteredSearchField(deck: self, search: \.first)
+    @ObservationIgnored lazy var secondField = FilteredSearchField(deck: self, search: \.second)
 
     var isNew: Bool { deck.id == 0 }
+
+    /// Desktop's window title, "Options for Filtered Deck 1", naming the
+    /// deck as it was when the sheet opened.
+    var title: String { Tr.actionsOptionsFor(val: deck.name) }
 
     /// Loads an existing filtered deck, or with id 0 the defaults for a new
     /// one, which search the current deck.
@@ -98,6 +107,7 @@ final class FilteredDeckModel: Identifiable {
     /// Builds or rebuilds the deck, and returns its id; nil after an error,
     /// such as no cards matching.
     func build() async -> Int64? {
+        error = nil
         var deck = deck
         deck.name = name
         deck.allowEmpty = allowEmpty
@@ -151,10 +161,59 @@ final class FilteredDeckModel: Identifiable {
         return try backend.buildSearchString(group([manual, implicit], .and)).val
     }
 
+    func loadSidebar() async {
+        sidebar = (try? await backend.perform { try SidebarSection.load($0) }) ?? []
+    }
+
+    /// The field's chips, a row picked from its suggestions and its text as
+    /// one search, written as the backend writes it; as typed when the text
+    /// doesn't parse, so it's Build that says why.
+    func search(chips: [String], adding item: SidebarItem?, text: String) -> String {
+        if let built = try? backend.buildSearchString(SearchQuery.node(chips: chips, adding: item, text: text)).val {
+            return built
+        }
+        let picked = item.flatMap { try? backend.buildSearchString($0.searchNode).val }
+        return FilteredSearchField.joined(chips + [picked, text].compactMap { $0 })
+    }
+
     /// A search, checked and normalised as desktop does before showing it in the browser.
     func normalisedSearch(_ search: String) throws -> String {
         var node = Anki_Search_SearchNode()
         node.parsableText = search
         return try backend.buildSearchString(node).val
+    }
+}
+
+/// One of a filtered deck's searches in the Browser's search field: its
+/// filters as chips with the Browser's suggestions, written to the deck as
+/// they're typed, since Return builds the deck rather than searching.
+@Observable
+final class FilteredSearchField: SearchFieldSource {
+    @ObservationIgnored private weak var deck: FilteredDeckModel?
+    @ObservationIgnored private let path: ReferenceWritableKeyPath<FilteredDeckModel, FilteredSearch>
+    private(set) var searchText: String
+
+    init(deck: FilteredDeckModel, search path: ReferenceWritableKeyPath<FilteredDeckModel, FilteredSearch>) {
+        self.deck = deck
+        self.path = path
+        searchText = deck[keyPath: path].search
+    }
+
+    var sidebar: [SidebarSection] { deck?.sidebar ?? [] }
+    var searchesOnReturn: Bool { false }
+
+    func search(chips: [String], adding item: SidebarItem?, text: String) {
+        guard let deck else { return }
+        let search = deck.search(chips: chips, adding: item, text: text)
+        searchText = search
+        deck[keyPath: path].search = search
+    }
+
+    func edited(chips: [String], text: String) {
+        deck?[keyPath: path].search = Self.joined(chips + [text])
+    }
+
+    static func joined(_ terms: [String]) -> String {
+        terms.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
     }
 }

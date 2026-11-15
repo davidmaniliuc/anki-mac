@@ -55,14 +55,6 @@ final class CustomStudyModel: Identifiable {
         }
     }
 
-    struct Tag: Identifiable {
-        let name: String
-        var include: Bool
-        var exclude: Bool
-
-        var id: String { name }
-    }
-
     let id = UUID()
     let deckID: Int64
     private let backend: AnkiBackend
@@ -71,13 +63,21 @@ final class CustomStudyModel: Identifiable {
     private let hasCards: Bool
 
     var option: Option = .newLimit {
-        didSet { if option != oldValue { value = defaultValue } }
+        didSet {
+            if option != oldValue {
+                value = defaultValue
+                error = nil
+            }
+        }
     }
     var value: Int
     var cramKind: CramKind = .new
-    /// Desktop's "Require one or more of these tags"; off means any tag.
-    var requireTags: Bool
-    var tags: [Tag]
+    /// Desktop's Selective Study: a card must have one of `included`, if
+    /// any, and none of `excluded`.
+    var included: [String]
+    var excluded: [String]
+    /// The deck's tags, which the two lists complete from.
+    private let deckTags: [String]
     var error: String?
     private(set) var running = false
 
@@ -87,8 +87,9 @@ final class CustomStudyModel: Identifiable {
         self.defaults = defaults
         self.hasCards = hasCards
         value = Int(defaults.extendNew)
-        tags = defaults.tags.map { Tag(name: $0.name, include: $0.include, exclude: $0.exclude) }
-        requireTags = defaults.tags.contains { $0.include }
+        deckTags = defaults.tags.map(\.name)
+        included = defaults.tags.filter(\.include).map(\.name)
+        excluded = defaults.tags.filter(\.exclude).map(\.name)
     }
 
     static func load(deckID: Int64, backend: AnkiBackend) async throws -> CustomStudyModel {
@@ -145,15 +146,28 @@ final class CustomStudyModel: Identifiable {
         }
     }
 
+    /// Whether the deck's cards have tags to choose from.
+    var hasTags: Bool { !deckTags.isEmpty }
+
+    /// The deck's tags that start with what's typed and aren't chosen yet.
+    func completeTags(_ prefix: String) -> [String] {
+        let chosen = Set(included + excluded)
+        return deckTags.filter {
+            !chosen.contains($0) && $0.range(of: prefix, options: [.caseInsensitive, .anchored]) != nil
+        }
+    }
+
     var canRun: Bool {
-        !running && option.range.contains(value)
-            && (option == .newLimit || option == .reviewLimit || hasCards)
+        guard !running, option.range.contains(value) else { return false }
+        // A limit raised by nothing would change nothing.
+        return option == .newLimit || option == .reviewLimit ? value != 0 : hasCards
     }
 
     /// Runs the request and returns the deck to show: this one after a limit
     /// change, otherwise the session deck. nil after an error, such as no
     /// cards matching, so the dialog stays open to change the criteria.
     func run() async -> Int64? {
+        error = nil
         var request = Anki_Scheduler_CustomStudyRequest()
         request.deckID = self.deckID
         switch option {
@@ -166,8 +180,8 @@ final class CustomStudyModel: Identifiable {
             var cram = Anki_Scheduler_CustomStudyRequest.Cram()
             cram.kind = cramKind.proto
             cram.cardLimit = UInt32(value)
-            cram.tagsToInclude = requireTags ? tags.filter(\.include).map(\.name) : []
-            cram.tagsToExclude = tags.filter(\.exclude).map(\.name)
+            cram.tagsToInclude = included
+            cram.tagsToExclude = excluded
             guard cram.tagsToInclude.count + cram.tagsToExclude.count <= 100 else {
                 error = Tr.errors100TagsMax
                 return nil

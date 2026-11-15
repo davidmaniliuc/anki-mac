@@ -40,6 +40,20 @@ WHOLE_FILES = [
     "statistics.ftl",
 ]
 EXTRA = [
+    "scheduling-set-due-date-prompt",
+    "scheduling-set-due-date-prompt-hint",
+    "scheduling-reset-counts",
+    "scheduling-restore-position",
+    "browsing-reposition-new-cards",
+    "browsing-start-position",
+    "browsing-step",
+    "browsing-randomize-order",
+    "browsing-shift-position-of-existing-cards",
+    "browsing-queue-top",
+    "browsing-queue-bottom",
+    "actions-options",
+    # Upstream spells this one id with underscores.
+    "decks_create_even_if_empty",
     "browsing-sidebar-saved-searches",
     "browsing-sidebar-card-state",
     "browsing-sidebar-flags",
@@ -427,7 +441,7 @@ def parse(path: Path) -> dict[str, str]:
             messages[current] = "\n".join(lines)
 
     for raw in path.read_text().splitlines():
-        match = re.match(r"^(-?[a-z][a-z0-9-]*)\s*=\s?(.*)$", raw)
+        match = re.match(r"^(-?[a-z][a-z0-9_-]*)\s*=\s?(.*)$", raw)
         if match:
             flush()
             current, first = match.group(1), match.group(2).rstrip()

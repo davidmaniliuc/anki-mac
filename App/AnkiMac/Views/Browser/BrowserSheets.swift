@@ -9,12 +9,17 @@ struct BrowserPromptSheet: View {
     var body: some View {
         switch prompt {
         case .setDueDate(let cards, let days):
-            SetDueDateSheet(model: model, cards: cards, days: days)
+            SetDueDatePrompt(days: days, context: context(cards: cards)) { model.setDueDate(days: $0) }
         case .forget(let cards, let restorePosition, let resetCounts):
-            ForgetSheet(model: model, cards: cards, restorePosition: restorePosition, resetCounts: resetCounts)
+            ResetCardPrompt(restorePosition: restorePosition, resetCounts: resetCounts, context: context(cards: cards)) {
+                model.forget(restorePosition: $0, resetCounts: $1)
+            }
         case .reposition(let cards, let top, let bottom, let randomize, let shift):
-            RepositionSheet(
-                model: model, cards: cards, queueTop: top, queueBottom: bottom, randomize: randomize, shift: shift)
+            RepositionPrompt(
+                queueTop: top, queueBottom: bottom, randomize: randomize, shift: shift, context: context(cards: cards)
+            ) {
+                model.reposition(start: $0, step: $1, randomize: $2, shift: $3)
+            }
         case .changeDeck(let cards, let decks, let current):
             ChangeDeckSheet(model: model, cards: cards, decks: decks, selection: current)
         case .tags(let adding, let notes, let known):
@@ -24,6 +29,11 @@ struct BrowserPromptSheet: View {
         case .changeNotetype(let noteIDs, let notetypes, let info):
             ChangeNotetypeSheet(browser: model, noteIDs: noteIDs, notetypes: notetypes, info: info)
         }
+    }
+
+    private func context(cards: Int) -> SchedulePromptContext {
+        SchedulePromptContext(
+            cards: cards, error: model.promptError, cancel: model.cancelPrompt, edited: { model.promptError = nil })
     }
 }
 
@@ -61,102 +71,6 @@ func cardCount(_ count: Int) -> String {
 
 private func noteCount(_ count: Int) -> String {
     count == 1 ? "1 note" : "\(count.formatted()) notes"
-}
-
-private struct SetDueDateSheet: View {
-    let model: BrowserModel
-    let cards: Int
-    @State var days: String
-    @FocusState private var focused: Bool
-
-    init(model: BrowserModel, cards: Int, days: String) {
-        self.model = model
-        self.cards = cards
-        _days = State(initialValue: days)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: cards == 1 ? "Show the card in how many days?" : "Show \(cardCount(cards)) in how many days?",
-            action: "Set Due Date", canSubmit: !days.trimmingCharacters(in: .whitespaces).isEmpty,
-            cancel: model.cancelPrompt, submit: { model.setDueDate(days: days) }
-        ) {
-            TextField("Days", text: $days, prompt: Text("0"))
-                .labelsHidden()
-                .focused($focused)
-                .onAppear { focused = true }
-            // Desktop's hint, word for word.
-            Text("0 = today\n1! = tomorrow + change interval to 1\n3-7 = random choice of 3-7 days")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct ForgetSheet: View {
-    let model: BrowserModel
-    let cards: Int
-    @State var restorePosition: Bool
-    @State var resetCounts: Bool
-
-    init(model: BrowserModel, cards: Int, restorePosition: Bool, resetCounts: Bool) {
-        self.model = model
-        self.cards = cards
-        _restorePosition = State(initialValue: restorePosition)
-        _resetCounts = State(initialValue: resetCounts)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: "Reset \(cardCount(cards)) to new?", action: "Reset", cancel: model.cancelPrompt,
-            submit: { model.forget(restorePosition: restorePosition, resetCounts: resetCounts) }
-        ) {
-            Toggle("Restore original position where possible", isOn: $restorePosition)
-            Toggle("Reset repetition and lapse counts", isOn: $resetCounts)
-        }
-    }
-}
-
-private struct RepositionSheet: View {
-    let model: BrowserModel
-    let cards: Int
-    let queueTop: Int
-    let queueBottom: Int
-    @State var start = 0
-    @FocusState private var focused: Bool
-    @State var step = 1
-    @State var randomize: Bool
-    @State var shift: Bool
-
-    init(model: BrowserModel, cards: Int, queueTop: Int, queueBottom: Int, randomize: Bool, shift: Bool) {
-        self.model = model
-        self.cards = cards
-        self.queueTop = queueTop
-        self.queueBottom = queueBottom
-        _randomize = State(initialValue: randomize)
-        _shift = State(initialValue: shift)
-    }
-
-    var body: some View {
-        PromptLayout(
-            title: "Reposition \(cardCount(cards))", action: "Reposition", cancel: model.cancelPrompt,
-            submit: { model.reposition(start: start, step: step, randomize: randomize, shift: shift) }
-        ) {
-            Text("Only new cards move. The new queue runs from \(queueTop) to \(queueBottom).")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Form {
-                TextField("Start position:", value: $start, format: .number)
-                    .focused($focused)
-                    .onAppear { focused = true }
-                TextField("Step:", value: $step, format: .number)
-                Toggle("Randomize order", isOn: $randomize)
-                Toggle("Shift position of existing cards", isOn: $shift)
-            }
-            .formStyle(.columns)
-        }
-    }
 }
 
 private struct ChangeDeckSheet: View {

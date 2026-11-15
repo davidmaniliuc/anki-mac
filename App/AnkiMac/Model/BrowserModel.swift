@@ -114,9 +114,14 @@ final class BrowserModel {
     /// Notes waiting for the user to confirm deleting them.
     var notesToDelete: [Int64]?
     /// The sheet an action is waiting on (see BrowserModel+Actions).
-    var prompt: BrowserPrompt?
-    /// The rows `prompt` was asked about.
+    var prompt: BrowserPrompt? {
+        didSet { promptError = nil }
+    }
+    /// The rows `prompt` was asked about; nil while its answer runs.
     @ObservationIgnored var promptSelection: Selection?
+    /// Why the prompt's answer failed, shown on its sheet so it can be
+    /// changed and tried again.
+    var promptError: String?
     var failure: ActionFailure?
     /// A short result ("3 notes updated.") that the window shows for a few seconds.
     private(set) var toast: String?
@@ -279,29 +284,7 @@ final class BrowserModel {
     /// The search field's chips, as the backend wrote them, then a row
     /// picked from its suggestions and the text: all of them at once.
     func search(chips: [String], adding item: SidebarItem? = nil, text: String) {
-        var nodes = chips.map { raw in
-            var node = Anki_Search_SearchNode()
-            node.parsableText = raw
-            return node
-        }
-        if let item { nodes.append(item.searchNode) }
-        let text = text.replacing(/\s/, with: " ").trimmingCharacters(in: .whitespaces)
-        if !text.isEmpty {
-            var node = Anki_Search_SearchNode()
-            node.parsableText = text
-            nodes.append(node)
-        }
-        var node = Anki_Search_SearchNode()
-        if nodes.count > 1 {
-            var group = Anki_Search_SearchNode.Group()
-            group.nodes = nodes
-            group.joiner = .and
-            node.group = group
-        } else {
-            node = nodes.first ?? node
-            if nodes.isEmpty { node.parsableText = "" }
-        }
-        run(node, showInField: true)
+        run(SearchQuery.node(chips: chips, adding: item, text: text), showInField: true)
     }
 
     /// Several sidebar rows at once: all of them, or any of them.
@@ -614,10 +597,12 @@ final class BrowserModel {
         Task { await perform(failing: title, searchAgain: searchAgain, sidebar: sidebar, work, then: then) }
     }
 
-    /// `change`, saying whether the work succeeded.
+    /// `change`, saying whether the work succeeded. `failed` takes the error
+    /// in place of the alert.
     @discardableResult
     func perform<Result: Sendable>(
         failing title: String, searchAgain: Bool = false, sidebar change: SidebarChange? = nil,
+        failed: ((Error) -> Void)? = nil,
         _ work: @escaping @Sendable (AnkiBackend) throws -> Result, then: (Result) -> Void = { _ in }
     ) async -> Bool {
         guard let backend = collection.backend else { return false }
@@ -630,7 +615,7 @@ final class BrowserModel {
             undoState = state
             result = value
         } catch {
-            failure = ActionFailure(title, error: error)
+            if let failed { failed(error) } else { failure = ActionFailure(title, error: error) }
         }
         if searchAgain {
             self.searchAgain()

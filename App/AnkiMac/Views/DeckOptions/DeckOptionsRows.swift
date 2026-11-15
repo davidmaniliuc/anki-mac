@@ -65,9 +65,10 @@ extension View {
 }
 
 /// A named group of settings on the canvas: an eyebrow with the section's
-/// help, then its rows under hairlines, as Statistics' graphs are.
+/// help, then its rows under hairlines, as Statistics' graphs are. With no
+/// title, the rows start under the sheet's Headline.
 struct OptionSection<Content: View>: View {
-    let title: String
+    var title = ""
     var help: [(title: String, text: String)] = []
     @ViewBuilder let content: Content
 
@@ -75,8 +76,10 @@ struct OptionSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            OptionSectionHeader(title: title, help: help)
-                .padding(.bottom, Theme.Spacing.xSmall)
+            if !title.isEmpty {
+                OptionSectionHeader(title: title, help: help)
+                    .padding(.bottom, Theme.Spacing.xSmall)
+            }
             Group(subviews: content) { rows in
                 ForEach(rows) { row in
                     if row.containerValues.optionNote {
@@ -183,6 +186,8 @@ struct NumberField: View {
     /// Words after the stepper, such as "mins", which VoiceOver reads with
     /// the number.
     var unit = ""
+    /// Takes the focus as it appears, as the field a sheet is opened for.
+    var focusOnAppear = false
     @Environment(\.optionUnitWidth) private var unitWidth
     @FocusState private var focused: Bool
 
@@ -201,6 +206,7 @@ struct NumberField: View {
             .accessibilityLabel(title)
             .accessibilityValue(spoken(value * scale))
             .frame(width: Theme.DeckOptions.numberFieldWidth)
+            .onAppear { if focusOnAppear { focused = true } }
             if percent {
                 Text("%").font(Theme.DeckOptions.figures).foregroundStyle(Theme.Palette.secondary)
             }
@@ -275,14 +281,142 @@ struct OptionTextField: View {
     @Environment(\.optionTitle) private var title
     @Binding var text: String
     var prompt = ""
+    /// Figures, such as a due date's days, take the rounded face.
+    var font = Theme.DeckOptions.rowFont
+    var focusOnAppear = false
     @FocusState private var focused: Bool
 
     var body: some View {
         TextField(title, text: $text, prompt: Text(prompt))
             .labelsHidden()
-            .font(Theme.DeckOptions.rowFont)
+            .font(font)
             .focused($focused)
             .quietField(focused: focused)
+            .onAppear { if focusOnAppear { focused = true } }
+    }
+}
+
+/// One of a few choices, as a whole row: its title in Ink, and at the
+/// trailing edge of the chosen one its setting, or a check as a Mac
+/// settings list marks it when it has none. Under the pointer a row not yet
+/// chosen shows the hover wash, reaching a little past the text on both
+/// sides as a list row's does.
+struct ChoiceRow<Setting: View>: View {
+    let title: String
+    let chosen: Bool
+    let choose: () -> Void
+    @ViewBuilder var setting: Setting
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            Button(action: choose) {
+                HStack {
+                    Text(title)
+                        .font(Theme.DeckOptions.rowFont)
+                        .foregroundStyle(Theme.Palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Theme.Spacing.small)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(chosen ? .isSelected : [])
+            if chosen, Setting.self != EmptyView.self {
+                setting
+            } else {
+                Image(systemName: "checkmark")
+                    .font(Theme.DeckOptions.checkSymbol)
+                    .foregroundStyle(Theme.Palette.text)
+                    .opacity(chosen ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.small)
+        .frame(minHeight: Theme.DeckOptions.rowMinHeight - 2 * Theme.DeckOptions.rowPadding)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
+            .fill(hovered && !chosen ? Theme.Palette.hover : .clear))
+        .padding(.horizontal, -Theme.Spacing.small)
+        .onHover { hovered = $0 }
+    }
+}
+
+extension ChoiceRow where Setting == EmptyView {
+    init(title: String, chosen: Bool, choose: @escaping () -> Void) {
+        self.init(title: title, chosen: chosen, choose: choose) { EmptyView() }
+    }
+}
+
+/// A sheet drawn as Deck Options' settings: a Headline, under an eyebrow
+/// when the sheet belongs to a deck, then its sections between that and
+/// the foot, which holds what's happening and the dialog's buttons. The
+/// sheet is as tall as its rows; past `maxHeight` they scroll on the canvas
+/// with no hairline or blur at their edges, as the main window's pages.
+struct SettingsSheet<Content: View, Footer: View>: View {
+    var eyebrow = ""
+    let title: String
+    let width: CGFloat
+    /// A fixed height, for a sheet whose rows arrive after it opens; nil
+    /// fits the rows.
+    var height: CGFloat?
+    /// The most the sheet grows to as rows come and go; nil never scrolls.
+    var maxHeight: CGFloat?
+    @ViewBuilder let content: Content
+    @ViewBuilder let footer: Footer
+    @State private var rowsHeight: CGFloat?
+    @State private var chromeHeight: [CGFloat] = [0, 0]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight[0] = $0 }
+            if let limit = height ?? maxHeight {
+                ScrollView {
+                    rows.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
+                }
+                .scrollEdgeEffectHidden(true, for: .vertical)
+                .scrollBounceBehavior(.basedOnSize)
+                .clipped()
+                .frame(height: height == nil ? min(rowsHeight ?? .infinity, max(limit - chromeHeight.reduce(0, +), 0)) : nil)
+            } else {
+                rows.fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Theme.Spacing.small) { footer }
+                .padding(.horizontal, Theme.DeckOptions.margin)
+                .padding(.vertical, Theme.Spacing.medium)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight[1] = $0 }
+        }
+        .frame(width: width, height: height)
+        .background(Theme.Palette.canvas.ignoresSafeArea())
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+            if !eyebrow.isEmpty {
+                Eyebrow(eyebrow).lineLimit(1).truncationMode(.head)
+            }
+            Text(title)
+                .font(Theme.Fonts.panelTitle)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.horizontal, Theme.DeckOptions.margin)
+        .padding(.top, Theme.DeckOptions.margin)
+        .padding(.bottom, Theme.Spacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) { content }
+            .padding(.horizontal, Theme.DeckOptions.margin)
+            .padding(.top, Theme.Spacing.small)
+            .padding(.bottom, Theme.Spacing.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
