@@ -149,9 +149,11 @@ struct QuickFind: View {
                 if selected, case .deck = hit {
                     // Command-Return studies the deck, as desktop's Study Deck does.
                     HStack(spacing: Theme.Spacing.xSmall) {
-                        Text(Tr.decksStudy).font(Theme.Fonts.caption).foregroundStyle(Color.white.opacity(0.8))
+                        Text(Tr.decksStudy).foregroundStyle(Color.white.opacity(0.8))
                         KeyCap("⌘↩", onAccent: true)
                     }
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(.white)
                 } else if let count = count(hit), count > 0 {
                     Text(count, format: .number)
                         .font(Theme.Fonts.sidebarCount)

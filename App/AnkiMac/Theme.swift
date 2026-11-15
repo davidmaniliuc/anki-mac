@@ -34,7 +34,7 @@ enum Theme {
         static let textNS = appKit(0x1D1C1A, 0xEEECE8)
         static let secondaryNS = appKit(0x6B675F, 0xA29E97)
 
-        static let accent = dynamic(0x2F6BFF, 0x4C8BFF)
+        static let accent = dynamic(0x2F6BFF, 0x2E6AF5)
         static let blue = dynamic(0x1A5CFF, 0x6AA2FF)
         static let coral = dynamic(0xCA342A, 0xF2786D)
         static let green = dynamic(0x247C47, 0x6CC78E)
@@ -96,6 +96,8 @@ enum Theme {
         static let floatingShadowOffset: CGFloat = 6
         static let radius: CGFloat = 12
         static let rowRadius: CGFloat = 7
+        /// Room around a menu's label for its hover wash.
+        static let menuPadding: CGFloat = Spacing.small
         static let rowHeight: CGFloat = 30
         /// Deck rows in a page's list, Today's and the overview's.
         static let listRowHeight: CGFloat = 50
@@ -112,6 +114,11 @@ enum Theme {
         static let titleIconWidth: CGFloat = 26
         /// Quiet segments, scope and range switches, as tall as a chip.
         static let controlHeight: CGFloat = 28
+        /// The page's one prominent action, a capsule; the compact one in a
+        /// window's band is `controlHeight` tall.
+        static let primaryHeight: CGFloat = 36
+        static let primaryPadding: CGFloat = 16
+        static let compactPrimaryPadding: CGFloat = 12
         static let segmentPadding: CGFloat = 10
         static let pageWidth: CGFloat = 680
         static let pageMargin: CGFloat = 56
@@ -156,7 +163,10 @@ enum Theme {
         static let caption = Font.system(size: 12)
         static let panelTitle = Font.system(size: 17, weight: .semibold)
         static let button = Font.system(size: 14, weight: .semibold)
+        static let compactButton = Font.system(size: 13, weight: .semibold)
         static let chip = Font.system(size: 12.5, weight: .medium)
+        /// The small chevron after a menu's label.
+        static let menuChevron = Font.system(size: 9, weight: .bold)
         static let keyCap = Font.system(size: 10.5, weight: .semibold, design: .rounded)
         static let sidebarCount = Font.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()
         /// The page's one big count: how many are due.
@@ -410,9 +420,6 @@ enum Theme {
         static let pdfWidth: CGFloat = 760
         /// The search box under the header.
         static let searchWidth: CGFloat = 360
-        /// Room around a menu's label for its hover wash.
-        static let menuPadding: CGFloat = Spacing.small
-        static let menuChevron = Font.system(size: 9, weight: .bold)
         /// The chart symbol is wider than it is tall, so it is set smaller
         /// than the other title symbols to fit the title's icon slot.
         static let titleSymbol = Font.system(size: 20, weight: .medium)
@@ -532,6 +539,9 @@ enum Theme {
         static let addedMessageDuration = Duration.seconds(1.5)
         static let toastInset: CGFloat = 60
         static let tagSuggestions = 8
+        /// History, before Add in the band.
+        static let historySymbol = Font.system(size: 14, weight: .medium)
+        static let historySize = CGSize(width: 30, height: 28)
     }
 
     enum Editor {

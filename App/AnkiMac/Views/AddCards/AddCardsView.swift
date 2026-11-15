@@ -1,79 +1,161 @@
 import AppKit
 import SwiftUI
 
-/// Note type and deck, the fields, the tags, and Add, as desktop's window.
+/// The band with the note type, the deck and Add, then the fields and the
+/// tags, on the canvas as the main window's pages are.
 struct AddCardsView: View {
     @Bindable var model: AddCardsModel
+    let chrome: AddCardsChrome
+    let collection: CollectionModel
     let actions: AddCardsActions
 
     var body: some View {
         VStack(spacing: 0) {
-            Form {
-                Picker(Tr.notetypesType, selection: Binding { model.notetypeID } set: { id in
-                    Task { await model.changeNotetype(to: id) }
-                }) {
-                    ForEach(model.notetypes) { Text($0.name).tag($0.id) }
-                }
-                Picker(Tr.decksDeck, selection: $model.deckID) {
-                    ForEach(model.decks) { Text($0.name).tag($0.id) }
-                }
-            }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
-            .fixedSize(horizontal: false, vertical: true)
+            band
             NoteEditorView(
                 editor: model.editor,
                 sticky: (isOn: model.isSticky, toggle: model.toggleSticky),
                 duplicateField: model.problem == .duplicate ? 0 : nil,
                 cardLayout: actions.cardLayout)
             hints
-            Divider()
+            Theme.Palette.hairline.frame(height: 1)
             TagRow(tags: $model.tags, complete: model.completeTags)
                 .padding(Theme.Spacing.medium)
         }
+        .background(Theme.Palette.canvas)
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
         .overlay(alignment: .bottom) {
             if let added = model.addedMessage {
                 Text(added)
                     .padding(.horizontal, Theme.Spacing.medium)
                     .padding(.vertical, Theme.Spacing.small)
-                    .background(.regularMaterial, in: Capsule())
+                    .glassEffect(in: Capsule())
+                    .glassEffectTransition(.materialize)
                     .padding(Theme.AddCards.toastInset)
-                    .transition(.opacity)
                     .accessibilityAddTraits(.updatesFrequently)
             }
         }
         .animation(.default, value: model.addedMessage)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    if model.history.isEmpty {
-                        Text("No notes added yet")
-                    }
-                    ForEach(model.history.reversed()) { entry in
-                        Button(Tr.addingEdit(val: entry.text)) { actions.showInBrowser("nid:\(entry.id)") }
-                    }
-                } label: {
-                    Label(Tr.addingHistory, systemImage: "clock")
-                }
-                .help(Tr.addingHistory)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button(Tr.actionsAdd, systemImage: "plus") { actions.add() }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .help("\(Tr.actionsAdd) (\u{2318}\u{21A9})")
-            }
+        // The toast is gone before VoiceOver would reach it.
+        .onChange(of: model.addedMessage) { _, added in
+            if let added { AccessibilityNotification.Announcement(added).post() }
         }
+        // No actions: the system's own OK, in the user's language.
         .alert(
             model.message ?? "", isPresented: Binding { model.message != nil } set: { if !$0 { model.message = nil } }
-        ) {
-            Button("OK") {}
-        }
+        ) {}
         .alert(Tr.addingYouHaveAClozeDeletionNote, isPresented: $model.confirmingMissingCloze) {
             Button("Cancel", role: .cancel) {}
             Button(Tr.actionsAdd) { Task { _ = await model.add(confirmedCloze: true) } }
         }
+    }
+
+    /// Under the traffic lights, as the Browser's: the note type and deck as
+    /// quiet menus, then History and Add, the window's one prominent action.
+    private var band: some View {
+        HStack(spacing: Theme.Spacing.xSmall) {
+            notetypeMenu
+            deckMenu
+                .layoutPriority(-1)
+            Spacer(minLength: Theme.Spacing.small)
+            historyMenu
+            Button(action: actions.add) {
+                HStack(spacing: 5) {
+                    Text(Tr.actionsAdd)
+                    KeyCap("\u{2318}\u{21A9}", onAccent: true)
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(compact: true, muted: !model.addable))
+            .keyboardShortcut(.return, modifiers: .command)
+            .help("\(Tr.actionsAdd) (\u{2318}\u{21A9})")
+            .padding(.leading, Theme.Spacing.xSmall)
+        }
+        // Clear of the traffic lights, which in full screen come down over
+        // the band in a pill of their own.
+        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Browser.sidebarToggleLeading)
+        .padding(.trailing, Theme.Spacing.medium)
+        .frame(height: Theme.Browser.chromeHeight)
+        .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
+    }
+
+    private var notetypeMenu: some View {
+        Menu {
+            Picker(Tr.notetypesType, selection: Binding { model.notetypeID } set: { id in
+                Task { await model.changeNotetype(to: id) }
+            }) {
+                ForEach(model.notetypes) { Text($0.name).tag($0.id) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            menuLabel(Tr.notetypesType, model.notetypes.first { $0.id == model.notetypeID }?.name ?? "")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(Tr.notetypesType)
+    }
+
+    /// The deck tree as nested menus, as Statistics' deck menu, holding the
+    /// decks a note can be added to.
+    private var deckMenu: some View {
+        let name = model.decks.first { $0.id == model.deckID }?.name ?? ""
+        let allowed = Set(model.decks.map(\.id))
+        return Menu {
+            DeckMenuItems(
+                decks: DeckNode.keeping(allowed, in: collection.decks), current: model.deckID,
+                pick: { model.deckID = $0 })
+        } label: {
+            menuLabel(Tr.decksDeck, name.replacingOccurrences(of: "::", with: " \u{203A} "))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .accessibilityLabel(Tr.decksDeck)
+        .accessibilityValue(name)
+    }
+
+    /// "Type" in Pencil, the choice in Ink, and a chevron. A long deck path
+    /// loses its start first, as Quick Find's do.
+    private func menuLabel(_ title: String, _ value: String) -> some View {
+        HStack(spacing: Theme.Spacing.xSmall) {
+            Text(title)
+                .foregroundStyle(Theme.Palette.secondary)
+            Text(value)
+                .foregroundStyle(Theme.Palette.text)
+                .truncationMode(.head)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(Theme.Fonts.menuChevron)
+                .foregroundStyle(Theme.Palette.secondary)
+        }
+        .font(Theme.Fonts.chip)
+        .lineLimit(1)
+        .frame(height: Theme.Layout.controlHeight)
+        .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
+    }
+
+    /// Off until a note is added, as desktop's History button.
+    private var historyMenu: some View {
+        Menu {
+            ForEach(model.history.reversed()) { entry in
+                Button(Tr.addingEdit(val: entry.text)) { actions.showInBrowser("nid:\(entry.id)") }
+            }
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(Theme.AddCards.historySymbol)
+                .foregroundStyle(model.history.isEmpty ? Theme.Palette.tertiary : Theme.Palette.secondary)
+                .frame(width: Theme.AddCards.historySize.width, height: Theme.AddCards.historySize.height)
+                .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius), inset: 0))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(model.history.isEmpty)
+        .help(Tr.addingHistory)
+        .accessibilityLabel(Tr.addingHistory)
     }
 
     /// Desktop's notes under the fields: duplicates and misplaced clozes.

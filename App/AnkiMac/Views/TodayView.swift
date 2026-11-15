@@ -40,7 +40,7 @@ struct TodayView: View {
     /// Its session ends back here, where the next deck is then first.
     private func studyButton(first deck: DeckNode) -> some View {
         Button { model.studyFromToday(deck.id) } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 Text("Study Now")
                 KeyCap("↩", onAccent: true)
             }
@@ -73,9 +73,7 @@ struct TodayView: View {
                     new: model.decks.reduce(0) { $0 + $1.newCount },
                     learn: model.decks.reduce(0) { $0 + $1.learnCount },
                     review: model.decks.reduce(0) { $0 + $1.reviewCount })
-                DueSummary(new: total.new, learn: total.learn, review: total.review) {
-                    studyButton(first: due[0].deck)
-                }
+                DueSummary(new: total.new, learn: total.learn, review: total.review)
                 PageSection(Tr.browsingSidebarDueToday) {
                     ForEach(due) { DeckListRow(deck: $0.deck, path: $0.path, onToday: true) }
                     // A parent deck's limits cap its subdecks together, so the
@@ -90,6 +88,10 @@ struct TodayView: View {
                 }
             }
         }
+        .studyBar(shown: !dueDecks.isEmpty) {
+            if let first = dueDecks.first { studyButton(first: first.deck) }
+        }
+        .pageActions { QuickFindButton() }
     }
 
     /// Nothing is due now: when the next learning card comes back today,

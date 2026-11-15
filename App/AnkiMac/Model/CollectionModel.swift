@@ -16,12 +16,24 @@ nonisolated struct DeckNode: Identifiable, Hashable, Sendable {
     let collapsed: Bool
     let filtered: Bool
     /// nil for a leaf, so `List` shows no disclosure triangle.
-    let children: [DeckNode]?
+    private(set) var children: [DeckNode]?
 
     var dueCount: Int { newCount + learnCount + reviewCount }
 
     /// This deck's id and its subdecks'.
     var subtreeIDs: Set<Int64> { (children ?? []).reduce([id]) { $0.union($1.subtreeIDs) } }
+
+    /// The tree pruned to the decks in `ids`, such as those a note can be
+    /// added to (no filtered decks).
+    static func keeping(_ ids: Set<Int64>, in decks: [DeckNode]) -> [DeckNode] {
+        decks.compactMap { deck -> DeckNode? in
+            guard ids.contains(deck.id) else { return nil }
+            var kept = deck
+            let children = deck.children.map { keeping(ids, in: $0) }
+            kept.children = children?.isEmpty == false ? children : nil
+            return kept
+        }
+    }
 
     /// Every deck in the tree, each before its subdecks.
     static func flattened(_ decks: [DeckNode]) -> [DeckNode] {

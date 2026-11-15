@@ -208,7 +208,8 @@ private struct PageActions<Actions: View>: ViewModifier {
                 if shown && !layout.fullScreen {
                     // Pushes the actions to the trailing edge.
                     ToolbarSpacer(.flexible)
-                    ToolbarItem(placement: .automatic) { actions() }
+                    // In one row: a toolbar item shows only the first of several views.
+                    ToolbarItem(placement: .automatic) { HStack(spacing: 0) { actions() } }
                         .plain()
                 }
             }
@@ -343,31 +344,15 @@ struct Eyebrow: View {
     }
 }
 
-/// How many cards are due, large, over the three queues on one line, with
-/// the page's action (if any) at the trailing edge. Unboxed: type and
-/// alignment carry it. The action moves under the counts when the row is
-/// too narrow.
-struct DueSummary<Action: View>: View {
+/// How many cards are due, large, over the three queues on one line.
+/// Unboxed: type and alignment carry it. The page's action follows in its
+/// ActionRow.
+struct DueSummary: View {
     let new: Int
     let learn: Int
     let review: Int
-    @ViewBuilder let action: Action
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: Theme.Spacing.large) {
-                counts
-                Spacer(minLength: Theme.Spacing.small)
-                action
-            }
-            VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                counts
-                action
-            }
-        }
-    }
-
-    private var counts: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(new + learn + review, format: .number).font(Theme.Fonts.bigNumber)
@@ -669,6 +654,8 @@ struct FoldAllGlyph: View {
 }
 
 /// A key's name in a small rounded box, shown beside the action it does.
+/// On an accent fill it is the bare glyph in the label's font and colour, faded, so
+/// no box sits inside the button's.
 struct KeyCap: View {
     let key: String
     var onAccent = false
@@ -678,14 +665,28 @@ struct KeyCap: View {
     }
 
     var body: some View {
-        Text(key)
-            .font(Theme.Fonts.keyCap)
+        if onAccent {
+            Text(key)
+                .opacity(0.65)
+                .accessibilityHidden(true)
+        } else {
+            Text(key)
+                .font(Theme.Fonts.keyCap)
             .padding(.horizontal, 5)
             .frame(minWidth: 18, minHeight: 17)
-            .foregroundStyle(onAccent ? Color.white.opacity(0.9) : Theme.Palette.secondary)
-            .background(RoundedRectangle(cornerRadius: 4)
-                .fill(onAccent ? Color.white.opacity(0.2) : Theme.Palette.hairline))
-            .accessibilityHidden(true)
+                .foregroundStyle(Theme.Palette.secondary)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Theme.Palette.hairline))
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+/// Quick Find (/), in every page's toolbar, first of its actions.
+struct QuickFindButton: View {
+    @Environment(CollectionModel.self) private var model
+
+    var body: some View {
+        IconButton("magnifyingglass", help: "Quick Find (/)") { model.quickFindPresented = true }
     }
 }
 
@@ -789,17 +790,130 @@ struct QuietSegments<Choice: Hashable>: View {
     }
 }
 
-/// The one prominent action on a page, in the accent colour.
+/// A menu's label as a quiet control: its own fill, if any, with the hover
+/// wash over it under the pointer.
+struct MenuHover<S: InsettableShape>: ViewModifier {
+    let shape: S
+    var fill: Color = .clear
+    var inset = Theme.Layout.menuPadding
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, inset)
+            .padding(.vertical, Theme.Spacing.xxSmall)
+            .background {
+                shape.fill(fill)
+                shape.fill(hovered ? Theme.Palette.hover : .clear)
+            }
+            .overlay { if fill != .clear { shape.strokeBorder(Theme.Palette.hairline) } }
+            .contentShape(shape)
+            .onHover { hovered = $0 }
+    }
+}
+
+/// The deck tree as menu items. A deck with subdecks is a submenu that
+/// starts with the deck itself, since a submenu's own item can't be chosen.
+struct DeckMenuItems: View {
+    let decks: [DeckNode]
+    let current: Int64?
+    let pick: (Int64) -> Void
+
+    var body: some View {
+        ForEach(decks) { deck in
+            if let children = deck.children {
+                Menu(deck.name) {
+                    item(deck)
+                    Divider()
+                    DeckMenuItems(decks: children, current: current, pick: pick)
+                }
+            } else {
+                item(deck)
+            }
+        }
+    }
+
+    private func item(_ deck: DeckNode) -> some View {
+        Toggle(deck.name, isOn: Binding { deck.id == current } set: { _ in pick(deck.id) })
+    }
+}
+
+/// A page's actions on one line: its one primary, if any, then its chips.
+/// When they don't fit, the chips go under the primary, and only then
+/// does each take a line of its own, so the primary never moves.
+struct ActionRow<Primary: View, Secondary: View>: View {
+    @ViewBuilder let primary: Primary
+    @ViewBuilder let secondary: Secondary
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.small) {
+                primary
+                secondary.buttonStyle(ChipButtonStyle())
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                primary
+                HStack(spacing: Theme.Spacing.small) { secondary.buttonStyle(ChipButtonStyle()) }
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                primary
+                secondary.buttonStyle(ChipButtonStyle())
+            }
+        }
+    }
+}
+
+extension ActionRow where Primary == EmptyView {
+    init(@ViewBuilder secondary: () -> Secondary) {
+        self.init(primary: { EmptyView() }, secondary: secondary)
+    }
+}
+
+extension View {
+    /// The page's Study Now, centred at the bottom of the window in the
+    /// answer bar's place, so Show Answer comes up where it was clicked.
+    func studyBar<Primary: View>(shown: Bool = true, @ViewBuilder _ button: () -> Primary) -> some View {
+        modifier(StudyBar(shown: shown, button: button()))
+    }
+}
+
+private struct StudyBar<Primary: View>: ViewModifier {
+    @Environment(\.compact) private var compact
+    let shown: Bool
+    let button: Primary
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if shown {
+                button
+                    .frame(height: compact ? Theme.Study.compactAnswerButtonHeight : Theme.Study.answerButtonHeight)
+                    .padding(.vertical, compact ? 10 : 18)
+                    .frame(maxWidth: .infinity)
+                    // The page scrolls under it.
+                    .background(Theme.Palette.canvas)
+            }
+        }
+    }
+}
+
+/// The one prominent action on a page: a capsule of Liquid Glass tinted
+/// with the accent, which answers the press itself.
+/// `compact` in a window's band, as tall as the controls beside it.
 struct PrimaryButtonStyle: ButtonStyle {
+    var compact = false
+    /// Grey, untinted glass while the action would only explain why it
+    /// can't be done. Still clickable, so the explanation is a click away.
+    var muted = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Fonts.button)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .frame(height: 36)
-            .background(RoundedRectangle(cornerRadius: 9).fill(Theme.Palette.accent))
-            .brightness(configuration.isPressed ? -0.08 : 0)
-            .contentShape(.rect)
+            .font(compact ? Theme.Fonts.compactButton : Theme.Fonts.button)
+            .foregroundStyle(muted ? Theme.Palette.secondary : .white)
+            .padding(.horizontal, compact ? Theme.Layout.compactPrimaryPadding : Theme.Layout.primaryPadding)
+            .frame(height: compact ? Theme.Layout.controlHeight : Theme.Layout.primaryHeight)
+            .contentShape(.capsule)
+            .glassEffect(.regular.tint(muted ? nil : Theme.Palette.accent).interactive(), in: Capsule())
+            .animation(.easeOut(duration: 0.2), value: muted)
     }
 }
 

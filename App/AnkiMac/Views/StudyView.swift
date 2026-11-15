@@ -458,10 +458,7 @@ private struct SessionFinished: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Theme.Spacing.small) { actions }
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) { actions }
-            }
+            ActionRow { backButton } secondary: { actions }
 
             if let description = session.congratsDescription {
                 Text(description)
@@ -511,9 +508,9 @@ private struct SessionFinished: View {
         BuriedCards(manually: session.congrats?.haveUserBuried ?? false, siblings: session.congrats?.haveSchedBuried ?? false)
     }
 
-    @ViewBuilder private var actions: some View {
+    private var backButton: some View {
         Button { model.stopStudying() } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 Text(model.sessionReturnsToToday ? "Back to Today" : "Back to Deck")
                 KeyCap("↩", onAccent: true)
             }
@@ -521,6 +518,9 @@ private struct SessionFinished: View {
         .buttonStyle(PrimaryButtonStyle())
         .keyboardShortcut(.defaultAction)
         .fixedSize()
+    }
+
+    @ViewBuilder private var actions: some View {
         Group {
             if session.congrats?.isFilteredDeck == false {
                 Button("\(Tr.actionsCustomStudy)…") { model.showCustomStudy(session.deckID) }
@@ -532,7 +532,6 @@ private struct SessionFinished: View {
                 }
             }
         }
-        .buttonStyle(ChipButtonStyle())
         .fixedSize()
     }
 }

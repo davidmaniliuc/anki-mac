@@ -101,6 +101,7 @@ struct StatisticsView: View {
             .padding(.bottom, Theme.Layout.pageBottomPadding)
         }
         .pageScrolling()
+        .pageActions { QuickFindButton() }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .overlay {
             if model.data == nil {
@@ -178,7 +179,7 @@ struct StatisticsView: View {
             HStack(spacing: Theme.Spacing.xSmall) {
                 Eyebrow(coverage.isEmpty ? Tr.statisticsRangeDeck : coverage)
                 Image(systemName: "chevron.down")
-                    .font(Theme.Statistics.menuChevron)
+                    .font(Theme.Fonts.menuChevron)
                     .foregroundStyle(Theme.Palette.secondary)
             }
             .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
@@ -188,7 +189,7 @@ struct StatisticsView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         // The hover wash reaches past the eyebrow, which stays in line with the title.
-        .padding(.leading, -Theme.Statistics.menuPadding)
+        .padding(.leading, -Theme.Layout.menuPadding)
         .accessibilityLabel(sentenceCase(Tr.statisticsRangeDeck))
         .accessibilityValue(coverage)
     }
@@ -213,7 +214,7 @@ struct StatisticsView: View {
                 HStack(spacing: Theme.Spacing.xSmall) {
                     Text(historyTitle(model.history))
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(Theme.Statistics.menuChevron)
+                        .font(Theme.Fonts.menuChevron)
                         .foregroundStyle(Theme.Palette.secondary)
                 }
                 .font(Theme.Fonts.chip)
@@ -530,53 +531,6 @@ extension View {
     /// list row's does.
     fileprivate func outdented(_ enabled: Bool = true) -> some View {
         padding(.leading, enabled ? -Theme.Layout.segmentPadding : 0)
-    }
-}
-
-/// A menu's label as a quiet control: its own fill, if any, with the hover
-/// wash over it under the pointer.
-private struct MenuHover<S: InsettableShape>: ViewModifier {
-    let shape: S
-    var fill: Color = .clear
-    @State private var hovered = false
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, Theme.Statistics.menuPadding)
-            .padding(.vertical, Theme.Spacing.xxSmall)
-            .background {
-                shape.fill(fill)
-                shape.fill(hovered ? Theme.Palette.hover : .clear)
-            }
-            .overlay { if fill != .clear { shape.strokeBorder(Theme.Palette.hairline) } }
-            .contentShape(shape)
-            .onHover { hovered = $0 }
-    }
-}
-
-/// The deck tree as menu items. A deck with subdecks is a submenu that
-/// starts with the deck itself, since a submenu's own item can't be chosen.
-private struct DeckMenuItems: View {
-    let decks: [DeckNode]
-    let current: Int64?
-    let pick: (Int64) -> Void
-
-    var body: some View {
-        ForEach(decks) { deck in
-            if let children = deck.children {
-                Menu(deck.name) {
-                    item(deck)
-                    Divider()
-                    DeckMenuItems(decks: children, current: current, pick: pick)
-                }
-            } else {
-                item(deck)
-            }
-        }
-    }
-
-    private func item(_ deck: DeckNode) -> some View {
-        Toggle(deck.name, isOn: Binding { deck.id == current } set: { _ in pick(deck.id) })
     }
 }
 

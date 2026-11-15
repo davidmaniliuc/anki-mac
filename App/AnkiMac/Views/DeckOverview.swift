@@ -20,15 +20,18 @@ struct DeckOverview: View {
                 description
             }
 
-            if deck.dueCount > 0 {
-                DueSummary(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount) {
-                    studyButton
+            // What's due and the deck's actions read as one group, ahead of
+            // the subdecks.
+            VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+                if deck.dueCount > 0 {
+                    DueSummary(new: deck.newCount, learn: deck.learnCount, review: deck.reviewCount)
+                } else {
+                    // Desktop's overview shows its congratulations here.
+                    Text(Tr.schedulingCongratulationsFinished)
+                        .font(Theme.Fonts.panelTitle)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } else {
-                // Desktop's overview shows its congratulations here.
-                Text(Tr.schedulingCongratulationsFinished)
-                    .font(Theme.Fonts.panelTitle)
-                    .fixedSize(horizontal: false, vertical: true)
+                ActionRow { actions }
             }
 
             if let children = deck.children {
@@ -36,17 +39,13 @@ struct DeckOverview: View {
                     ForEach(children) { DeckListRow(deck: $0) }
                 }
             }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Theme.Spacing.small) { actions }
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) { actions }
-            }
-            .buttonStyle(ChipButtonStyle())
         }
-        // Add Cards into this deck is the one action with no other place on
+        .studyBar(shown: deck.dueCount > 0) { studyButton }
+        // Quick Find and Add Cards into this deck have no other place on
         // the page: Options is a chip below, Browse and Statistics are in
         // the sidebar.
         .pageActions {
+            QuickFindButton()
             IconButton("plus", help: "Add Cards") {
                 AddCardsWindowController.show(collection: model, deckID: deck.id)
             }
@@ -72,7 +71,7 @@ struct DeckOverview: View {
     /// Study Now (Return), the page's one prominent action.
     private var studyButton: some View {
         Button { model.startStudying() } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 Text("Study Now")
                 KeyCap("↩", onAccent: true)
             }

@@ -37,6 +37,9 @@ final class AddCardsModel {
     var deckID: Int64 = 0
     var tags: [String] = []
     private(set) var problem: Problem?
+    /// Whether the fields as they stand would add: the first field filled
+    /// (or a mask drawn) and no cloze where it can't go.
+    private(set) var addable = false
     private(set) var history: [HistoryEntry] = []
     private(set) var notetype: Anki_Notetypes_Notetype?
     /// Shown briefly after adding, as desktop's toast.
@@ -151,7 +154,11 @@ final class AddCardsModel {
         self.note = note
         tags = note.tags
         problem = nil
+        addable = false
         editor.load(notetype: notetype, values: note.fields, occlusion: occlusion)
+        // Sticky fields can make the new note addable already.
+        checkTask?.cancel()
+        checkTask = Task { await check() }
     }
 
     /// Desktop's rule: same-named non-empty fields, then the remaining
@@ -223,6 +230,7 @@ final class AddCardsModel {
     private func check() async {
         let note = currentNote
         guard let state = try? await backend.perform({ try $0.noteFieldsCheck(note).state }) else { return }
+        addable = ![.empty, .notetypeNotCloze, .fieldNotCloze].contains(state)
         switch state {
         case .duplicate: problem = .duplicate
         case .notetypeNotCloze: problem = .clozeOutsideNotetype

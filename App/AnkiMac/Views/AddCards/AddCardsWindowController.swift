@@ -10,6 +10,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
 
     let model: AddCardsModel
     private let collection: CollectionModel
+    private let chrome = AddCardsChrome()
     private var closing = false
 
     /// Opens the window, or brings it forward. The deck of the card being
@@ -63,11 +64,36 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
             add: { [weak self] in self?.add() },
             showInBrowser: { [weak self] search in self?.showInBrowser(search) },
             cardLayout: { [weak self] in self?.showCardLayout() })
-        let host = NSHostingController(rootView: AddCardsView(model: model, actions: actions))
-        host.sceneBridgingOptions = [.toolbars]
-        window.contentViewController = host
+        let host = NSHostingView(rootView: AddCardsView(
+            model: model, chrome: chrome, collection: collection, actions: actions))
+        // The band starts at the window's top, under the traffic lights.
+        host.safeAreaRegions = []
+        host.sizingOptions = []
+        // Inside a plain view, as the Browser's: a hosting view that is the
+        // window's content view resizes the window to its own size after
+        // every layout, so a window manager setting the frame (AeroSpace)
+        // and the view would take turns, the window shaking.
+        host.autoresizingMask = [.width, .height]
+        let content = NSView(frame: NSRect(origin: .zero, size: Theme.AddCards.defaultSize))
+        host.frame = content.bounds
+        content.addSubview(host)
+        window.contentView = content
+        // The title names the window in the Window menu; the band has the controls.
         window.title = Tr.actionsAdd
-        window.minSize = Theme.AddCards.minSize
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        // Clear, the view painting the canvas: the bar that comes down in
+        // full screen is as opaque as the window's background colour.
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        // An empty toolbar, only so the traffic lights sit centred in the
+        // band, as the Browser's.
+        let toolbar = NSToolbar(identifier: "AddCards")
+        toolbar.allowsDisplayModeCustomization = false
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        window.contentMinSize = Theme.AddCards.minSize
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -112,6 +138,28 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
         return false
     }
 
+    /// The toolbar hides with the menu bar in full screen, as the Browser's,
+    /// and the band stays in reach.
+    func window(
+        _ window: NSWindow, willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions = []
+    ) -> NSApplication.PresentationOptions {
+        // AppKit raises unless the menu bar hides too.
+        proposedOptions.contains(.autoHideMenuBar) ? proposedOptions.union(.autoHideToolbar) : proposedOptions
+    }
+
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        chrome.fullScreen = true
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        if let window { FullScreenTitlebar.dress(window, true) }
+    }
+
+    func windowWillExitFullScreen(_ notification: Notification) {
+        chrome.fullScreen = false
+        if let window { FullScreenTitlebar.dress(window, false) }
+    }
+
     func windowDidBecomeKey(_ notification: Notification) {
         KeyAddCards.shared.controller = self
     }
@@ -130,6 +178,13 @@ struct AddCardsActions {
     let add: () -> Void
     let showInBrowser: (String) -> Void
     let cardLayout: () -> Void
+}
+
+/// Whether the window is in full screen, where the traffic lights leave
+/// the band's leading edge.
+@Observable
+final class AddCardsChrome {
+    var fullScreen = false
 }
 
 /// The Add window that File > Add Note acts on while it is key.
