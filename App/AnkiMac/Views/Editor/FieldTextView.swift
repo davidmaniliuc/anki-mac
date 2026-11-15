@@ -17,6 +17,12 @@ final class FieldTextView: NSTextView {
     private static let chordTimeout: TimeInterval = 1.5
     private static var isRecording = false
     private var pasteKeepsFormatting: Bool { editor?.pasteKeepsFormatting ?? true }
+    /// Redraws the field's sound players as they load and play.
+    private var soundRedraws: Task<Void, Never>?
+
+    deinit {
+        soundRedraws?.cancel()
+    }
 
     private var document: FieldDocument { field.document }
 
@@ -40,6 +46,12 @@ final class FieldTextView: NSTextView {
         view.isVerticallyResizable = true
         view.isHorizontallyResizable = false
         view.autoresizingMask = [.width]
+        view.soundRedraws = Task { [weak view] in
+            for await _ in NotificationCenter.default.notifications(named: SoundPreview.didChange) {
+                guard let view else { return }
+                if view.textStorage?.containsAttachments ?? false { view.needsDisplay = true }
+            }
+        }
         return view
     }
 
@@ -101,10 +113,14 @@ final class FieldTextView: NSTextView {
         editor?.edited()
     }
 
-    /// Clicking MathJax opens its editor; double-clicking a table or other
-    /// chip opens the field's HTML.
+    /// Clicking MathJax opens its editor and clicking a sound plays it;
+    /// double-clicking a table or other chip opens the field's HTML.
     override func mouseDown(with event: NSEvent) {
         pendingChord = nil
+        if let sound = sound(at: convert(event.locationInWindow, from: nil)) {
+            trackSound(sound, from: event)
+            return
+        }
         if event.clickCount == 1, let index = characterIndex(at: convert(event.locationInWindow, from: nil)),
             textStorage?.attribute(.fieldMath, at: index, effectiveRange: nil) != nil
         {
@@ -121,6 +137,48 @@ final class FieldTextView: NSTextView {
             return
         }
         super.mouseDown(with: event)
+    }
+
+    /// A press on a sound's player. Let go where it went down, it plays or
+    /// pauses, every time, so a quick second click pauses; dragged along
+    /// the waveform, it moves through the sound, as in Messages.
+    private func trackSound(_ sound: (file: URL, frame: NSRect), from down: NSEvent) {
+        let start = convert(down.locationInWindow, from: nil)
+        var dragged = false
+        while let event = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            let point = convert(event.locationInWindow, from: nil)
+            if !dragged, abs(point.x - start.x) > Theme.Sound.dragSlop { dragged = true }
+            if dragged {
+                let x = field.rightToLeft ? sound.frame.maxX - point.x : point.x - sound.frame.minX
+                SoundPreview.shared.scrub(sound.file, to: Theme.Editor.sound.progress(atX: x))
+            }
+            if event.type == .leftMouseUp { break }
+        }
+        if !dragged { SoundPreview.shared.toggle(sound.file) }
+    }
+
+    /// A sideways swipe over a player moves through its sound.
+    override func scrollWheel(with event: NSEvent) {
+        guard abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY),
+            let sound = sound(at: convert(event.locationInWindow, from: nil))
+        else { return super.scrollWheel(with: event) }
+        let moved = Theme.Editor.sound.progress(forDistance: event.scrollingDeltaX * (field.rightToLeft ? -1 : 1))
+        let from = SoundPreview.shared.playback(sound.file).progress ?? 0
+        SoundPreview.shared.scrub(sound.file, to: from + moved)
+    }
+
+    /// The playable sound whose player is under a point, and the player's
+    /// frame. The space beside it belongs to the text, so a click there
+    /// still places the cursor.
+    private func sound(at point: NSPoint) -> (file: URL, frame: NSRect)? {
+        guard let index = characterIndex(at: point), let layoutManager, let textContainer,
+            let name = textStorage?.attribute(.fieldSound, at: index, effectiveRange: nil) as? String,
+            let file = editor?.soundFile(name)
+        else { return nil }
+        let glyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: index, length: 1), actualCharacterRange: nil)
+        let chip = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+            .offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+        return chip.contains(point) ? (file, chip) : nil
     }
 
     private func characterIndex(at point: NSPoint) -> Int? {
@@ -428,6 +486,7 @@ final class FieldTextView: NSTextView {
     @objc func recordAudio(_ sender: Any?) {
         guard let window, !Self.isRecording else { return }
         Self.isRecording = true
+        editor?.stopSound()
         let target = field!
         Task { [weak self] in
             do {

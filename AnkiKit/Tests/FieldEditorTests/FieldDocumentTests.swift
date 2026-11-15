@@ -181,6 +181,27 @@ func awkwardFieldRoundTrips(_ field: String) {
     #expect(FieldMath(tex: "a < b", display: true).html == "\\[a &lt; b\\]")
 }
 
+@Test func soundTagBecomesOneAtomKeptAsWritten() {
+    let html = "a [sound:x &amp; y.mp3]<b>[sound:[1].m4a]</b> [sound:] [sound:open"
+    let document = FieldDocument(html: html, style: style)
+    var found: [String] = []
+    document.text.enumerateAttribute(.fieldSound, in: NSRange(location: 0, length: document.text.length)) { value, _, _ in
+        if let sound = value as? String { found.append(sound) }
+    }
+    // As the backend's lazy `.+?`: a name ends at the first bracket after
+    // its first character, and an unclosed tag stays text.
+    #expect(found == ["x & y.mp3", "[1"])
+    #expect(document.text.string == "a \u{FFFC}\u{FFFC}.m4a] [sound:] [sound:open")
+    #expect(document.html(from: document.text) == html)
+}
+
+@Test func deletingASoundRemovesItsTag() {
+    let result = edit("say [sound:a.mp3] it") { _, storage in
+        storage.deleteCharacters(in: range(of: "\u{FFFC} ", in: storage))
+    }
+    #expect(result == "say it")
+}
+
 @Test func editedMathJaxIsWrittenEscaped() {
     let result = edit("<b>x \\(a\\) y</b>") { document, storage in
         let atom = range(of: "\u{FFFC}", in: storage)

@@ -108,7 +108,6 @@ final class StudySession {
     private(set) var undoState = UndoState()
     /// What failed and why, for the alert.
     var failure: ActionFailure?
-    private(set) var audioPaused = false
     /// The time is up: the alert's text, until Continue or Finish.
     private(set) var timeboxMessage: String?
     /// Text on the card is selected, so the context menu offers Copy.
@@ -131,6 +130,7 @@ final class StudySession {
     private let backend: AnkiBackend
     private let reviewer: ReviewerWebController
     private let audio = AudioPlayer()
+    @ObservationIgnored private lazy var sounds = CardSounds(audio: audio, web: reviewer)
     private var shownAt = Date()
     private var timebox = Timebox()
     private var busy = false
@@ -191,6 +191,7 @@ final class StudySession {
     private func display(_ card: StudyCard, answer: String) {
         phase = .answer
         reviewer.showAnswer(answer)
+        sounds.show(card.rendered)
         notifyDisplayed(.answer)
         if card.options.autoplay, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.answerAV, mediaFolder: folder)
@@ -384,8 +385,7 @@ final class StudySession {
     }
 
     func toggleAudioPause() {
-        audioPaused.toggle()
-        if audioPaused { audio.pause() } else { audio.resume() }
+        if audio.isPaused { audio.resume() } else { audio.pause() }
     }
 
     /// Desktop's 6 and 7 move by five seconds.
@@ -719,6 +719,7 @@ final class StudySession {
         phase = .question
         shownAt = Date()
         reviewer.showQuestion(card.rendered.question, answer: card.rendered.answer, bodyClass: card.rendered.bodyClass)
+        sounds.show(card.rendered)
         notifyDisplayed(.question)
         if card.options.autoplay, timeboxMessage == nil, let folder = reviewer.mediaFolder {
             audio.play(card.rendered.questionAV, mediaFolder: folder)
@@ -766,7 +767,9 @@ final class StudySession {
     }
 
     private func handle(_ command: String) {
-        if command == "ans" {
+        if sounds.handle(command) {
+            return
+        } else if command == "ans" {
             showAnswer()
         } else if command.hasPrefix("_selection:") {
             hasSelection = command == "_selection:1"

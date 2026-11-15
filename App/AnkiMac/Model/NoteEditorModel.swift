@@ -195,6 +195,18 @@ final class NoteEditorModel {
     func clear() {
         fields = []
         occlusion = nil
+        stopSound()
+    }
+
+    /// A sound in a field, if its file is in the media folder; one that
+    /// isn't has no player and nothing to play.
+    func soundFile(_ name: String) -> URL? {
+        guard let url = mediaFolder?.appending(path: name), FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    func stopSound() {
+        SoundPreview.shared.stop()
     }
 
     var values: [String] { fields.map { occlusion?.value(forField: $0.index) ?? $0.html } }

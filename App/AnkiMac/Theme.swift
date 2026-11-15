@@ -20,21 +20,22 @@ enum Theme {
 
         static let text = Color(nsColor: textNS)
         static let secondary = Color(nsColor: secondaryNS)
-        static let tertiary = dynamic(0x9E9A92, 0x6E6A64)
+        static let tertiary = Color(nsColor: tertiaryNS)
+        static let tertiaryNS = appKit(tertiaryHex.light, tertiaryHex.dark)
 
         /// The colours AppKit draws with (the Browser's outline, table and
         /// header), and the SwiftUI ones above are built from these, so each
         /// hex value is written once.
         static let canvasNS = appKit(canvasHex.light, canvasHex.dark)
         static let sidebarNS = appKit(0xF1EFEA, 0x161513)
-        static let raisedNS = appKit(0xF6F4F0, 0x2D2C29)
+        static let raisedNS = appKit(raisedHex.light, raisedHex.dark)
         static let selectionNS = appKit(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
         static let hoverNS = appKit(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
         static let hairlineNS = appKit(0x000000, 0xFFFFFF, alpha: (0.08, 0.07))
-        static let textNS = appKit(0x1D1C1A, 0xEEECE8)
-        static let secondaryNS = appKit(0x6B675F, 0xA29E97)
+        static let textNS = appKit(textHex.light, textHex.dark)
+        static let secondaryNS = appKit(secondaryHex.light, secondaryHex.dark)
 
-        static let accent = dynamic(0x2F6BFF, 0x2E6AF5)
+        static let accent = dynamic(accentHex.light, accentHex.dark)
         static let blue = dynamic(0x1A5CFF, 0x6AA2FF)
         static let coral = dynamic(0xCA342A, 0xF2786D)
         static let green = dynamic(0x247C47, 0x6CC78E)
@@ -47,6 +48,12 @@ enum Theme {
         /// The card's web page paints the canvas too (ReviewerWebController),
         /// so the card sits straight on the desk with no box around it.
         static let canvasHex = (light: UInt32(0xFAF9F6), dark: UInt32(0x1D1C1A))
+        /// The card's play buttons are drawn by its page, in these.
+        static let raisedHex = (light: UInt32(0xF6F4F0), dark: UInt32(0x2D2C29))
+        static let textHex = (light: UInt32(0x1D1C1A), dark: UInt32(0xEEECE8))
+        static let secondaryHex = (light: UInt32(0x6B675F), dark: UInt32(0xA29E97))
+        static let tertiaryHex = (light: UInt32(0x9E9A92), dark: UInt32(0x6E6A64))
+        static let accentHex = (light: UInt32(0x2F6BFF), dark: UInt32(0x2E6AF5))
 
         static func css(_ hex: UInt32) -> String { String(format: "#%06X", hex) }
 
@@ -277,6 +284,8 @@ enum Theme {
     /// floats under the text being typed (or over it, near the screen's foot).
     enum Tags {
         static let chipFont = Font.system(size: 12.5, weight: .medium)
+        /// The same, for a sound's chip drawn inside a field.
+        static let chipNSFont = NSFont.systemFont(ofSize: 12.5, weight: .medium)
         static let chipHeight: CGFloat = 22
         static let chipPadding: CGFloat = 8
         static let spacing: CGFloat = 4
@@ -354,8 +363,9 @@ enum Theme {
         static let rowWashGap: CGFloat = 1
         static let cellFont = NSFont.systemFont(ofSize: 13)
         /// Counts, intervals and dates, as the main window's Count face.
-        static let numberFont: NSFont = {
-            let base = NSFont.systemFont(ofSize: 12.5, weight: .medium)
+        static let numberFont = roundedNumbers(size: 12.5)
+        static func roundedNumbers(size: CGFloat) -> NSFont {
+            let base = NSFont.systemFont(ofSize: size, weight: .medium)
             let rounded = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
             let tabular = rounded.addingAttributes([
                 .featureSettings: [[
@@ -364,7 +374,7 @@ enum Theme {
                 ]]
             ])
             return NSFont(descriptor: tabular, size: base.pointSize) ?? base
-        }()
+        }
         /// Text starts this far into a cell, so the first column's text is
         /// 12px from the pane's edge.
         static let cellPadding: CGFloat = 12
@@ -608,6 +618,49 @@ enum Theme {
         static let historySize = CGSize(width: 30, height: 28)
     }
 
+    /// A sound's player, in a field of the editor and on a card: play or
+    /// pause, the file's waveform, its length.
+    enum Sound {
+        static let height = Layout.controlHeight
+        static let bars = 30
+        static let barWidth: CGFloat = 2
+        static let barGap: CGFloat = 2
+        static let barMaxHeight: CGFloat = 16
+        /// The length, in rounded tabular figures as every number.
+        static let timeSize: CGFloat = 11.5
+        /// How often a playing sound's waveform fills in.
+        static let redraw: Duration = .milliseconds(33)
+        /// A press that moves this far sideways is a drag through the
+        /// sound, not a click.
+        static let dragSlop: CGFloat = 3
+        /// On a card the player is a size up, beside the card's larger text.
+        static let cardHeight: CGFloat = 36
+        static let cardPadding: CGFloat = 13
+        static let cardGap: CGFloat = 10
+        static let cardBarMaxHeight: CGFloat = 20
+        static let cardTimeSize = 13
+    }
+
+    /// The recording sheet: Record Audio in the editor, Record Own Voice in study.
+    enum Recording {
+        static let width: CGFloat = 320
+        /// The red of a recording in progress.
+        static let live = Palette.coral
+        static let symbol = Font.system(size: 14, weight: .semibold)
+        static let time = Font.system(size: 13, weight: .medium, design: .rounded).monospacedDigit()
+        /// The input level, as bars that move left as time passes.
+        static let meterHeight: CGFloat = 44
+        static let barWidth: CGFloat = 2
+        static let barGap: CGFloat = 2
+        /// A bar this short stands for silence.
+        static let barMinHeight: CGFloat = 2
+        static let sampleInterval: Duration = .milliseconds(50)
+        /// The quietest level the bars show, in decibels below full scale.
+        static let floor: Float = -50
+        /// The live dot's breath; still under Reduce Motion.
+        static let pulse: Double = 1.1
+    }
+
     enum Editor {
         static let defaultFontSize: CGFloat = 20
         static let fieldInset = NSSize(width: 6, height: 6)
@@ -634,6 +687,16 @@ enum Theme {
         /// Desktop's red tint on a first field that duplicates another note.
         static let duplicateBackground = Color.red.opacity(0.18)
 
+        /// A `[sound:]` tag in a field: a player with the file's waveform,
+        /// in a tag chip's fill and hairline at a control's height.
+        static let sound = SoundChip(
+            font: Tags.chipNSFont, fill: Palette.raisedNS, stroke: Palette.hairlineNS, text: Palette.textNS,
+            glyph: Palette.secondaryNS, height: Tags.chipHeight, padding: Tags.chipPadding, played: Palette.textNS,
+            unplayed: Palette.tertiaryNS, timeFont: Browser.roundedNumbers(size: Sound.timeSize),
+            playerHeight: Sound.height, bars: Sound.bars, barWidth: Sound.barWidth, barGap: Sound.barGap,
+            barMaxHeight: Sound.barMaxHeight,
+            playback: { url in MainActor.assumeIsolated { SoundPreview.shared.playback(url) } })
+
         /// How text, chips and images look inside a field.
         static func fieldStyle(font: NSFont) -> FieldStyle {
             FieldStyle(
@@ -645,6 +708,7 @@ enum Theme {
                 chipFill: NSColor.secondaryLabelColor.withAlphaComponent(0.15),
                 chipText: .secondaryLabelColor,
                 imageMaxHeight: 160,
+                sound: sound,
                 mathImage: { math in
                     MainActor.assumeIsolated { MathRenderer.shared.image(math, fontSize: font.pointSize) }
                 })

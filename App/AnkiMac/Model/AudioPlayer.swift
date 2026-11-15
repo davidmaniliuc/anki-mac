@@ -22,19 +22,26 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
 
     /// Something is playing or paused, as desktop's `current_player`.
     private(set) var isPlaying = false
+    private(set) var isPaused = false
+    /// The file playing or paused now; nil between files and during speech.
+    private(set) var currentFile: URL?
+    /// Called when a file starts or ends, and on pause, resume and stop,
+    /// for whatever draws the playback.
+    var onChange: (() -> Void)?
     /// Called when everything `play` queued has played to the end, not when it is stopped.
     var onFinished: (() -> Void)?
     /// Counts `play` and `stop` calls, so a stopped run doesn't report finishing.
     private var generation = 0
 
-    func play(_ tags: [Anki_CardRendering_AVTag], mediaFolder: URL) {
+    /// `position` is how many seconds into the first tag's file to start.
+    func play(_ tags: [Anki_CardRendering_AVTag], mediaFolder: URL, from position: TimeInterval = 0) {
         guard !tags.isEmpty else { return stop() }
         start {
-            for tag in tags {
+            for (index, tag) in tags.enumerated() {
                 if Task.isCancelled { return }
                 switch tag.value {
                 case .soundOrVideo(let file):
-                    await self.playFile(mediaFolder.appending(path: file))
+                    await self.playFile(mediaFolder.appending(path: file), from: index == 0 ? position : 0)
                 case .tts(let tts):
                     await self.speak(tts)
                 case nil:
@@ -44,9 +51,10 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    /// One file outside the collection, such as the reviewer's recorded voice.
-    func play(file url: URL) {
-        start { await self.playFile(url) }
+    /// One file on its own, such as the reviewer's recorded voice or a
+    /// sound in the editor, from `position` seconds in.
+    func play(file url: URL, from position: TimeInterval = 0) {
+        start { await self.playFile(url, from: position) }
     }
 
     private func start(_ body: @escaping @MainActor () async -> Void) {
@@ -65,6 +73,9 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
     func stop() {
         generation += 1
         isPlaying = false
+        isPaused = false
+        currentFile = nil
+        defer { onChange?() }
         playback?.cancel()
         playback = nil
         player?.pause()
@@ -74,9 +85,19 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    func pause() { player?.pause(); synthesizer.pauseSpeaking(at: .immediate) }
+    func pause() {
+        isPaused = true
+        player?.pause()
+        synthesizer.pauseSpeaking(at: .immediate)
+        onChange?()
+    }
 
-    func resume() { player?.play(); synthesizer.continueSpeaking() }
+    func resume() {
+        isPaused = false
+        player?.play()
+        synthesizer.continueSpeaking()
+        onChange?()
+    }
 
     /// Desktop's 6 and 7: jumps back or forward in the file playing, within
     /// its length. Speech has no position to move.
@@ -87,12 +108,45 @@ final class AudioPlayer: NSObject, AVSpeechSynthesizerDelegate {
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
     }
 
-    private func playFile(_ url: URL) async {
+    /// Where the file playing has got to, and its length once known.
+    var currentTime: TimeInterval {
+        guard let seconds = player?.currentTime().seconds, seconds.isFinite else { return 0 }
+        return seconds
+    }
+
+    var duration: TimeInterval? {
+        guard let duration = player?.currentItem?.duration, duration.isNumeric else { return nil }
+        return duration.seconds
+    }
+
+    /// Jumps to a fraction of the file playing; `length` stands in until
+    /// the player knows its own.
+    func seek(toProgress progress: Double, of length: TimeInterval?) {
+        guard let player, let length = duration ?? length else { return }
+        player.seek(
+            to: CMTime(seconds: length * progress, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    private func playFile(_ url: URL, from position: TimeInterval = 0) async {
         log.notice("play file \(url.lastPathComponent, privacy: .public)")
         let item = AVPlayerItem(url: url)
         let player = AVPlayer(playerItem: item)
         self.player = player
-        player.play()
+        currentFile = url
+        if position > 0 {
+            await player.seek(
+                to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            if Task.isCancelled { return }
+        }
+        // Paused while it was seeking: it waits there.
+        if !isPaused { player.play() }
+        onChange?()
+        defer {
+            if currentFile == url, self.player === player {
+                currentFile = nil
+                onChange?()
+            }
+        }
         let ended = NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item)
         let failed = NotificationCenter.default.notifications(named: AVPlayerItem.failedToPlayToEndTimeNotification, object: item)
         await withTaskGroup(of: Void.self) { group in

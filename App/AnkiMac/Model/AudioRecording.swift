@@ -11,6 +11,14 @@ final class AudioRecording {
 
     var elapsed: TimeInterval { recorder.currentTime }
 
+    /// How loud the input is now, from 0 (silence, or below `floor`
+    /// decibels) to 1 (full scale).
+    func level(floor: Float) -> Double {
+        recorder.updateMeters()
+        let power = recorder.averagePower(forChannel: 0)
+        return Double(max(0, min(1, 1 - power / floor)))
+    }
+
     /// Asks for microphone access if needed, then starts recording.
     static func start() async throws -> AudioRecording {
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw RecordingError.accessDenied }
@@ -25,6 +33,7 @@ final class AudioRecording {
                 AVNumberOfChannelsKey: 1,
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
             ])
+        recorder.isMeteringEnabled = true
         guard recorder.record() else {
             try? FileManager.default.removeItem(at: directory)
             throw RecordingError.noInput

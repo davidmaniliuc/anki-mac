@@ -82,6 +82,7 @@ final class BrowserPreviewModel {
 
     private let browser: BrowserModel
     private let audio = AudioPlayer()
+    @ObservationIgnored private lazy var sounds = CardSounds(audio: audio, web: web)
     @ObservationIgnored private var position: PreviewPosition
     @ObservationIgnored private var shown: PreviewedCard?
     @ObservationIgnored private var renderTask: Task<Void, Never>?
@@ -198,6 +199,7 @@ final class BrowserPreviewModel {
         } else {
             web.showAnswer(rendered.answer, bodyClass: rendered.bodyClass)
         }
+        sounds.show(rendered)
         let tags: [Anki_CardRendering_AVTag]
         if !card.autoplay {
             tags = []
@@ -239,7 +241,7 @@ final class BrowserPreviewModel {
 
     /// A click on a play button: "play:q:0" is the first sound on the question.
     private func handle(_ command: String) {
-        guard command.hasPrefix("play:"), let shown, let folder = web.mediaFolder else { return }
+        guard !sounds.handle(command), command.hasPrefix("play:"), let shown, let folder = web.mediaFolder else { return }
         let parts = command.split(separator: ":")
         guard parts.count == 3, let index = Int(parts[2]) else { return }
         let tags = parts[1] == "q" ? shown.rendered.questionAV : shown.rendered.answerAV

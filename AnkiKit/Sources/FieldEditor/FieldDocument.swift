@@ -13,6 +13,8 @@ extension NSAttributedString.Key {
     public static let fieldSynthetic = NSAttributedString.Key("AnkiFieldSynthetic")
     /// A MathJax atom's TeX, as a `FieldMath`.
     public static let fieldMath = NSAttributedString.Key("AnkiFieldMath")
+    /// A `[sound:]` atom's file name.
+    public static let fieldSound = NSAttributedString.Key("AnkiFieldSound")
 }
 
 /// MathJax in a field: `\(…\)` inline or `\[…\]` as a block, shown
@@ -46,16 +48,18 @@ public struct FieldStyle {
     public var chipFill: NSColor
     public var chipText: NSColor
     public var imageMaxHeight: CGFloat
+    public var sound: SoundChip
     /// Rendered MathJax and how far below the baseline it reaches, or nil
     /// while it isn't ready; MathJax shows as its TeX until then.
     public var mathImage: ((FieldMath) -> (image: NSImage, descent: CGFloat)?)?
 
     public init(
         font: NSFont, codeFont: NSFont, textColor: NSColor, unknownTagBackground: NSColor, chipFont: NSFont,
-        chipFill: NSColor, chipText: NSColor, imageMaxHeight: CGFloat,
+        chipFill: NSColor, chipText: NSColor, imageMaxHeight: CGFloat, sound: SoundChip = SoundChip(),
         mathImage: ((FieldMath) -> (image: NSImage, descent: CGFloat)?)? = nil
     ) {
         self.mathImage = mathImage
+        self.sound = sound
         self.font = font
         self.codeFont = codeFont
         self.textColor = textColor
@@ -64,6 +68,158 @@ public struct FieldStyle {
         self.chipFill = chipFill
         self.chipText = chipText
         self.imageMaxHeight = imageMaxHeight
+    }
+}
+
+/// What a sound's player shows now.
+public struct SoundPlayback: Sendable {
+    /// The file's loudness from start to end, each from 0 to 1; nil until
+    /// it has been read, or if it can't be.
+    public var levels: [Float]?
+    public var duration: TimeInterval?
+    /// How far through it is, from 0 to 1; nil unless it is the sound
+    /// playing or paused.
+    public var progress: Double?
+    public var playing: Bool
+
+    public init(levels: [Float]? = nil, duration: TimeInterval? = nil, progress: Double? = nil, playing: Bool = false) {
+        self.levels = levels
+        self.duration = duration
+        self.progress = progress
+        self.playing = playing
+    }
+}
+
+/// How a `[sound:]` tag looks in a field. A file in the media folder is a
+/// small player: play or pause, its waveform, its length. One that isn't
+/// there is a pill with a speaker and the file's name.
+public struct SoundChip {
+    public var font: NSFont
+    public var fill: NSColor
+    public var stroke: NSColor
+    public var text: NSColor
+    public var glyph: NSColor
+    public var height: CGFloat
+    public var padding: CGFloat
+    /// Between the speaker and the name.
+    public var gap: CGFloat
+    /// A longer name is cut in the middle, keeping its extension.
+    public var maxNameWidth: CGFloat
+    /// The player's waveform: the part played, and the rest while it plays.
+    /// At rest the bars are in `glyph`.
+    public var played: NSColor
+    public var unplayed: NSColor
+    public var timeFont: NSFont
+    public var playerHeight: CGFloat
+    public var bars: Int
+    public var barWidth: CGFloat
+    public var barGap: CGFloat
+    public var barMaxHeight: CGFloat
+    /// A file's state, asked each time its player is drawn. Without it
+    /// every sound is a named pill.
+    public var playback: ((URL) -> SoundPlayback)?
+
+    public init(
+        font: NSFont = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
+        fill: NSColor = NSColor.secondaryLabelColor.withAlphaComponent(0.15), stroke: NSColor = .clear,
+        text: NSColor = .labelColor, glyph: NSColor = .secondaryLabelColor, height: CGFloat = 22,
+        padding: CGFloat = 8, gap: CGFloat = 5, maxNameWidth: CGFloat = 220, played: NSColor = .labelColor,
+        unplayed: NSColor = .tertiaryLabelColor,
+        timeFont: NSFont = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
+        playerHeight: CGFloat = 28, bars: Int = 30, barWidth: CGFloat = 2, barGap: CGFloat = 2,
+        barMaxHeight: CGFloat = 16, playback: ((URL) -> SoundPlayback)? = nil
+    ) {
+        self.played = played
+        self.unplayed = unplayed
+        self.timeFont = timeFont
+        self.playerHeight = playerHeight
+        self.bars = bars
+        self.barWidth = barWidth
+        self.barGap = barGap
+        self.barMaxHeight = barMaxHeight
+        self.playback = playback
+        self.font = font
+        self.fill = fill
+        self.stroke = stroke
+        self.text = text
+        self.glyph = glyph
+        self.height = height
+        self.padding = padding
+        self.gap = gap
+        self.maxNameWidth = maxNameWidth
+    }
+
+    /// The player's play glyph sits centred in a box this wide.
+    private var glyphSlot: CGFloat { timeFont.pointSize + 2 }
+    private var waveformX: CGFloat { padding + glyphSlot + padding }
+    private var waveformWidth: CGFloat { CGFloat(bars) * (barWidth + barGap) - barGap }
+    /// Room for a length under ten minutes; a longer one runs into the padding.
+    private var timeWidth: CGFloat { ceil(("0:00" as NSString).size(withAttributes: [.font: timeFont]).width) }
+
+    public var playerSize: NSSize {
+        NSSize(width: waveformX + waveformWidth + padding + timeWidth + padding, height: playerHeight)
+    }
+
+    /// How far through the waveform a point `x` from the player's leading
+    /// edge is, from 0 before it to 1 past it.
+    public func progress(atX x: CGFloat) -> Double {
+        max(0, min(1, (x - waveformX) / waveformWidth))
+    }
+
+    /// A swipe of `distance` along the waveform, as a share of the file.
+    public func progress(forDistance distance: CGFloat) -> Double { distance / waveformWidth }
+
+    func player(for url: URL, name: String) -> NSImage {
+        let image = NSImage(size: playerSize, flipped: false) { rect in
+            let state = playback?(url) ?? SoundPlayback()
+            let pill = NSBezierPath(
+                roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: rect.height / 2, yRadius: rect.height / 2)
+            fill.setFill()
+            pill.fill()
+            stroke.setStroke()
+            pill.stroke()
+
+            let symbol = NSImage(systemSymbolName: state.playing ? "pause.fill" : "play.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(
+                    NSImage.SymbolConfiguration(pointSize: timeFont.pointSize, weight: .semibold)
+                        .applying(.init(paletteColors: [text])))
+            if let symbol {
+                symbol.draw(in: NSRect(
+                    x: padding + (glyphSlot - symbol.size.width) / 2, y: (rect.height - symbol.size.height) / 2,
+                    width: symbol.size.width, height: symbol.size.height))
+            }
+
+            for bar in 0..<bars {
+                // A file not read yet, or silence, is a row of dots.
+                let level = state.levels.map { $0.isEmpty ? 0 : $0[min($0.count - 1, bar * $0.count / bars)] } ?? 0
+                let height = max(barWidth, barMaxHeight * CGFloat(level))
+                let color = state.progress.map { Double(bar) + 0.5 <= $0 * Double(bars) ? played : unplayed } ?? glyph
+                color.setFill()
+                NSBezierPath(
+                    roundedRect: NSRect(
+                        x: waveformX + CGFloat(bar) * (barWidth + barGap), y: (rect.height - height) / 2,
+                        width: barWidth, height: height),
+                    xRadius: barWidth / 2, yRadius: barWidth / 2
+                ).fill()
+            }
+
+            // Its length at rest, how far in while it plays.
+            if let seconds = state.progress.flatMap({ progress in state.duration.map { $0 * progress } }) ?? state.duration {
+                let whole = Int(seconds.rounded(state.progress == nil ? .toNearestOrAwayFromZero : .down))
+                let time = String(format: "%d:%02d", whole / 60, whole % 60) as NSString
+                let attributes: [NSAttributedString.Key: Any] = [.font: timeFont, .foregroundColor: glyph]
+                time.draw(
+                    at: NSPoint(
+                        x: waveformX + waveformWidth + padding,
+                        y: (rect.height - time.size(withAttributes: attributes).height) / 2),
+                    withAttributes: attributes)
+            }
+            return true
+        }
+        // Drawn afresh each time, so it follows the playback.
+        image.cacheMode = .never
+        image.accessibilityDescription = name
+        return image
     }
 }
 
@@ -196,7 +352,8 @@ public final class FieldDocument {
             out.append(NSAttributedString(string: string, attributes: attributes))
         }
         func appendAtom(
-            _ raw: String, lineBreak: Bool = false, label: String, image: NSImage? = nil, math: FieldMath? = nil
+            _ raw: String, lineBreak: Bool = false, label: String, image: NSImage? = nil, math: FieldMath? = nil,
+            sound: String? = nil
         ) {
             var attributes = self.attributes(stack)
             attributes[.fieldAtom] = raw
@@ -208,6 +365,19 @@ public final class FieldDocument {
             if let math {
                 attributes[.fieldMath] = math
                 showMath(math, in: attachment)
+            } else if let sound {
+                attributes[.fieldSound] = sound
+                let file = mediaFolder?.appending(path: sound)
+                let chip = if let file, style.sound.playback != nil, FileManager.default.fileExists(atPath: file.path) {
+                    style.sound.player(for: file, name: sound)
+                } else {
+                    soundImage(sound)
+                }
+                attachment.image = chip
+                // Centred on the capitals of the text around it.
+                attachment.bounds = NSRect(
+                    x: 0, y: ((style.font.capHeight - chip.size.height) / 2).rounded(), width: chip.size.width,
+                    height: chip.size.height)
             } else if let image {
                 attachment.image = image
                 let height = min(style.imageMaxHeight, image.size.height)
@@ -235,15 +405,22 @@ public final class FieldDocument {
                         appendAtom(raw, label: math.tex, math: math)
                         continue
                     }
-                    let decoded = decodeHTMLText(raw)
-                    var attributes = self.attributes(stack)
-                    if trackSources {
-                        texts[nextSource] = decoded
-                        attributes[.fieldSource] = nextSource
-                        nextSource += 1
+                    for (raw, sound) in Self.splitSounds(raw) {
+                        if let sound {
+                            appendAtom(raw, label: sound, sound: sound)
+                            continue
+                        }
+                        let decoded = decodeHTMLText(raw)
+                        var attributes = self.attributes(stack)
+                        if trackSources {
+                            texts[nextSource] = decoded
+                            attributes[.fieldSource] = nextSource
+                            nextSource += 1
+                        }
+                        out.append(NSAttributedString(
+                            string: String(utf16CodeUnits: decoded.units, count: decoded.units.count),
+                            attributes: attributes))
                     }
-                    out.append(NSAttributedString(
-                        string: String(utf16CodeUnits: decoded.units, count: decoded.units.count), attributes: attributes))
                 }
             case .comment(let raw):
                 appendAtom(raw, label: "<!--…-->")
@@ -311,6 +488,69 @@ public final class FieldDocument {
             openedAt.removeLast()
         }
         return out
+    }
+
+    // MARK: Sounds
+
+    /// Raw text cut into plain runs and `[sound:]` tags, each tag with its
+    /// file name, as the backend's `\[sound:(.+?)\]`.
+    static func splitSounds(_ raw: String) -> [(raw: String, sound: String?)] {
+        guard raw.contains("[sound:") else { return [(raw, nil)] }
+        var parts: [(String, String?)] = []
+        var rest = raw[...]
+        var search = rest.startIndex
+        while let open = rest[search...].firstRange(of: "[sound:") {
+            // At least one character, which may itself be a bracket.
+            let name = rest[open.upperBound...]
+            guard !name.isEmpty, let close = name.dropFirst().firstIndex(of: "]") else { break }
+            guard !name[..<close].contains(where: \.isNewline) else {
+                search = open.upperBound
+                continue
+            }
+            if open.lowerBound > rest.startIndex { parts.append((String(rest[..<open.lowerBound]), nil)) }
+            let file = decodeHTMLText(String(name[..<close]))
+            parts.append((
+                String(rest[open.lowerBound...close]), String(utf16CodeUnits: file.units, count: file.units.count)))
+            rest = rest[name.index(after: close)...]
+            search = rest.startIndex
+        }
+        if !rest.isEmpty { parts.append((String(rest), nil)) }
+        return parts
+    }
+
+    private func soundImage(_ name: String) -> NSImage {
+        let chip = style.sound
+        let attributes: [NSAttributedString.Key: Any] = [.font: chip.font, .foregroundColor: chip.text]
+        let nameSize = (name as NSString).size(withAttributes: attributes)
+        let nameWidth = min(chip.maxNameWidth, ceil(nameSize.width))
+        let symbol = NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(
+                NSImage.SymbolConfiguration(pointSize: chip.font.pointSize - 1, weight: .medium)
+                    .applying(.init(paletteColors: [chip.glyph])))
+        let symbolSize = symbol?.size ?? .zero
+        let width = chip.padding + symbolSize.width + chip.gap + nameWidth + chip.padding
+        let image = NSImage(size: NSSize(width: width, height: chip.height), flipped: false) { rect in
+            let pill = NSBezierPath(
+                roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: rect.height / 2, yRadius: rect.height / 2)
+            chip.fill.setFill()
+            pill.fill()
+            chip.stroke.setStroke()
+            pill.stroke()
+            symbol?.draw(in: NSRect(
+                x: chip.padding, y: (rect.height - symbolSize.height) / 2, width: symbolSize.width,
+                height: symbolSize.height))
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingMiddle
+            (name as NSString).draw(
+                with: NSRect(
+                    x: chip.padding + symbolSize.width + chip.gap, y: (rect.height - nameSize.height) / 2,
+                    width: nameWidth, height: nameSize.height),
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                attributes: attributes.merging([.paragraphStyle: paragraph]) { $1 })
+            return true
+        }
+        image.accessibilityDescription = name
+        return image
     }
 
     // MARK: MathJax
@@ -703,7 +943,7 @@ public final class FieldDocument {
         storage.enumerateAttributes(in: range) { attributes, run, _ in runs.append((run, attributes)) }
         for (run, old) in runs {
             var attributes = self.attributes(change((old[.fieldStack] as? [Int]) ?? []))
-            for key in [NSAttributedString.Key.fieldSource, .fieldAtom, .fieldSynthetic, .attachment, .fieldMath] {
+            for key in [NSAttributedString.Key.fieldSource, .fieldAtom, .fieldSynthetic, .attachment, .fieldMath, .fieldSound] {
                 if let value = old[key] { attributes[key] = value }
             }
             storage.setAttributes(attributes, range: run)
@@ -722,6 +962,7 @@ public final class FieldDocument {
         attributes[.fieldSynthetic] = nil
         attributes[.attachment] = nil
         attributes[.fieldMath] = nil
+        attributes[.fieldSound] = nil
         return attributes
     }
 
