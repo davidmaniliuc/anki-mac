@@ -8,6 +8,9 @@ struct OptionRow<Control: View>: View {
     var help = ""
     var isDefault = true
     var revert: (() -> Void)? = nil
+    /// False where settings have no defaults to go back to, as Settings',
+    /// so the control keeps to the edge.
+    var revertible = true
     @ViewBuilder let control: Control
 
     var body: some View {
@@ -24,7 +27,9 @@ struct OptionRow<Control: View>: View {
                 control
                     .environment(\.optionTitle, title)
                     .accessibilityHint(plainText(help))
-                RevertMenu(hidden: isDefault, revert: revert)
+                if revertible {
+                    RevertMenu(hidden: isDefault, revert: revert)
+                }
             }
         }
         .accessibilityElement(children: .contain)
@@ -34,6 +39,17 @@ struct OptionRow<Control: View>: View {
 extension EnvironmentValues {
     /// The row's title, for VoiceOver on fields whose label is hidden.
     @Entry var optionTitle = ""
+}
+
+extension EnvironmentValues {
+    /// The widest unit in the section, so its numbers line up.
+    @Entry var optionUnitWidth: CGFloat = 0
+}
+
+/// The units' widths in a section, measured as they are drawn.
+private struct UnitWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 extension ContainerValues {
@@ -53,6 +69,8 @@ struct OptionSection<Content: View>: View {
     var help: [(title: String, text: String)] = []
     @ViewBuilder let content: Content
 
+    @State private var unitWidth: CGFloat = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             OptionSectionHeader(title: title, help: help)
@@ -70,6 +88,8 @@ struct OptionSection<Content: View>: View {
                 }
             }
         }
+        .environment(\.optionUnitWidth, unitWidth)
+        .onPreferenceChange(UnitWidthKey.self) { unitWidth = $0 }
     }
 }
 
@@ -147,6 +167,10 @@ struct NumberField: View {
     var step: Double = 1
     var decimals = 0
     var percent = false
+    /// Words after the stepper, such as "mins", which VoiceOver reads with
+    /// the number.
+    var unit = ""
+    @Environment(\.optionUnitWidth) private var unitWidth
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -162,6 +186,7 @@ struct NumberField: View {
             .focused($focused)
             .quietField(focused: focused)
             .accessibilityLabel(title)
+            .accessibilityValue(spoken(value * scale))
             .frame(width: Theme.DeckOptions.numberFieldWidth)
             if percent {
                 Text("%").font(Theme.DeckOptions.figures).foregroundStyle(Theme.Palette.secondary)
@@ -169,7 +194,24 @@ struct NumberField: View {
             Stepper(title, value: Binding { value } set: { value = clamp(rounded($0)) }, in: range, step: step)
                 .labelsHidden()
                 .controlSize(.small)
+                .accessibilityValue(spoken(value * scale))
+            // Every unit in the section takes the widest one's width, so the
+            // boxes start in one column and the units read as one.
+            if !unit.isEmpty {
+                Text(unit)
+                    .font(Theme.DeckOptions.rowFont)
+                    .foregroundStyle(Theme.Palette.secondary)
+                    .fixedSize()
+                    .background(GeometryReader { Color.clear.preference(key: UnitWidthKey.self, value: $0.size.width) })
+                    .frame(minWidth: unitWidth, alignment: .leading)
+                    .accessibilityHidden(true)
+            }
         }
+    }
+
+    private func spoken(_ shown: Double) -> String {
+        let number = shown.formatted(.number.precision(.fractionLength(decimals)))
+        return [number + (percent ? "%" : ""), unit].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private func clamp(_ newValue: Double) -> Double {
@@ -189,6 +231,8 @@ struct CommitField: View {
     @Environment(\.optionTitle) private var title
     let text: String
     var prompt = ""
+    /// Words, such as a server's address, take the row's face instead.
+    var font = Theme.DeckOptions.figures
     let commit: (String) -> Void
     @State private var draft = ""
     @FocusState private var focused: Bool
@@ -196,7 +240,7 @@ struct CommitField: View {
     var body: some View {
         TextField(title, text: $draft, prompt: Text(prompt))
             .labelsHidden()
-            .font(Theme.DeckOptions.figures)
+            .font(font)
             .focused($focused)
             .quietField(focused: focused)
             .onSubmit { commit(draft) }
@@ -205,6 +249,10 @@ struct CommitField: View {
             }
             .onChange(of: text, initial: true) { _, text in
                 if !focused { draft = text }
+            }
+            // Closing the window or switching tabs while typing keeps the text.
+            .onDisappear {
+                if draft != text { commit(draft) }
             }
     }
 }

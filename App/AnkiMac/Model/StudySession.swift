@@ -36,6 +36,21 @@ nonisolated struct DeckOptions: Sendable {
     }
 }
 
+/// Desktop's reviewer keys from Preferences > Review, kept for every
+/// profile, as desktop keeps them.
+nonisolated enum AnswerKeys {
+    /// The defaults key of "Spacebar (or enter) also answers card".
+    static let spaceAnswersName = "spacebarRatesCard"
+    static var spaceAnswers: Bool { UserDefaults.standard.object(forKey: spaceAnswersName) as? Bool ?? true }
+
+    static func name(_ rating: Rating) -> String { "answerKey\(rating.rawValue + 1)" }
+    static func defaultKey(_ rating: Rating) -> String { "\(rating.rawValue + 1)" }
+    /// Empty when the rating has no key.
+    static func key(_ rating: Rating) -> String {
+        UserDefaults.standard.string(forKey: name(rating)) ?? defaultKey(rating)
+    }
+}
+
 nonisolated enum Rating: Int, CaseIterable, Sendable {
     case again, hard, good, easy
 

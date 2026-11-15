@@ -106,7 +106,9 @@ final class CollectionModel {
 
     private(set) var paths: CollectionPaths?
     /// Where the open collection's settings and login are kept.
-    private(set) var scope: SettingsScope?
+    private(set) var scope: SettingsScope? {
+        didSet { SettingsScope.open = scope }
+    }
     /// The open profile; nil before one is open, or for a collection
     /// opened with `-CollectionPath`.
     private(set) var profileName: String?
@@ -125,6 +127,9 @@ final class CollectionModel {
     private(set) var learnLaterToday: (next: Date, count: Int)?
     private var activationTask: Task<Void, Never>?
     var backupTask: Task<Void, Never>?
+    private var mediaSyncTask: Task<Void, Never>?
+    @ObservationIgnored private var mediaSyncRunning = false
+    @ObservationIgnored private var lastMediaSync = ContinuousClock.now
     /// What the main window's page shows. Statistics and a deck can't both be picked.
     enum MainPage: Hashable {
         case today, statistics, deck(Int64)
@@ -206,6 +211,61 @@ final class CollectionModel {
     var autoSync: Bool {
         get { scope?.bool("autoSync", default: true) ?? true }
         set { scope?.set(newValue, for: "autoSync") }
+    }
+    /// Desktop's "Periodically sync media": every 15 minutes, or never.
+    var periodicMediaSync: Bool {
+        get {
+            access(keyPath: \.periodicMediaSync)
+            return (scope?.integer("autoSyncMediaMinutes", default: Self.mediaSyncMinutes) ?? 0) != 0
+        }
+        set {
+            withMutation(keyPath: \.periodicMediaSync) {
+                scope?.set(newValue ? Self.mediaSyncMinutes : 0, for: "autoSyncMediaMinutes")
+            }
+        }
+    }
+    static let mediaSyncMinutes = 15
+    /// Seconds a sync waits on the network before giving up.
+    var networkTimeout: Int {
+        get {
+            access(keyPath: \.networkTimeout)
+            return scope?.integer("networkTimeout", default: 60) ?? 60
+        }
+        set { withMutation(keyPath: \.networkTimeout) { scope?.set(newValue, for: "networkTimeout") } }
+    }
+    /// A self-hosted sync server, or empty for AnkiWeb.
+    var customSyncURL: String {
+        get {
+            access(keyPath: \.customSyncURL)
+            return scope?.string("customSyncUrl") ?? ""
+        }
+        set {
+            guard newValue != customSyncURL else { return }
+            withMutation(keyPath: \.customSyncURL) { scope?.set(newValue.isEmpty ? nil : newValue, for: "customSyncUrl") }
+            // As desktop, the server AnkiWeb last redirected to is forgotten.
+            if var auth = syncAuth, auth.hasEndpoint {
+                auth.clearEndpoint()
+                saveAuth(auth)
+            }
+        }
+    }
+    /// Schemes besides http and https that a card's links may open
+    /// without asking.
+    var allowedURLSchemes: [String] {
+        get {
+            access(keyPath: \.allowedURLSchemes)
+            return scope?.strings("allowedUrlSchemes") ?? []
+        }
+        set { withMutation(keyPath: \.allowedURLSchemes) { scope?.set(newValue, for: "allowedUrlSchemes") } }
+    }
+
+    /// The login as a sync sends it, with the profile's server and timeout
+    /// (desktop's `sync_auth`).
+    private var requestAuth: Anki_Sync_SyncAuth? {
+        guard var auth = syncAuth else { return nil }
+        if !auth.hasEndpoint, !customSyncURL.isEmpty { auth.endpoint = customSyncURL }
+        auth.ioTimeoutSecs = UInt32(networkTimeout)
+        return auth
     }
 
     /// Started at launch, off the main thread, while SwiftUI builds the window.
@@ -292,6 +352,7 @@ final class CollectionModel {
             isLoaded = true
             refreshWhenActivated()
             startPeriodicBackups()
+            startPeriodicMediaSync()
             if !reviewerReady { Task { await prepareReviewer() } }
             if autoSync, syncAuth != nil, !backupRestored {
                 await synchronize()
@@ -371,12 +432,13 @@ final class CollectionModel {
         learnTask?.cancel()
         activationTask?.cancel()
         backupTask?.cancel()
+        mediaSyncTask?.cancel()
         session?.stop()
         guard let paths, let backend else { return nil }
         return (
             backend,
             Closing(
-                paths: paths, scope: scope, auth: !backupRestored && autoSync ? syncAuth : nil,
+                paths: paths, scope: scope, auth: !backupRestored && autoSync ? requestAuth : nil,
                 syncMedia: syncMediaEnabled, backUp: !backupRestored)
         )
     }
@@ -412,7 +474,7 @@ final class CollectionModel {
     }
 
     func updateSyncStatus() async {
-        guard let backend, let auth = syncAuth else {
+        guard let backend, let auth = requestAuth else {
             syncStatus = .noChanges
             return
         }
@@ -435,6 +497,7 @@ final class CollectionModel {
             var request = Anki_Sync_SyncLoginRequest()
             request.username = username.trimmingCharacters(in: .whitespacesAndNewlines)
             request.password = password
+            if !customSyncURL.isEmpty { request.endpoint = customSyncURL }
             let loginRequest = request
             let auth = try await backend.perform { try $0.syncLogin(loginRequest) }
             saveAuth(auth)
@@ -469,7 +532,7 @@ final class CollectionModel {
 
     func synchronize() async {
         guard let backend else { return }
-        guard let auth = syncAuth else {
+        guard let auth = requestAuth else {
             syncUsername = scope?.string("syncUsername") ?? ""
             syncLoginPresented = true
             return
@@ -513,7 +576,7 @@ final class CollectionModel {
     }
 
     func resolveSyncConflict(upload: Bool?) async {
-        guard let backend, let auth = syncAuth else { return }
+        guard let backend, let auth = requestAuth else { return }
         syncConflictPresented = false
         guard let upload else { return }
         syncIsRunning = true
@@ -536,11 +599,45 @@ final class CollectionModel {
         }
     }
 
+    /// Desktop's periodic media sync: checked each minute, it syncs media
+    /// once the last sync is 15 minutes old, unless a sync is running.
+    func startPeriodicMediaSync() {
+        mediaSyncTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled, let self, let backend else { return }
+                guard periodicMediaSync, syncMediaEnabled, syncAuth != nil, !backupRestored, !syncIsRunning,
+                    !mediaSyncRunning, ContinuousClock.now - lastMediaSync >= .seconds(Self.mediaSyncMinutes * 60)
+                else { continue }
+                await monitorMediaSync(backend, quietly: true)
+            }
+        }
+    }
+
+    /// Marks the collection as changed in a way only a one-way sync can
+    /// carry, as desktop's "On next sync, force changes in one direction".
+    /// False when it couldn't, after saying so.
+    func forceOneWaySync() async -> Bool {
+        guard let backend else { return false }
+        do {
+            try await backend.perform { try $0.setSchemaModified() }
+            await updateSyncStatus()
+            return true
+        } catch {
+            failure = ActionFailure("Couldn’t mark the collection for a one-way sync", error: error)
+            return false
+        }
+    }
+
     /// Syncs media, showing its progress in a capsule only once it has run
     /// for a moment (most syncs move no media), keeping the capsule long
-    /// enough to read, and ending it on "complete".
-    private func monitorMediaSync(_ backend: AnkiBackend) async {
-        guard let auth = syncAuth else { return }
+    /// enough to read, and ending it on "complete". A periodic sync, which
+    /// nobody asked for, keeps its errors to itself.
+    private func monitorMediaSync(_ backend: AnkiBackend, quietly: Bool = false) async {
+        guard let auth = requestAuth else { return }
+        mediaSyncRunning = true
+        lastMediaSync = .now
+        defer { mediaSyncRunning = false }
         mediaSyncCapsuleTask?.cancel()
         mediaSyncCapsule = nil
         let clock = ContinuousClock()
@@ -564,7 +661,7 @@ final class CollectionModel {
             }
         } catch {
             mediaSyncCapsule = nil
-            syncAlert = ActionFailure.reason(error)
+            if !quietly { syncAlert = ActionFailure.reason(error) }
             return
         }
         guard let shown else { return }

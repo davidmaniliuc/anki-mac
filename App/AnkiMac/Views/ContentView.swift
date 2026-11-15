@@ -71,6 +71,11 @@ struct ContentView: View {
             $0.titlebarAppearsTransparent = true
             $0.isOpaque = false
             $0.backgroundColor = .clear
+            // The toolbar's menu would offer Icon and Text, which its items
+            // have no text for. SwiftUI adds the toolbar after the window.
+            DispatchQueue.main.async { [weak window = $0] in
+                window?.toolbar?.allowsDisplayModeCustomization = false
+            }
         })
         .alert(
             model.failure?.title ?? "",

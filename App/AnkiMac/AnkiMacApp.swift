@@ -238,7 +238,7 @@ struct StudyCommands: Commands {
                 .disabled(session?.phase != .question)
             ForEach(Rating.allCases, id: \.self) { rating in
                 Button(rating.title) { session?.answer(rating) }
-                    .keyboardShortcut(KeyEquivalent(Character("\(rating.rawValue + 1)")), modifiers: [])
+                    .keyboardShortcut(AnswerKeys.key(rating).first.map { KeyboardShortcut(KeyEquivalent($0), modifiers: []) })
                     .disabled(session?.phase != .answer)
             }
             Divider()

@@ -182,4 +182,11 @@ extension AnkiBackend {
         else { return false }
         return (row.first as? Int ?? 0) != 0
     }
+
+    /// Desktop's `set_schema_modified`, so the next sync is a one-way one.
+    nonisolated func setSchemaModified() throws {
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        let query: [String: Any] = ["kind": "query", "sql": "update col set scm=?", "args": [now], "first_row_only": false]
+        _ = try dbCommand(try JSONSerialization.data(withJSONObject: query))
+    }
 }

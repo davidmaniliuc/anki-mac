@@ -185,7 +185,7 @@ final class ReviewerWebController: NSObject, WKNavigationDelegate, WKScriptMessa
         if action.navigationType == .linkActivated, let url = action.request.url,
            url.scheme != AnkiSchemeHandler.scheme
         {
-            NSWorkspace.shared.open(url)
+            CardLinks.open(url, from: webView.window)
             decisionHandler(.cancel)
             return
         }

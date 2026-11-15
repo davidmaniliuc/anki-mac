@@ -12,7 +12,14 @@ nonisolated struct SettingsScope: Hashable, Sendable {
     static func collection(_ path: String) -> SettingsScope { SettingsScope(key: path) }
 
     /// The settings desktop keeps per profile.
-    static let keys = ["autoSync", "syncMedia", "syncUsername"]
+    static let keys = [
+        "autoSync", "syncMedia", "syncUsername", "autoSyncMediaMinutes", "networkTimeout", "customSyncUrl",
+        "allowedUrlSchemes",
+    ]
+
+    /// The open collection's, for what reads its settings without the model,
+    /// such as a link on a card.
+    @MainActor static var open: SettingsScope?
 
     func defaultsKey(_ name: String) -> String { "\(key)/\(name)" }
 
@@ -20,8 +27,16 @@ nonisolated struct SettingsScope: Hashable, Sendable {
         UserDefaults.standard.object(forKey: defaultsKey(name)) as? Bool ?? fallback
     }
 
+    func integer(_ name: String, default fallback: Int) -> Int {
+        UserDefaults.standard.object(forKey: defaultsKey(name)) as? Int ?? fallback
+    }
+
     func string(_ name: String) -> String? {
         UserDefaults.standard.string(forKey: defaultsKey(name))
+    }
+
+    func strings(_ name: String) -> [String] {
+        UserDefaults.standard.stringArray(forKey: defaultsKey(name)) ?? []
     }
 
     func set(_ value: Any?, for name: String) {

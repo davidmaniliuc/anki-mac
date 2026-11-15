@@ -239,15 +239,18 @@ struct StudyView: View {
             return true
         }
         guard modifiers.isEmpty else { return false }
+        if session.phase == .answer, !key.isEmpty, let rating = Rating.allCases.first(where: { AnswerKeys.key($0) == key }) {
+            session.answer(rating)
+            return true
+        }
 
         switch (session.phase, key) {
         case (.question, " "), (.question, "\r"):
             session.showAnswer()
-        // As desktop: Space or Return on the answer means Good.
+        // As desktop: Space or Return on the answer means Good, unless
+        // that's turned off in Settings.
         case (.answer, " "), (.answer, "\r"):
-            session.answer(.good)
-        case (.answer, "1"), (.answer, "2"), (.answer, "3"), (.answer, "4"):
-            session.answer(Rating(rawValue: Int(key)! - 1)!)
+            if AnswerKeys.spaceAnswers { session.answer(.good) }
         case (.question, "r"), (.answer, "r"):
             session.replayAudio()
         case (.question, "5"), (.answer, "5"):
@@ -593,6 +596,14 @@ private struct AnswerButton: View {
     let rating: Rating
     let interval: String
     let session: StudySession
+    @AppStorage private var key: String
+
+    init(rating: Rating, interval: String, session: StudySession) {
+        self.rating = rating
+        self.interval = interval
+        self.session = session
+        _key = AppStorage(wrappedValue: AnswerKeys.defaultKey(rating), AnswerKeys.name(rating))
+    }
 
     var body: some View {
         Button { session.answer(rating) } label: {
@@ -608,7 +619,7 @@ private struct AnswerButton: View {
                     // badge in the corner.
                     HStack(spacing: 6) {
                         Text(rating.title).font(Theme.Fonts.button)
-                        KeyCap("\(rating.rawValue + 1)")
+                        if !key.isEmpty { KeyCap(key) }
                     }
                     Text(interval).font(Theme.Fonts.intervalCaption).foregroundStyle(Theme.Palette.secondary)
                 }

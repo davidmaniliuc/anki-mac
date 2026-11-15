@@ -88,7 +88,7 @@ final class UpstreamPage: NSObject, WKNavigationDelegate, WKScriptMessageHandler
     ) async -> WKNavigationActionPolicy {
         // Links in a page (the manual, forum posts) open in the browser.
         if action.navigationType == .linkActivated, let url = action.request.url, url.scheme != AnkiSchemeHandler.scheme {
-            NSWorkspace.shared.open(url)
+            CardLinks.open(url, from: webView.window)
             return .cancel
         }
         return .allow

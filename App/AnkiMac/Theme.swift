@@ -512,6 +512,20 @@ enum Theme {
         static let curveHeight: CGFloat = 220
     }
 
+    /// The Settings window's panes, drawn with Deck Options' rows.
+    enum Preferences {
+        static let width: CGFloat = 560
+        /// Under the toolbar's tabs, before the first eyebrow.
+        static let topPadding: CGFloat = Spacing.large
+        /// A pane with nothing to show yet keeps some height, so the window
+        /// doesn't shrink to a sliver and jump.
+        static let placeholderHeight: CGFloat = 120
+        /// The title bar and the tabs, kept clear of a pane's height so the
+        /// window stays on the screen.
+        static let chromeHeight: CGFloat = 100
+        static let fallbackScreenHeight: CGFloat = 800
+    }
+
     enum DeckOptions {
         static let defaultSize = CGSize(width: 640, height: 760)
         static let minSize = CGSize(width: 480, height: 400)
