@@ -218,6 +218,10 @@ Liquid Glass and materials are for things that float over the flat desk: the stu
 
 Gently rounded throughout, with radius growing with the size of the element: 4px key caps, 7px sidebar rows and quiet buttons, 10px list rows, 11px grade buttons, 12px panels. The study card has no shape of its own. The primary button, chips and toasts are full capsules, so a page's actions share one shape. Panels carry a 1px hairline border inside their edge. Icons are SF Symbols, plus two drawn shapes: the Anki star (an outlined, plump-pointed star tilted -14°) and the deck ring.
 
+### App icon
+
+`App/AnkiMac/AnkiMac.icon`, an Icon Composer document. Anki's star so large it doesn't fit: drawn at 1.1 and moved right and down, its left point stays on the tile while the others run off it, so the icon is one cropped shape and not a small logo on a square. The star is two glass layers, the blue (`blu.svg`, in Icon Composer's automatic fill) inside its white outline (`whoute.svg`), over a tile that goes from black at the top to dark grey (`bg.svg`). Both star layers share one scale and translation in icon.json; move them together.
+
 ## Components
 
 ### Buttons
