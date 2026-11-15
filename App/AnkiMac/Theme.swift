@@ -242,8 +242,10 @@ enum Theme {
     }
 
     enum Profiles {
-        static let width: CGFloat = 420
-        static let listHeight: CGFloat = 220
+        /// The symbol is wider than its weight suggests, so it is set a little under the slot.
+        static let titleIconSize: CGFloat = 24
+        /// The window's width; its height is the page's.
+        static let width: CGFloat = 480
     }
 
     enum Overview {

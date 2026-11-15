@@ -112,8 +112,12 @@ final class CollectionModel {
     /// The open profile; nil before one is open, or for a collection
     /// opened with `-CollectionPath`.
     private(set) var profileName: String?
-    /// The main window shows the profiles instead of the decks.
-    var choosingProfile = false
+    /// The profiles have their own window and the main window is out of sight.
+    var choosingProfile = false {
+        didSet {
+            if choosingProfile != oldValue { ProfilesWindowController.show(choosingProfile, collection: self) }
+        }
+    }
     private(set) var decks: [DeckNode] = []
     /// Cards answered today in each deck and its subdecks, for the progress
     /// rings; read after the counts, and not while studying.

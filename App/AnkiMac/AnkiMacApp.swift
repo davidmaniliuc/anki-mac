@@ -98,7 +98,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Clicking the Dock icon brings the main window back once it's closed,
     /// also while another window, like the browser, is still open.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if let model, model.mainWindow?.isVisible != true { model.openMainWindow() }
+        if let model, model.choosingProfile {
+            ProfilesWindowController.bringForward()
+        } else if let model, model.mainWindow?.isVisible != true {
+            model.openMainWindow()
+        }
         return true
     }
 

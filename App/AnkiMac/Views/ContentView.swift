@@ -7,14 +7,7 @@ struct ContentView: View {
     @State private var layout = WindowLayout()
 
     var body: some View {
-        Group {
-            if model.choosingProfile {
-                ProfilesView()
-                    .frame(minWidth: Theme.Window.minWidth, minHeight: Theme.Window.minHeight)
-            } else {
-                decks
-            }
-        }
+        decks
         .safeAreaPadding(.top, layout.fullScreen ? Theme.Window.fullScreenBand : 0)
         // The scroll views' edge effect fills the band with a backdrop of
         // what's behind the window, a grey strip once the toolbar has left
@@ -79,7 +72,8 @@ struct ContentView: View {
         })
         .alert(
             model.failure?.title ?? "",
-            isPresented: Binding { model.failure != nil } set: { if !$0 { model.failure = nil } }
+            // While a profile is picked this window is out of sight; the profiles' window says it.
+            isPresented: Binding { model.failure != nil && !model.choosingProfile } set: { if !$0 { model.failure = nil } }
         ) {
             Button("OK") {}
         } message: {
