@@ -276,6 +276,34 @@ final class BrowserModel {
         run(item.searchNode, showInField: true)
     }
 
+    /// The search field's chips, as the backend wrote them, then a row
+    /// picked from its suggestions and the text: all of them at once.
+    func search(chips: [String], adding item: SidebarItem? = nil, text: String) {
+        var nodes = chips.map { raw in
+            var node = Anki_Search_SearchNode()
+            node.parsableText = raw
+            return node
+        }
+        if let item { nodes.append(item.searchNode) }
+        let text = text.replacing(/\s/, with: " ").trimmingCharacters(in: .whitespaces)
+        if !text.isEmpty {
+            var node = Anki_Search_SearchNode()
+            node.parsableText = text
+            nodes.append(node)
+        }
+        var node = Anki_Search_SearchNode()
+        if nodes.count > 1 {
+            var group = Anki_Search_SearchNode.Group()
+            group.nodes = nodes
+            group.joiner = .and
+            node.group = group
+        } else {
+            node = nodes.first ?? node
+            if nodes.isEmpty { node.parsableText = "" }
+        }
+        run(node, showInField: true)
+    }
+
     /// Several sidebar rows at once: all of them, or any of them.
     func search(_ items: [SidebarItem], joiner: Anki_Search_SearchNode.Group.Joiner) {
         guard items.count > 1 else {

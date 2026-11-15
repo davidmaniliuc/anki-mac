@@ -32,7 +32,7 @@ struct TagField: View {
                 .labelsHidden()
                 .focused($focused)
                 .frame(width: textWidth, height: Theme.Tags.chipHeight)
-                .background(AnchorReader(popup: popup))
+                .background(FloatingListAnchor { popup.anchor = $0 })
                 .onKeyPress(phases: .down, action: key)
                 .accessibilityLabel(Tr.editingTags)
         }
@@ -159,25 +159,8 @@ struct TagField: View {
     }
 }
 
-/// Hands the floating list the view it opens against.
-private struct AnchorReader: NSViewRepresentable {
-    let popup: TagSuggestions
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        popup.anchor = view
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        popup.anchor = view
-    }
-}
-
 /// The list of matching tags, then "New Tag" for the text as typed, in a
-/// Liquid Glass panel in its own window, so it can reach past the editor's
-/// edge. It opens under the text, or over it when the screen ends below.
-/// The panel never takes the focus: the keys stay with the text.
+/// Liquid Glass panel floating under the text (`FloatingList`).
 @Observable
 final class TagSuggestions {
     private(set) var matches: [String] = []
@@ -185,9 +168,9 @@ final class TagSuggestions {
     var highlighted = 0
     @ObservationIgnored weak var anchor: NSView?
     @ObservationIgnored var pick: (String) -> Void = { _ in }
-    @ObservationIgnored private var panel: NSPanel?
+    @ObservationIgnored private let list = FloatingList()
 
-    var isShown: Bool { panel?.isVisible == true }
+    var isShown: Bool { list.isShown }
 
     private var rows: [String] { matches + (newTag.map { [$0] } ?? []) }
 
@@ -195,30 +178,12 @@ final class TagSuggestions {
         self.matches = matches
         self.newTag = newTag
         highlighted = 0
-        guard !rows.isEmpty, let anchor, let parent = anchor.window else { return hide() }
-        let panel = self.panel ?? makePanel()
-        self.panel = panel
-        guard let content = panel.contentView as? ClickThroughHostingView<TagSuggestionList> else { return }
-        // A new root updates the list now, so it is measured with its new rows.
-        content.rootView = TagSuggestionList(suggestions: self)
-        content.layoutSubtreeIfNeeded()
-        let size = content.fittingSize
-        let field = parent.convertToScreen(anchor.convert(anchor.bounds, to: nil))
-        let screen = (parent.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
-        let gap = Theme.Tags.popupGap
-        var origin = NSPoint(
-            x: field.minX - Theme.Tags.popupPadding - Theme.Tags.chipPadding, y: field.minY - gap - size.height)
-        if origin.y < screen.minY { origin.y = field.maxY + gap }
-        origin.x = min(max(origin.x, screen.minX), screen.maxX - size.width)
-        panel.setFrame(NSRect(origin: origin, size: size), display: true)
-        if panel.parent == nil { parent.addChildWindow(panel, ordered: .above) }
-        panel.orderFront(nil)
+        guard !rows.isEmpty, let anchor else { return hide() }
+        list.show(TagSuggestionList(suggestions: self), under: anchor, inset: Theme.Tags.popupPadding + Theme.Tags.chipPadding)
     }
 
     func hide() {
-        guard let panel else { return }
-        panel.parent?.removeChildWindow(panel)
-        panel.orderOut(nil)
+        list.hide()
     }
 
     func move(_ step: Int) {
@@ -234,26 +199,6 @@ final class TagSuggestions {
         guard rows.indices.contains(row) else { return }
         pick(rows[row])
     }
-
-    private func makePanel() -> NSPanel {
-        let panel = NSPanel(
-            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.becomesKeyOnlyIfNeeded = true
-        panel.isReleasedWhenClosed = false
-        let host = ClickThroughHostingView(rootView: TagSuggestionList(suggestions: self))
-        host.sizingOptions = [.intrinsicContentSize]
-        panel.contentView = host
-        return panel
-    }
-}
-
-/// Takes the first click, so a row can be picked while the editor's window
-/// keeps the focus.
-private final class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 private struct TagSuggestionList: View {

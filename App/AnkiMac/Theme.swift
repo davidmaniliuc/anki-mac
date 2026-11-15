@@ -353,6 +353,17 @@ enum Theme {
         static let titleFont = Band.titleFont
         static let searchWidth: CGFloat = 260
         static let searchMinWidth: CGFloat = 120
+        /// The search field in the band, as tall as the Cards and Notes switch.
+        static let searchHeight: CGFloat = 28
+        static let searchChipHeight: CGFloat = 20
+        static let searchChipFont = Font.system(size: 12, weight: .medium)
+        /// A long deck path loses its start past this.
+        static let searchChipMaxWidth: CGFloat = 200
+        /// The text after the chips is at least this wide, so there's room to click into.
+        static let searchTextMinWidth: CGFloat = 60
+        /// Chips scrolled past the field's start fade over this much.
+        static let searchFadeWidth: CGFloat = 12
+        static let suggestionsMinWidth: CGFloat = 300
         /// Section names and top-level icons start this far into the
         /// sidebar, so a disclosure triangle fits in the wash before them.
         static let sidebarLeading: CGFloat = rowInset + Spacing.small

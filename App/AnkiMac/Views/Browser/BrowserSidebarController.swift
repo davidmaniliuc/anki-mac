@@ -701,20 +701,7 @@ final class SidebarCell: NSTableCellView {
         label.delegate = nil
         label.stringValue = title
         icon.image = NSImage(systemSymbolName: item.systemImage, accessibilityDescription: nil)
-        icon.contentTintColor = Self.tint(item)
-    }
-
-    /// Flags keep their colour, and New, Learning and Review their queue's;
-    /// every other icon is Pencil. Decks aren't rings here: a ring shows the
-    /// day's progress, which a search has nothing to say about.
-    private static func tint(_ item: SidebarItem) -> NSColor {
-        switch item {
-        case .flag(let flag): NSColor(Theme.flagColor(flag))
-        case .cardState(.new): NSColor(Theme.Colors.newCards)
-        case .cardState(.learn): NSColor(Theme.Colors.learnCards)
-        case .cardState(.review): NSColor(Theme.Colors.reviewCards)
-        default: Theme.Palette.secondaryNS
-        }
+        icon.contentTintColor = NSColor(item.tint)
     }
 
     override func layout() {
@@ -725,5 +712,20 @@ final class SidebarCell: NSTableCellView {
         let x = slot + Theme.Spacing.small
         label.frame = NSRect(
             x: x, y: ((bounds.height - height) / 2).rounded(), width: max(0, bounds.width - x), height: height)
+    }
+}
+
+extension SidebarItem {
+    /// Flags keep their colour, and New, Learning and Review their queue's;
+    /// every other icon is Pencil. Decks aren't rings here: a ring shows the
+    /// day's progress, which a search has nothing to say about.
+    var tint: Color {
+        switch self {
+        case .flag(let flag): Theme.flagColor(flag)
+        case .cardState(.new): Theme.Colors.newCards
+        case .cardState(.learn): Theme.Colors.learnCards
+        case .cardState(.review): Theme.Colors.reviewCards
+        default: Theme.Palette.secondary
+        }
     }
 }

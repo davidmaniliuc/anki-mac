@@ -13,7 +13,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private let tableController: BrowserTableController
     private let editor: BrowserEditorModel?
     private let chrome: BrowserChrome
-    private let searchField = NSSearchField()
     private let errorBar = SearchErrorBar()
     private var previewer: BrowserPreviewWindowController?
     private var presentingAlert = false
@@ -77,11 +76,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.toolbar = toolbar
         window.toolbarStyle = .unified
 
-        searchField.placeholderString = Tr.actionsSearch
-        searchField.sendsWholeSearchString = true
-        searchField.target = self
-        searchField.action = #selector(searchSubmitted(_:))
-        window.initialFirstResponder = searchField
         observeModel()
     }
 
@@ -105,6 +99,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         // as glass in full screen; the bar is one piece, as the main window's.
         sidebarItem.allowsFullHeightLayout = false
         split.addSplitViewItem(sidebarItem)
+        let searchField = BrowserSearchField(model: model) { [sidebar] in sidebar.clearSelection() }
         let header = BrowserHeaderBar(model: model, chrome: chrome, searchField: searchField)
         split.addSplitViewItem(NSSplitViewItem(
             viewController: DetailController(header: header, errorBar: errorBar, table: tableController)))
@@ -133,13 +128,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func observeModel() {
-        track { [weak self] in
-            guard let self else { return }
-            // The model's text changes only on a search, never while typing.
-            if searchField.stringValue != model.searchText {
-                searchField.stringValue = model.searchText
-            }
-        }
         track { [weak self] in
             guard let self else { return }
             errorBar.show(model.searchError)
@@ -174,12 +162,6 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             })
         findDuplicates = controller
         controller.show(over: window)
-    }
-
-    @objc private func searchSubmitted(_ field: NSSearchField) {
-        sidebar.clearSelection()
-        model.searchText = field.stringValue
-        model.search()
     }
 
     /// Opens the preview window, or closes it when it is open.
@@ -378,7 +360,7 @@ private final class BrowserSplitController: NSSplitViewController {
 /// plainly on the canvas. While the sidebar is hidden its button moves here,
 /// to the same place beside the traffic lights.
 private final class BrowserHeaderBar: NSView {
-    init(model: BrowserModel, chrome: BrowserChrome, searchField: NSSearchField) {
+    init(model: BrowserModel, chrome: BrowserChrome, searchField: BrowserSearchField) {
         super.init(frame: .zero)
         let title = NSHostingView(rootView: HeaderTitle(model: model, chrome: chrome))
         let mode = NSHostingView(rootView: ModeSwitch(model: model))
@@ -392,11 +374,15 @@ private final class BrowserHeaderBar: NSView {
             view.setContentHuggingPriority(.required, for: .horizontal)
         }
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        searchField.controlSize = .regular
+        let searchField = NSHostingView(rootView: searchField)
+        searchField.safeAreaRegions = []
+        // Sized by the band, not by SwiftUI: the chips scroll inside it.
+        searchField.sizingOptions = []
         let width = searchField.widthAnchor.constraint(equalToConstant: Theme.Browser.searchWidth)
         width.priority = .defaultLow
         NSLayoutConstraint.activate([
             width, searchField.widthAnchor.constraint(greaterThanOrEqualToConstant: Theme.Browser.searchMinWidth),
+            searchField.heightAnchor.constraint(equalToConstant: Theme.Browser.searchHeight),
         ])
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
