@@ -85,7 +85,14 @@ extension CollectionModel {
             }
             alert.messageText = "Profiles can now be opened with an older version of Anki."
             alert.runModal()
-            NSApp.terminate(nil)
+            quit()
         }
+    }
+
+    /// Quits from the profiles' sheet. AppKit won't quit while a window
+    /// has a sheet attached, so the sheet comes down first.
+    func quit() {
+        if let window = mainWindow, let sheet = window.attachedSheet { window.endSheet(sheet) }
+        DispatchQueue.main.async { NSApp.terminate(nil) }
     }
 }

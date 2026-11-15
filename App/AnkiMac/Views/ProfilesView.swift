@@ -14,7 +14,6 @@ struct ProfilesView: View {
     @State private var draft = ""
     @State private var deleting: String?
     @State private var warning: String?
-    @FocusState private var listFocused: Bool
 
     private enum Editing: Equatable { case add, rename(String) }
 
@@ -41,18 +40,17 @@ struct ProfilesView: View {
                 }
                 if editing == .add { nameField }
             }
-            .focusable(editing == nil)
-            .focused($listFocused)
-            .focusEffectDisabled()
-            .onKeyPress(keys: [.upArrow, .downArrow]) { press in
-                guard editing == nil else { return .ignored }
-                step(press.key == .downArrow ? 1 : -1)
-                return .handled
-            }
-            .onKeyPress(.delete) {
-                guard editing == nil, selection != nil else { return .ignored }
-                delete()
-                return .handled
+            // Up and Down as shortcuts rather than key presses: a focusable
+            // list keeps the name field in it from taking focus. Off while a
+            // name is typed, so the field has the arrows.
+            .background {
+                Group {
+                    Button("") { step(-1) }.keyboardShortcut(.upArrow, modifiers: [])
+                    Button("") { step(1) }.keyboardShortcut(.downArrow, modifiers: [])
+                }
+                .opacity(0)
+                .accessibilityHidden(true)
+                .disabled(editing != nil)
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Tr.profilesProfiles)
@@ -63,7 +61,9 @@ struct ProfilesView: View {
                         KeyCap("↩", onAccent: true)
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle(muted: selection == nil || editing != nil))
+                // As tall as the chips beside it: on a sheet this small the page's
+                // 36pt primary towers over the row.
+                .buttonStyle(PrimaryButtonStyle(compact: true, muted: selection == nil || editing != nil))
                 .keyboardShortcut(.defaultAction)
                 .fixedSize()
                 // Off while a name is typed, so Return ends the typing.
@@ -75,7 +75,9 @@ struct ProfilesView: View {
                 Button(Tr.actionsRename) { if let selection { begin(.rename(selection)) } }
                     .disabled(selection == nil)
                 // Set a little apart: it can't be taken back.
+                // Off with the row while a name is typed, so ⌫ stays the field's.
                 Button(Tr.actionsDelete) { delete() }
+                    .keyboardShortcut(.delete, modifiers: [])
                     .disabled(selection == nil)
                     .help("\(Tr.actionsDelete) (⌫)")
                     .padding(.leading, Theme.Spacing.small)
@@ -91,7 +93,7 @@ struct ProfilesView: View {
                     .help(String(
                         localized: "Lets an older version of Anki open these profiles, then quits.",
                         comment: "Help for the profile list's Downgrade & Quit"))
-                footerButton(Tr.profilesQuit) { NSApp.terminate(nil) }
+                footerButton(Tr.profilesQuit) { model.quit() }
             }
             .disabled(editing != nil)
             // The words keep to the page's edges; the washes reach past them.
@@ -108,9 +110,12 @@ struct ProfilesView: View {
         .disabled(model.packageOperationInProgress)
         .foregroundStyle(Theme.Palette.text)
         .tint(Theme.Palette.accent)
+        // Without animation: Open leaves its muted look as the sheet comes
+        // down, and animating that slides it in from the window's top.
         .onAppear {
-            reload(selecting: Profiles.lastLoaded)
-            listFocused = true
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { reload(selecting: Profiles.lastLoaded) }
         }
         .alert(
             Tr.qtMiscAllCardsNotesAndMediaFor2(name: deleting ?? ""),
@@ -193,7 +198,6 @@ struct ProfilesView: View {
             return
         }
         editing = nil
-        listFocused = true
         guard ending != .cancel, problem == nil, !name.isEmpty else { return }
         do {
             switch kind {
@@ -258,7 +262,7 @@ private struct ProfileRow: View {
 /// A profile's name being typed, in its row: a new one at the end of the
 /// list, or the one being renamed in its place. What's wrong with the name
 /// shows under it as it is typed, as Deck Options' alerts do.
-struct ProfileNameField: View {
+private struct ProfileNameField: View {
     enum Ending { case submit, leave, cancel }
 
     @Binding var name: String
@@ -278,7 +282,9 @@ struct ProfileNameField: View {
                 .onChange(of: focused) { _, focused in
                     if !focused { end(.leave) }
                 }
-                .onAppear { focused = true }
+                // Asked of AppKit: on the sheet, setting the focus state as
+                // the row appears doesn't bring the focus.
+                .background(FieldFocus())
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .profileRow(wash: Theme.Palette.selection)
             if let problem {
@@ -287,6 +293,43 @@ struct ProfileNameField: View {
             }
         }
         .accessibilityValue(problem ?? "")
+    }
+}
+
+/// Behind a text field, makes it the window's first responder once the
+/// row is in the window.
+private struct FieldFocus: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // A turn later, when the field is in the window beside this view.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window, let field = nearestField() else { return }
+                if !window.isKeyWindow { window.makeKey() }
+                window.makeFirstResponder(field)
+            }
+        }
+
+        /// The editable field sharing the closest ancestor with this view.
+        private func nearestField() -> NSTextField? {
+            var ancestor = superview
+            while let view = ancestor {
+                if let field = Self.field(in: view) { return field }
+                ancestor = view.superview
+            }
+            return nil
+        }
+
+        private static func field(in view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.isEditable { return field }
+            for child in view.subviews {
+                if let field = field(in: child) { return field }
+            }
+            return nil
+        }
     }
 }
 
