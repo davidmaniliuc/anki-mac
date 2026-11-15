@@ -10,7 +10,7 @@ final class AddCardsWindowController: NSWindowController, NSWindowDelegate {
 
     let model: AddCardsModel
     private let collection: CollectionModel
-    private let chrome = AddCardsChrome()
+    private let chrome = BandChrome()
     private var closing = false
 
     /// Opens the window, or brings it forward. The deck of the card being
@@ -178,13 +178,6 @@ struct AddCardsActions {
     let add: () -> Void
     let showInBrowser: (String) -> Void
     let cardLayout: () -> Void
-}
-
-/// Whether the window is in full screen, where the traffic lights leave
-/// the band's leading edge.
-@Observable
-final class AddCardsChrome {
-    var fullScreen = false
 }
 
 /// The Add window that File > Add Note acts on while it is key.

@@ -5,7 +5,7 @@ import SwiftUI
 /// tags, on the canvas as the main window's pages are.
 struct AddCardsView: View {
     @Bindable var model: AddCardsModel
-    let chrome: AddCardsChrome
+    let chrome: BandChrome
     let collection: CollectionModel
     let actions: AddCardsActions
 
@@ -89,7 +89,7 @@ struct AddCardsView: View {
             .pickerStyle(.inline)
             .labelsHidden()
         } label: {
-            menuLabel(Tr.notetypesType, model.notetypes.first { $0.id == model.notetypeID }?.name ?? "")
+            QuietMenuLabel(title: Tr.notetypesType, value: model.notetypes.first { $0.id == model.notetypeID }?.name ?? "")
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -108,32 +108,14 @@ struct AddCardsView: View {
                 decks: DeckNode.keeping(allowed, in: collection.decks), current: model.deckID,
                 pick: { model.deckID = $0 })
         } label: {
-            menuLabel(Tr.decksDeck, name.replacingOccurrences(of: "::", with: " \u{203A} "))
+            QuietMenuLabel(
+                title: Tr.decksDeck, value: name.replacingOccurrences(of: "::", with: " \u{203A} "), truncation: .head)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .accessibilityLabel(Tr.decksDeck)
         .accessibilityValue(name)
-    }
-
-    /// "Type" in Pencil, the choice in Ink, and a chevron. A long deck path
-    /// loses its start first, as Quick Find's do.
-    private func menuLabel(_ title: String, _ value: String) -> some View {
-        HStack(spacing: Theme.Spacing.xSmall) {
-            Text(title)
-                .foregroundStyle(Theme.Palette.secondary)
-            Text(value)
-                .foregroundStyle(Theme.Palette.text)
-                .truncationMode(.head)
-            Image(systemName: "chevron.up.chevron.down")
-                .font(Theme.Fonts.menuChevron)
-                .foregroundStyle(Theme.Palette.secondary)
-        }
-        .font(Theme.Fonts.chip)
-        .lineLimit(1)
-        .frame(height: Theme.Layout.controlHeight)
-        .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
     }
 
     /// Off until a note is added, as desktop's History button.

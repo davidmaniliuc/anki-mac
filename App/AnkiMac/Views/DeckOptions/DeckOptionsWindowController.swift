@@ -3,13 +3,14 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The Deck Options window: a SwiftUI form in an AppKit window, which can
+/// The Deck Options window: a SwiftUI page in an AppKit window, which can
 /// refuse to close while there are unsaved changes, as desktop's does.
 final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
     private static var open: [Int64: DeckOptionsWindowController] = [:]
 
     let model: DeckOptionsModel
     private let collection: CollectionModel
+    private let chrome = BandChrome()
     private var closeAfterSave = false
 
     /// Shows the options of a deck, bringing its window forward if open.
@@ -44,11 +45,32 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
             save: { [weak self] mode in self?.save(mode: mode) },
             close: { [weak self] in self?.closeSaved() },
             showError: { [weak self] failure in self?.showError(failure) })
-        let host = NSHostingController(rootView: DeckOptionsView(model: model, actions: actions))
-        host.sceneBridgingOptions = [.toolbars]
-        window.contentViewController = host
+        let host = NSHostingView(rootView: DeckOptionsView(model: model, chrome: chrome, actions: actions))
+        // The band starts at the window's top, under the traffic lights.
+        host.safeAreaRegions = []
+        host.sizingOptions = []
+        // Inside a plain view, as Add's, so a window manager setting the
+        // frame and the hosting view don't take turns resizing the window.
+        host.autoresizingMask = [.width, .height]
+        let content = NSView(frame: NSRect(origin: .zero, size: Theme.DeckOptions.defaultSize))
+        host.frame = content.bounds
+        content.addSubview(host)
+        window.contentView = content
+        // The title names the window in the Window menu; the band shows the deck.
         window.title = Tr.actionsOptionsFor(val: model.deckName)
-        window.minSize = Theme.DeckOptions.minSize
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        // Clear, the view painting the canvas: the bar that comes down in
+        // full screen is as opaque as the window's background colour.
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        // An empty toolbar, only so the traffic lights sit centred in the band.
+        let toolbar = NSToolbar(identifier: "DeckOptions")
+        toolbar.allowsDisplayModeCustomization = false
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        window.contentMinSize = Theme.DeckOptions.minSize
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -111,6 +133,28 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         return false
+    }
+
+    /// The toolbar hides with the menu bar in full screen, as Add's, and
+    /// the band stays in reach.
+    func window(
+        _ window: NSWindow, willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions = []
+    ) -> NSApplication.PresentationOptions {
+        // AppKit raises unless the menu bar hides too.
+        proposedOptions.contains(.autoHideMenuBar) ? proposedOptions.union(.autoHideToolbar) : proposedOptions
+    }
+
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        chrome.fullScreen = true
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        if let window { FullScreenTitlebar.dress(window, true) }
+    }
+
+    func windowWillExitFullScreen(_ notification: Notification) {
+        chrome.fullScreen = false
+        if let window { FullScreenTitlebar.dress(window, false) }
     }
 
     func windowDidBecomeKey(_ notification: Notification) {

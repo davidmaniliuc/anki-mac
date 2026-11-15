@@ -812,6 +812,41 @@ struct MenuHover<S: InsettableShape>: ViewModifier {
     }
 }
 
+/// A quiet menu's label: its name in Pencil, if any, the choice in Ink and
+/// a small up-down chevron, with the hover wash under the pointer. A deck
+/// path loses its start first, as Quick Find's do; other choices their end.
+struct QuietMenuLabel: View {
+    var title = ""
+    let value: String
+    var truncation = Text.TruncationMode.tail
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xSmall) {
+            if !title.isEmpty {
+                Text(title)
+                    .foregroundStyle(Theme.Palette.secondary)
+            }
+            Text(value)
+                .foregroundStyle(Theme.Palette.text)
+                .truncationMode(truncation)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(Theme.Fonts.menuChevron)
+                .foregroundStyle(Theme.Palette.secondary)
+        }
+        .font(Theme.Fonts.chip)
+        .lineLimit(1)
+        .frame(height: Theme.Layout.controlHeight)
+        .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
+    }
+}
+
+/// Whether a window with a band of controls under its traffic lights is in
+/// full screen, where the lights leave the band's leading edge.
+@Observable
+final class BandChrome {
+    var fullScreen = false
+}
+
 /// The deck tree as menu items. A deck with subdecks is a submenu that
 /// starts with the deck itself, since a submenu's own item can't be chosen.
 struct DeckMenuItems: View {

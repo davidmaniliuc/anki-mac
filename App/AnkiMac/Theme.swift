@@ -502,15 +502,35 @@ enum Theme {
     enum DeckOptions {
         static let defaultSize = CGSize(width: 640, height: 760)
         static let minSize = CGSize(width: 480, height: 400)
+        /// The form's column: capped so a setting's title stays near its
+        /// control in a wide window.
+        static let columnWidth: CGFloat = 620
+        static let margin: CGFloat = 24
+        static let sectionGap: CGFloat = Spacing.xLarge
+        static let rowMinHeight: CGFloat = 40
+        static let rowPadding: CGFloat = Spacing.small
+        static let rowFont = Fonts.row
+        /// Values typed in a field, and the FSRS parameters.
+        static let figures = Font.system(size: 13, weight: .medium, design: .rounded).monospacedDigit()
+        static let fieldHeight: CGFloat = 24
+        static let fieldPadding: CGFloat = 6
         static let numberFieldWidth: CGFloat = 64
         static let stepsFieldWidth: CGFloat = 160
+        static let searchFieldWidth: CGFloat = 220
         static let customSchedulingHeight: CGFloat = 140
         static let helpWidth: CGFloat = 360
         static let helpMaxHeight: CGFloat = 480
-        /// Desktop's alert colours for the notes under a setting.
-        static let infoColor = Color.blue
-        static let warningColor = Color.orange
-        static let dangerColor = Color.red
+        static let helpSymbol = Font.system(size: 12, weight: .medium)
+        static let helpSize = CGSize(width: 22, height: 20)
+        static let revertSymbol = Font.system(size: 11, weight: .semibold)
+        static let revertSize = CGSize(width: 22, height: 22)
+        static let globeSymbol = Font.system(size: 11)
+        /// Switches and sliders: a page of them holds no accent blue.
+        static let controlTint = Palette.secondary
+        /// The icons of desktop's alerts under a setting; the words stay Pencil.
+        static let infoColor = Palette.secondary
+        static let warningColor = Palette.dynamic(0xB0650B, 0xF0A848)
+        static let dangerColor = Palette.dynamic(0xC4281C, 0xFF7B6E)
         static let simulatorSize = CGSize(width: 620, height: 760)
         static let simulatorMinSize = CGSize(width: 460, height: 480)
         static let chartHeight: CGFloat = 260

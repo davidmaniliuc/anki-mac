@@ -1,37 +1,44 @@
 import AnkiKit
 import SwiftUI
 
-/// Desktop's deck options page as a grouped form, in its section order.
-/// Help comes from desktop's tooltips: on each title, and per section from
-/// the header's help button.
+/// Desktop's deck options page on the canvas, in its section order: a
+/// band with the deck, its preset and Save, then the sections in one
+/// column. Help comes from desktop's tooltips: on each title, and per
+/// section from the help button beside its name.
 struct DeckOptionsView: View {
     @Bindable var model: DeckOptionsModel
+    let chrome: BandChrome
     let actions: DeckOptionsActions
 
     var body: some View {
-        Form {
-            PresetSection(model: model, actions: actions)
-            DailyLimitsSection(model: model)
-            NewCardsSection(model: model)
-            LapsesSection(model: model)
-            DisplayOrderSection(model: model)
-            FsrsSection(model: model, actions: actions)
-            BurySection(model: model)
-            AudioSection(model: model)
-            TimerSection(model: model)
-            AutoAdvanceSection(model: model)
-            EasyDaysSection(model: model)
-            AdvancedSection(model: model)
-        }
-        .formStyle(.grouped)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(Tr.deckConfigSaveButton, systemImage: "checkmark") { actions.save(.normal) }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderedProminent)
-                    .help("Save and close (\u{2318}S)")
+        VStack(spacing: 0) {
+            PresetBand(model: model, chrome: chrome, actions: actions)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) {
+                    DailyLimitsSection(model: model)
+                    NewCardsSection(model: model)
+                    LapsesSection(model: model)
+                    DisplayOrderSection(model: model)
+                    FsrsSection(model: model, actions: actions)
+                    BurySection(model: model)
+                    AudioSection(model: model)
+                    TimerSection(model: model)
+                    AutoAdvanceSection(model: model)
+                    EasyDaysSection(model: model)
+                    AdvancedSection(model: model)
+                }
+                .frame(maxWidth: Theme.DeckOptions.columnWidth, alignment: .leading)
+                .padding(.horizontal, Theme.DeckOptions.margin)
+                .padding(.top, Theme.Spacing.small)
+                .padding(.bottom, Theme.Layout.pageBottomPadding)
+                .frame(maxWidth: .infinity)
             }
+            // Scrolls out of sight under the band, not under the lights.
+            .clipped()
         }
+        .background(Theme.Palette.canvas)
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
     }
 }
 
@@ -114,13 +121,7 @@ private struct ConfigPickerRow<Value: Hashable>: View {
 
     var body: some View {
         OptionRow(title: title, help: help, isDefault: model.isDefault(path), revert: model.revert(path)) {
-            Picker(title, selection: model.binding(path)) {
-                ForEach(choices, id: \.0) { value, label in
-                    Text(label).tag(value).selectionDisabled(disabled.contains(value))
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
+            OptionPicker(selection: model.binding(path), choices: choices, disabled: disabled)
         }
     }
 }
@@ -152,7 +153,8 @@ struct GlobalToggleRow: View {
         OptionRow(title: title, help: help, isDefault: !isOn, revert: { isOn = false }) {
             HStack(spacing: Theme.Spacing.xSmall) {
                 Image(systemName: "globe")
-                    .foregroundStyle(.secondary)
+                    .font(Theme.DeckOptions.globeSymbol)
+                    .foregroundStyle(Theme.Palette.tertiary)
                     .help(Tr.deckConfigAffectsEntireCollection)
                     .accessibilityLabel(Tr.deckConfigAffectsEntireCollection)
                 SwitchControl(title: title, isOn: $isOn)
@@ -174,23 +176,24 @@ struct TabbedLimitRow: View {
     var percent = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-            Picker(title, selection: Binding { model.scope(limit) } set: { model.setScope(limit, $0) }) {
-                ForEach(limit.scopes) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .help(Tr.deckConfigTabDescription)
-            OptionRow(
-                title: title, help: help, isDefault: rounded(model.value(limit)) == rounded(defaultValue),
-                revert: { model.setValue(limit, defaultValue) }
-            ) {
-                NumberField(
-                    value: Binding { model.value(limit) } set: { model.setValue(limit, $0) },
-                    range: range, step: step, decimals: decimals, percent: percent)
-            }
+        OptionRow(
+            title: title, help: help, isDefault: rounded(model.value(limit)) == rounded(defaultValue),
+            revert: { model.setValue(limit, defaultValue) }
+        ) {
+            NumberField(
+                value: Binding { model.value(limit) } set: { model.setValue(limit, $0) },
+                range: range, step: step, decimals: decimals, percent: percent)
         }
+        // Under the title, pulled out by their padding so the first word
+        // lines up with it, as Statistics' switches.
+        QuietSegments(
+            selection: Binding { model.scope(limit) } set: { model.setScope(limit, $0) },
+            choices: limit.scopes, title: \.title
+        )
+        .padding(.leading, -Theme.Layout.segmentPadding)
+        .help(Tr.deckConfigTabDescription)
+        .accessibilityLabel(title)
+        .optionNote()
     }
 
     /// Desktop compares to two decimals, so an f32 retention matches its default.
@@ -210,7 +213,13 @@ private struct DailyLimitsSection: View {
         let parentHelp = Tr.deckConfigAffectsEntireCollection + "\n\n" + Tr.deckConfigApplyAllParentLimitsTooltip
         let newValue = Int(model.value(.new))
         let expected = min(9999, newValue * 10)
-        Section {
+        OptionSection(
+            title: Tr.deckConfigDailyLimits,
+            help: [
+                (Tr.schedulingNewCardsday, newHelp), (Tr.schedulingMaximumReviewsday, reviewHelp),
+                (Tr.deckConfigNewCardsIgnoreReviewLimit, ignoreHelp),
+                (Tr.deckConfigApplyAllParentLimits, parentHelp),
+            ]) {
             TabbedLimitRow(
                 model: model, limit: .new, title: Tr.schedulingNewCardsday, help: newHelp,
                 defaultValue: Double(model.defaults.newPerDay))
@@ -225,14 +234,6 @@ private struct DailyLimitsSection: View {
                 isOn: Bindable(model).newCardsIgnoreReviewLimit)
             GlobalToggleRow(
                 title: Tr.deckConfigApplyAllParentLimits, help: parentHelp, isOn: Bindable(model).applyAllParentLimits)
-        } header: {
-            OptionSectionHeader(
-                title: Tr.deckConfigDailyLimits,
-                help: [
-                    (Tr.schedulingNewCardsday, newHelp), (Tr.schedulingMaximumReviewsday, reviewHelp),
-                    (Tr.deckConfigNewCardsIgnoreReviewLimit, ignoreHelp),
-                    (Tr.deckConfigApplyAllParentLimits, parentHelp),
-                ])
         }
     }
 }
@@ -243,7 +244,14 @@ private struct NewCardsSection: View {
     var body: some View {
         let config = model.config
         let lastStepDays = Double(config.learnSteps.last ?? 0) / 60 / 24
-        Section {
+        OptionSection(
+            title: Tr.schedulingNewCards,
+            help: [
+                (Tr.deckConfigLearningSteps, Tr.deckConfigLearningStepsTooltip),
+                (Tr.schedulingGraduatingInterval, Tr.deckConfigGraduatingIntervalTooltip),
+                (Tr.schedulingEasyInterval, Tr.deckConfigEasyIntervalTooltip),
+                (Tr.deckConfigNewInsertionOrder, Tr.deckConfigNewInsertionOrderTooltip),
+            ]) {
             StepsRow(
                 model: model, title: Tr.deckConfigLearningSteps, help: Tr.deckConfigLearningStepsTooltip,
                 path: \.learnSteps)
@@ -273,15 +281,6 @@ private struct NewCardsSection: View {
             if config.newCardInsertOrder == .random {
                 OptionWarning(text: Tr.deckConfigNewInsertionOrderRandomWithV3)
             }
-        } header: {
-            OptionSectionHeader(
-                title: Tr.schedulingNewCards,
-                help: [
-                    (Tr.deckConfigLearningSteps, Tr.deckConfigLearningStepsTooltip),
-                    (Tr.schedulingGraduatingInterval, Tr.deckConfigGraduatingIntervalTooltip),
-                    (Tr.schedulingEasyInterval, Tr.deckConfigEasyIntervalTooltip),
-                    (Tr.deckConfigNewInsertionOrder, Tr.deckConfigNewInsertionOrderTooltip),
-                ])
         }
     }
 }
@@ -292,7 +291,14 @@ private struct LapsesSection: View {
     var body: some View {
         let config = model.config
         let lastStepDays = Double(config.relearnSteps.last ?? 0) / 60 / 24
-        Section {
+        OptionSection(
+            title: Tr.schedulingLapses,
+            help: [
+                (Tr.deckConfigRelearningSteps, Tr.deckConfigRelearningStepsTooltip),
+                (Tr.schedulingMinimumInterval, Tr.deckConfigMinimumIntervalTooltip),
+                (Tr.schedulingLeechThreshold, Tr.deckConfigLeechThresholdTooltip),
+                (Tr.schedulingLeechAction, Tr.deckConfigLeechActionTooltip),
+            ]) {
             StepsRow(
                 model: model, title: Tr.deckConfigRelearningSteps, help: Tr.deckConfigRelearningStepsTooltip,
                 path: \.relearnSteps)
@@ -314,15 +320,6 @@ private struct LapsesSection: View {
                 model: model, title: Tr.schedulingLeechAction, help: Tr.deckConfigLeechActionTooltip,
                 path: \.leechAction,
                 choices: [(.suspend, Tr.actionsSuspendCard), (.tagOnly, Tr.schedulingTagOnly)])
-        } header: {
-            OptionSectionHeader(
-                title: Tr.schedulingLapses,
-                help: [
-                    (Tr.deckConfigRelearningSteps, Tr.deckConfigRelearningStepsTooltip),
-                    (Tr.schedulingMinimumInterval, Tr.deckConfigMinimumIntervalTooltip),
-                    (Tr.schedulingLeechThreshold, Tr.deckConfigLeechThresholdTooltip),
-                    (Tr.schedulingLeechAction, Tr.deckConfigLeechActionTooltip),
-                ])
         }
     }
 }
@@ -344,7 +341,7 @@ private struct DisplayOrderSection: View {
             (.afterReviews, Tr.deckConfigReviewMixShowAfterReviews),
             (.beforeReviews, Tr.deckConfigReviewMixShowBeforeReviews),
         ]
-        Section {
+        OptionSection(title: Tr.deckConfigOrderingTitle, help: help) {
             ConfigPickerRow(
                 model: model, title: help[0].0, help: help[0].1,
                 path: \.newCardGatherPriority,
@@ -378,8 +375,6 @@ private struct DisplayOrderSection: View {
             ConfigPickerRow(
                 model: model, title: help[4].0, help: help[4].1, path: \.reviewOrder,
                 choices: reviewOrderChoices(fsrs: model.fsrs))
-        } header: {
-            OptionSectionHeader(title: Tr.deckConfigOrderingTitle, help: help)
         }
     }
 }
@@ -420,12 +415,10 @@ private struct BurySection: View {
             (Tr.deckConfigBuryReviewSiblings, Tr.deckConfigBuryReviewTooltip + priority),
             (Tr.deckConfigBuryInterdayLearningSiblings, Tr.deckConfigBuryInterdayLearningTooltip + priority),
         ]
-        Section {
+        OptionSection(title: Tr.deckConfigBuryTitle, help: help) {
             ConfigToggleRow(model: model, title: help[0].0, help: help[0].1, path: \.buryNew)
             ConfigToggleRow(model: model, title: help[1].0, help: help[1].1, path: \.buryReviews)
             ConfigToggleRow(model: model, title: help[2].0, help: help[2].1, path: \.buryInterdayLearning)
-        } header: {
-            OptionSectionHeader(title: Tr.deckConfigBuryTitle, help: help)
         }
     }
 }
@@ -438,12 +431,10 @@ private struct AudioSection: View {
             (Tr.deckConfigDisableAutoplay, Tr.deckConfigDisableAutoplayTooltip),
             (Tr.deckConfigSkipQuestionWhenReplaying, Tr.deckConfigAlwaysIncludeQuestionAudioTooltip),
         ]
-        Section {
+        OptionSection(title: Tr.deckConfigAudioTitle, help: help) {
             ConfigToggleRow(model: model, title: help[0].0, help: help[0].1, path: \.disableAutoplay)
             ConfigToggleRow(
                 model: model, title: help[1].0, help: help[1].1, path: \.skipQuestionWhenReplayingAnswer)
-        } header: {
-            OptionSectionHeader(title: Tr.deckConfigAudioTitle, help: help)
         }
     }
 }
@@ -457,7 +448,7 @@ private struct TimerSection: View {
             (Tr.schedulingShowAnswerTimer, Tr.deckConfigShowAnswerTimerTooltip),
             (Tr.deckConfigStopTimerOnAnswer, Tr.deckConfigStopTimerOnAnswerTooltip),
         ]
-        Section {
+        OptionSection(title: Tr.deckConfigTimerTitle, help: help) {
             ConfigNumberRow(
                 model: model, title: help[0].0, help: help[0].1, path: \.capAnswerTimeToSecs, range: 1...7200)
             if model.config.capAnswerTimeToSecs > 600 {
@@ -465,8 +456,6 @@ private struct TimerSection: View {
             }
             ConfigToggleRow(model: model, title: help[1].0, help: help[1].1, path: \.showTimer)
             ConfigToggleRow(model: model, title: help[2].0, help: help[2].1, path: \.stopTimerOnAnswer)
-        } header: {
-            OptionSectionHeader(title: Tr.deckConfigTimerTitle, help: help)
         }
     }
 }
@@ -482,7 +471,7 @@ private struct AutoAdvanceSection: View {
             (Tr.deckConfigQuestionAction, Tr.deckConfigQuestionActionToolTip),
             (Tr.deckConfigAnswerAction, Tr.deckConfigAnswerActionTooltip2),
         ]
-        Section {
+        OptionSection(title: Tr.actionsAutoAdvance, help: help) {
             ConfigDecimalRow(
                 model: model, title: help[0].0, help: help[0].1, path: \.secondsToShowQuestion,
                 step: 0.1, decimals: 1)
@@ -502,8 +491,6 @@ private struct AutoAdvanceSection: View {
                     (.answerGood, Tr.deckConfigAnswerGood), (.answerHard, Tr.deckConfigAnswerHard),
                     (.showReminder, Tr.deckConfigShowReminder),
                 ])
-        } header: {
-            OptionSectionHeader(title: Tr.actionsAutoAdvance, help: help)
         }
     }
 }
@@ -515,7 +502,7 @@ private struct EasyDaysSection: View {
 
     var body: some View {
         let values = model.config.easyDaysPercentages
-        Section(Tr.deckConfigEasyDaysTitle) {
+        OptionSection(title: Tr.deckConfigEasyDaysTitle) {
             EasyDaysSliders(values: Binding { model.config.easyDaysPercentages } set: {
                 model.config.easyDaysPercentages = $0
             })
@@ -551,13 +538,13 @@ struct EasyDaysSliders: View {
                     Spacer()
                     Text(Tr.deckConfigEasyDaysNormal)
                 }
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(Theme.Fonts.caption)
+                .foregroundStyle(Theme.Palette.secondary)
                 .frame(maxWidth: .infinity)
             }
             ForEach(Self.days.indices, id: \.self) { index in
                 GridRow {
-                    Text(Self.days[index])
+                    Text(Self.days[index]).font(Theme.DeckOptions.rowFont)
                     Slider(
                         value: Binding {
                             Double(values[safe: index] ?? 1)
@@ -570,6 +557,8 @@ struct EasyDaysSliders: View {
                         Text(Self.days[index])
                     }
                     .labelsHidden()
+                    .controlSize(.small)
+                    .tint(Theme.DeckOptions.controlTint)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -593,7 +582,7 @@ private struct AdvancedSection: View {
             (Tr.schedulingNewInterval, Tr.deckConfigNewIntervalTooltip),
             (Tr.deckConfigCustomScheduling, Tr.deckConfigCustomSchedulingTooltip),
         ]
-        Section {
+        OptionSection(title: Tr.deckConfigAdvancedTitle, help: help) {
             ConfigNumberRow(
                 model: model, title: help[0].0, help: help[0].1, path: \.maximumReviewInterval, range: 1...36500)
             if config.maximumReviewInterval < 180 {
@@ -618,8 +607,6 @@ private struct AdvancedSection: View {
                 IgnoreBeforeRow(model: model, title: help[2].0, help: help[2].1)
             }
             CustomSchedulingRow(model: model, title: help[8].0, help: help[8].1)
-        } header: {
-            OptionSectionHeader(title: Tr.deckConfigAdvancedTitle, help: help)
         }
     }
 }
@@ -680,56 +667,67 @@ private struct CustomSchedulingRow: View {
 
     var body: some View {
         DisclosureGroup {
+            // Code as an unboxed block, as the editor's HTML source.
             TextEditor(text: $model.cardStateCustomizer)
                 .font(.body.monospaced())
                 .autocorrectionDisabled()
+                .scrollContentBackground(.hidden)
+                .padding(Theme.DeckOptions.fieldPadding)
                 .frame(height: Theme.DeckOptions.customSchedulingHeight)
+                .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).fill(Theme.Palette.hover))
+                .padding(.top, Theme.Spacing.small)
         } label: {
             HStack(spacing: Theme.Spacing.xSmall) {
-                Text(title).help(help)
+                Text(title).font(Theme.DeckOptions.rowFont).help(help)
                 Image(systemName: "globe")
-                    .foregroundStyle(.secondary)
+                    .font(Theme.DeckOptions.globeSymbol)
+                    .foregroundStyle(Theme.Palette.tertiary)
                     .help(Tr.deckConfigAffectsEntireCollection)
             }
         }
     }
 }
 
-// MARK: Presets
+// MARK: Band
 
-/// The preset the deck uses and what can be done with presets, as
-/// desktop's top bar. In the form rather than the toolbar, which would push
-/// them into its overflow menu in a narrow window.
-private struct PresetSection: View {
+/// Under the traffic lights, as Add's: the deck the options are for, the
+/// preset it uses as a quiet menu that also holds desktop's preset
+/// commands, then Save, the window's one prominent action.
+private struct PresetBand: View {
     let model: DeckOptionsModel
+    let chrome: BandChrome
     let actions: DeckOptionsActions
     @State private var naming: PresetNaming?
     @State private var name = ""
     @State private var confirmingRemove = false
 
     var body: some View {
-        Section {
-            HStack {
-                Picker("Preset", selection: Binding { model.selectedIndex } set: { model.select($0) }) {
-                    ForEach(model.presets.indices, id: \.self) { index in
-                        Text(model.presets[index].config.name
-                            + " (" + Tr.deckConfigUsedByDecks(decks: model.useCount(at: index)) + ")")
-                            .tag(index)
-                    }
+        HStack(spacing: Theme.Spacing.xSmall) {
+            Text(model.deckName.replacingOccurrences(of: "::", with: " \u{203A} "))
+                .font(Theme.Browser.titleFont)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .help(Tr.actionsOptionsFor(val: model.deckName))
+                .layoutPriority(-1)
+            Spacer(minLength: Theme.Spacing.small)
+            presetMenu
+            Button { actions.save(.normal) } label: {
+                HStack(spacing: 5) {
+                    Text(Tr.deckConfigSaveButton)
+                    KeyCap("\u{2318}S", onAccent: true)
                 }
-                .help("The preset this deck uses")
-                Menu {
-                    presetCommands
-                } label: {
-                    Image(systemName: "ellipsis.circle").accessibilityLabel("Preset Actions")
-                }
-                .menuStyle(.button)
-                .buttonStyle(.borderless)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Add, clone, rename or remove presets")
             }
+            .buttonStyle(PrimaryButtonStyle(compact: true))
+            // File › Save holds ⌘S, for this window while it is key.
+            .help("Save and close (\u{2318}S)")
+            .padding(.leading, Theme.Spacing.xSmall)
         }
+        // Clear of the traffic lights, which in full screen come down over
+        // the band in a pill of their own.
+        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Browser.sidebarToggleLeading)
+        .padding(.trailing, Theme.Spacing.medium)
+        .frame(height: Theme.Browser.chromeHeight)
+        .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
         .alert(naming?.title ?? "", isPresented: Binding { naming != nil } set: { if !$0 { naming = nil } }) {
             TextField(Tr.deckConfigNamePrompt, text: $name)
             Button("Cancel", role: .cancel) {}
@@ -750,20 +748,43 @@ private struct PresetSection: View {
         }
     }
 
-    @ViewBuilder private var presetCommands: some View {
-        Button(Tr.deckConfigAddGroup + "…") { ask(.add, "") }
-        Button(Tr.deckConfigCloneGroup + "…") { ask(.clone, model.preset.name) }
-        Button(Tr.deckConfigRenameGroup + "…") { ask(.rename, model.preset.name) }
-        Button(Tr.deckConfigRemoveGroup + "…", role: .destructive) {
-            if model.isDefaultPresetSelected {
-                actions.showError(
-                    ActionFailure("Couldn’t remove the preset", detail: Tr.schedulingTheDefaultConfigurationCantBeRemoved))
-            } else {
-                confirmingRemove = true
+    /// The presets with how many decks use each, then what can be done
+    /// with them, as desktop's dropdown and its gear menu.
+    private var presetMenu: some View {
+        Menu {
+            Picker("Preset", selection: Binding { model.selectedIndex } set: { model.select($0) }) {
+                ForEach(model.presets.indices, id: \.self) { index in
+                    Text(model.presets[index].config.name
+                        + " (" + Tr.deckConfigUsedByDecks(decks: model.useCount(at: index)) + ")")
+                        .tag(index)
+                }
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Divider()
+            Button(Tr.deckConfigAddGroup + "…") { ask(.add, "") }
+            Button(Tr.deckConfigCloneGroup + "…") { ask(.clone, model.preset.name) }
+            Button(Tr.deckConfigRenameGroup + "…") { ask(.rename, model.preset.name) }
+            Button(Tr.deckConfigRemoveGroup + "…", role: .destructive) {
+                if model.isDefaultPresetSelected {
+                    actions.showError(
+                        ActionFailure("Couldn’t remove the preset", detail: Tr.schedulingTheDefaultConfigurationCantBeRemoved))
+                } else {
+                    confirmingRemove = true
+                }
+            }
+            Divider()
+            Button(Tr.deckConfigSaveToAllSubdecks) { actions.save(.applyToChildren) }
+        } label: {
+            QuietMenuLabel(title: "Preset", value: model.preset.name)
         }
-        Divider()
-        Button(Tr.deckConfigSaveToAllSubdecks) { actions.save(.applyToChildren) }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .layoutPriority(-0.5)
+        .help("The preset this deck uses, and what can be done with presets")
+        .accessibilityLabel("Preset")
+        .accessibilityValue(model.preset.name)
     }
 
     private func ask(_ kind: PresetNaming, _ initial: String) {

@@ -32,15 +32,13 @@ struct FsrsSection: View {
     }
 
     var body: some View {
-        Section {
+        OptionSection(title: "FSRS", help: help) {
             GlobalToggleRow(title: "FSRS", help: help[0].1, isOn: $model.fsrs)
             if model.fsrs {
                 retention
                 parameters
                 optimizer
             }
-        } header: {
-            OptionSectionHeader(title: "FSRS", help: help)
         }
         .onChange(of: model.fsrs, initial: true) { _, enabled in
             if !enabled { newlyEnabled = true }
@@ -66,9 +64,8 @@ struct FsrsSection: View {
             defaultValue: Double(model.defaults.desiredRetention), range: 0.7...0.99, step: 0.01, decimals: 0,
             percent: true)
         let showNote = newlyEnabled || model.optimizedParams || abs(value - model.startingRetention) >= 0.005
-        HStack {
+        OptionActions {
             Button(Tr.deckConfigFsrsDesiredRetentionHelpMeDecideExperimental + "…") { openSimulator(workload: true) }
-            Spacer()
         }
         .task(id: WorkloadKey(retention: percent, params: model.config.fsrsParams, shown: showNote)) {
             guard showNote else { return }
@@ -96,10 +93,12 @@ struct FsrsSection: View {
         let params = model.config.fsrsParams6
         VStack(alignment: .leading, spacing: Theme.Spacing.small) {
             HStack {
-                Text(help[2].0).help(help[2].1)
+                Text(help[2].0).font(Theme.DeckOptions.rowFont).help(help[2].1)
                 Spacer()
                 Button(editingParams ? "Done" : "Edit…") { editingParams.toggle() }
-                    .buttonStyle(.borderless)
+                    .font(Theme.Fonts.chip)
+                    .frame(height: Theme.DeckOptions.fieldHeight)
+                    .buttonStyle(QuietButtonStyle())
                     .help("Edit the parameters by hand")
             }
             if editingParams {
@@ -109,16 +108,15 @@ struct FsrsSection: View {
                 OptionWarning(text: Tr.deckConfigManualParameterEditWarning)
             } else {
                 Text(params.isEmpty ? Tr.deckConfigPlaceholderParameters : Self.format(params))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .font(Theme.DeckOptions.figures)
+                    .foregroundStyle(Theme.Palette.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         OptionRow(title: "Search", help: "The cards FSRS optimizes from") {
-            TextField("Search", text: $model.config.paramSearch, prompt: Text(model.presetSearch))
-                .labelsHidden()
-                .textFieldStyle(.roundedBorder)
+            OptionTextField(text: $model.config.paramSearch, prompt: model.presetSearch)
+                .frame(width: Theme.DeckOptions.searchFieldWidth)
         }
         GlobalToggleRow(title: help[3].0, help: help[3].1, isOn: $model.fsrsReschedule)
         if model.fsrsReschedule {
@@ -148,15 +146,17 @@ struct FsrsSection: View {
     @ViewBuilder private var optimizer: some View {
         let job = model.fsrsJob
         HStack {
-            Button(job == .optimizing ? Tr.actionsCancel : Tr.deckConfigOptimizeButton) {
-                job == .optimizing ? model.cancelFsrsJob() : run(failing: "Couldn’t optimize the FSRS parameters", model.optimize)
-            }
-            .disabled(job != nil && job != .optimizing)
-            if model.legacyEvaluate {
-                Button(job == .evaluating ? Tr.actionsCancel : Tr.deckConfigEvaluateButton) {
-                    job == .evaluating ? model.cancelFsrsJob() : run(failing: "Couldn’t evaluate the FSRS parameters", model.evaluate)
+            ActionRow {
+                Button(job == .optimizing ? Tr.actionsCancel : Tr.deckConfigOptimizeButton) {
+                    job == .optimizing ? model.cancelFsrsJob() : run(failing: "Couldn’t optimize the FSRS parameters", model.optimize)
                 }
-                .disabled(job != nil && job != .evaluating)
+                .disabled(job != nil && job != .optimizing)
+                if model.legacyEvaluate {
+                    Button(job == .evaluating ? Tr.actionsCancel : Tr.deckConfigEvaluateButton) {
+                        job == .evaluating ? model.cancelFsrsJob() : run(failing: "Couldn’t evaluate the FSRS parameters", model.evaluate)
+                    }
+                    .disabled(job != nil && job != .evaluating)
+                }
             }
             Spacer()
             if job != nil {
@@ -166,30 +166,33 @@ struct FsrsSection: View {
         if job != nil {
             if let progress = model.fsrsProgress, progress.total > 0 {
                 ProgressView(value: Double(progress.current), total: Double(progress.total)) {
-                    Text(model.progressText).font(.callout)
+                    Text(model.progressText)
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Palette.secondary)
                 }
+                .tint(Theme.DeckOptions.controlTint)
+                .optionNote()
             }
         } else if let reviews = model.lastReviewCount {
-            Text(Tr.statisticsReviews(reviews: Int(reviews))).font(.callout).foregroundStyle(.secondary)
+            Text(Tr.statisticsReviews(reviews: Int(reviews)))
+                .font(Theme.Fonts.caption)
+                .foregroundStyle(Theme.Palette.secondary)
+                .optionNote()
         }
         if model.daysSinceLastOptimization > 30 {
             OptionWarning(text: Tr.deckConfigTimeToOptimize)
         }
-        HStack {
+        ActionRow {
             Button(job == .optimizingAll ? Tr.actionsCancel : Tr.deckConfigSaveAndOptimize + "…") {
                 if job == .optimizingAll { model.cancelFsrsJob() } else { confirmingOptimizeAll = true }
             }
             .disabled(job != nil && job != .optimizingAll)
             .help(Tr.deckConfigOptimizeAllTip)
-            Spacer()
+            Button(Tr.deckConfigFsrsSimulatorExperimental + "…") { openSimulator(workload: false) }
         }
         .alert(Tr.deckConfigFsrsConfirmSaveAndOptimize, isPresented: $confirmingOptimizeAll) {
             Button("Cancel", role: .cancel) {}
             Button(Tr.deckConfigSaveAndOptimize) { optimizeAll() }
-        }
-        HStack {
-            Button(Tr.deckConfigFsrsSimulatorExperimental + "…") { openSimulator(workload: false) }
-            Spacer()
         }
     }
 

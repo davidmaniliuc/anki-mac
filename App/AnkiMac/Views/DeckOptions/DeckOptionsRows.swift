@@ -11,20 +11,62 @@ struct OptionRow<Control: View>: View {
     @ViewBuilder let control: Control
 
     var body: some View {
-        LabeledContent {
+        HStack(spacing: Theme.Spacing.small) {
+            Text(title)
+                .font(Theme.DeckOptions.rowFont)
+                .foregroundStyle(Theme.Palette.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(help)
+            Spacer(minLength: Theme.Spacing.small)
             HStack(spacing: Theme.Spacing.xSmall) {
                 control.environment(\.optionTitle, title)
                 RevertMenu(hidden: isDefault, revert: revert)
             }
-        } label: {
-            Text(title).help(help)
         }
+        .accessibilityElement(children: .contain)
     }
 }
 
 extension EnvironmentValues {
     /// The row's title, for VoiceOver on fields whose label is hidden.
     @Entry var optionTitle = ""
+}
+
+extension ContainerValues {
+    /// A line that belongs to the setting above it, a note or its actions,
+    /// so no hairline divides them.
+    @Entry var optionNote = false
+}
+
+extension View {
+    func optionNote() -> some View { containerValue(\.optionNote, true) }
+}
+
+/// A named group of settings on the canvas: an eyebrow with the section's
+/// help, then its rows under hairlines, as Statistics' graphs are.
+struct OptionSection<Content: View>: View {
+    let title: String
+    var help: [(title: String, text: String)] = []
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            OptionSectionHeader(title: title, help: help)
+                .padding(.bottom, Theme.Spacing.xSmall)
+            Group(subviews: content) { rows in
+                ForEach(rows) { row in
+                    if row.containerValues.optionNote {
+                        row.padding(.bottom, Theme.DeckOptions.rowPadding)
+                    } else {
+                        Theme.Palette.hairline.frame(height: 1)
+                        row
+                            .padding(.vertical, Theme.DeckOptions.rowPadding)
+                            .frame(minHeight: Theme.DeckOptions.rowMinHeight)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// A switch whose title is shown by its row. Hiding the label also hides it
@@ -37,6 +79,8 @@ struct SwitchControl: View {
         Toggle(title, isOn: $isOn)
             .labelsHidden()
             .toggleStyle(.switch)
+            .controlSize(.small)
+            .tint(Theme.DeckOptions.controlTint)
             .accessibilityRepresentation { Toggle(title, isOn: $isOn) }
     }
 }
@@ -50,11 +94,15 @@ private struct RevertMenu: View {
         Menu {
             Button(Tr.deckConfigRevertButtonTooltip) { revert?() }
         } label: {
-            Image(systemName: "arrow.uturn.backward.circle")
+            Image(systemName: "arrow.uturn.backward")
+                .font(Theme.DeckOptions.revertSymbol)
+                .foregroundStyle(Theme.Palette.secondary)
+                .frame(width: Theme.DeckOptions.revertSize.width, height: Theme.DeckOptions.revertSize.height)
+                .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius), inset: 0))
                 .accessibilityLabel("Restore Default")
         }
         .menuStyle(.button)
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Restore Default")
@@ -62,6 +110,28 @@ private struct RevertMenu: View {
         .disabled(hidden || revert == nil)
         .accessibilityHidden(hidden || revert == nil)
     }
+}
+
+/// A text field drawn as a quiet control: a Raised Oat box under a
+/// hairline, the accent ring while it has focus.
+private struct QuietField: ViewModifier {
+    let focused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .foregroundStyle(Theme.Palette.text)
+            .padding(.horizontal, Theme.DeckOptions.fieldPadding)
+            .frame(height: Theme.DeckOptions.fieldHeight)
+            .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).fill(Theme.Palette.raised))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).strokeBorder(
+                focused ? Theme.Palette.accent : Theme.Palette.hairline,
+                lineWidth: focused ? Theme.Layout.focusRingWidth : 1))
+    }
+}
+
+extension View {
+    func quietField(focused: Bool) -> some View { modifier(QuietField(focused: focused)) }
 }
 
 /// A number typed or stepped, clamped to its range. Percentages are stored
@@ -73,6 +143,7 @@ struct NumberField: View {
     var step: Double = 1
     var decimals = 0
     var percent = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         let scale = percent ? 100.0 : 1.0
@@ -82,13 +153,18 @@ struct NumberField: View {
                 format: .number.precision(.fractionLength(decimals)).grouping(.never)
             ) {}
             .labelsHidden()
-            .textFieldStyle(.roundedBorder)
+            .font(Theme.DeckOptions.figures)
             .multilineTextAlignment(.trailing)
+            .focused($focused)
+            .quietField(focused: focused)
             .accessibilityLabel(title)
             .frame(width: Theme.DeckOptions.numberFieldWidth)
-            if percent { Text("%").foregroundStyle(.secondary) }
+            if percent {
+                Text("%").font(Theme.DeckOptions.figures).foregroundStyle(Theme.Palette.secondary)
+            }
             Stepper(title, value: Binding { value } set: { value = clamp(rounded($0)) }, in: range, step: step)
                 .labelsHidden()
+                .controlSize(.small)
         }
     }
 
@@ -116,8 +192,9 @@ struct CommitField: View {
     var body: some View {
         TextField(title, text: $draft, prompt: Text(prompt))
             .labelsHidden()
-            .textFieldStyle(.roundedBorder)
+            .font(Theme.DeckOptions.figures)
             .focused($focused)
+            .quietField(focused: focused)
             .onSubmit { commit(draft) }
             .onChange(of: focused) { _, isFocused in
                 if !isFocused { commit(draft) }
@@ -125,6 +202,51 @@ struct CommitField: View {
             .onChange(of: text, initial: true) { _, text in
                 if !focused { draft = text }
             }
+    }
+}
+
+/// A text field for words, such as a search, in the same quiet box.
+struct OptionTextField: View {
+    @Environment(\.optionTitle) private var title
+    @Binding var text: String
+    var prompt = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(title, text: $text, prompt: Text(prompt))
+            .labelsHidden()
+            .font(Theme.DeckOptions.rowFont)
+            .focused($focused)
+            .quietField(focused: focused)
+    }
+}
+
+/// A choice as a quiet menu: the chosen one in Ink and a chevron.
+struct OptionPicker<Value: Hashable>: View {
+    @Environment(\.optionTitle) private var title
+    @Binding var selection: Value
+    let choices: [(Value, String)]
+    var disabled: [Value] = []
+
+    var body: some View {
+        let chosen = choices.first { $0.0 == selection }?.1 ?? ""
+        Menu {
+            Picker(title, selection: $selection) {
+                ForEach(choices, id: \.0) { value, label in
+                    Text(label).tag(value).selectionDisabled(disabled.contains(value))
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            QuietMenuLabel(value: chosen)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(title)
+        .accessibilityValue(chosen)
     }
 }
 
@@ -142,12 +264,13 @@ enum WarningLevel {
     var symbol: String {
         switch self {
         case .info: "info.circle"
-        case .warning, .danger: "exclamationmark.triangle"
+        case .warning, .danger: "exclamationmark.triangle.fill"
         }
     }
 }
 
-/// Desktop's coloured alerts under a setting, as a callout line.
+/// Desktop's coloured alerts under a setting, as a caption: the icon in
+/// the alert's colour, the words in Pencil.
 struct OptionWarning: View {
     let text: String
     var level = WarningLevel.warning
@@ -159,14 +282,25 @@ struct OptionWarning: View {
             } icon: {
                 Image(systemName: level.symbol).foregroundStyle(level.color)
             }
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            .font(Theme.Fonts.caption)
+            .foregroundStyle(Theme.Palette.secondary)
+            .optionNote()
         }
     }
 }
 
-/// Section title with a help button listing what each setting does, as
-/// desktop's help modal.
+/// A setting's actions, as chips under it.
+struct OptionActions<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ActionRow { content }
+            .optionNote()
+    }
+}
+
+/// Section name as an eyebrow, with a help button listing what each
+/// setting does, as desktop's help modal.
 struct OptionSectionHeader: View {
     let title: String
     let help: [(title: String, text: String)]
@@ -174,24 +308,29 @@ struct OptionSectionHeader: View {
 
     var body: some View {
         HStack {
-            Text(title)
+            Eyebrow(title)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             if !help.isEmpty {
                 Button {
                     showingHelp.toggle()
                 } label: {
                     Image(systemName: "questionmark.circle")
+                        .font(Theme.DeckOptions.helpSymbol)
+                        .frame(width: Theme.DeckOptions.helpSize.width, height: Theme.DeckOptions.helpSize.height)
                         .accessibilityLabel("Help for \(title)")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(QuietButtonStyle(inset: 0))
                 .help("Help for \(title)")
                 .popover(isPresented: $showingHelp, arrowEdge: .trailing) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                             ForEach(Array(help.enumerated()), id: \.offset) { _, item in
                                 VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
-                                    Text(item.title).font(.headline)
+                                    Text(item.title).font(Theme.Fonts.listRow)
                                     Text(markdown(item.text))
+                                        .font(Theme.Fonts.caption)
+                                        .foregroundStyle(Theme.Palette.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
@@ -203,6 +342,8 @@ struct OptionSectionHeader: View {
                 }
             }
         }
+        // As tall with a help button as without one.
+        .frame(height: Theme.DeckOptions.helpSize.height)
     }
 }
 
