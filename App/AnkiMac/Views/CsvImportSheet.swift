@@ -2,7 +2,9 @@ import AnkiKit
 import AppKit
 import SwiftUI
 
-/// Importing a .csv, .tsv or .txt file, with the options desktop's import page offers.
+/// Importing a .csv, .tsv or .txt file, with the options desktop's import page
+/// offers, drawn as Deck Options' settings: the file's name over sections of
+/// rows under hairlines, then Cancel and Import at the trailing edge.
 struct CsvImportSheet: View {
     @Environment(CollectionModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -10,122 +12,289 @@ struct CsvImportSheet: View {
 
     private var metadata: CsvMetadata { draft.metadata }
     private var columns: [CsvColumn] { metadata.columns }
+    private var separatorTitle: String {
+        metadata.forceDelimiter ? Tr.importingFieldSeparator : Tr.importingFieldSeparatorGuessed
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.large) {
-            Text(draft.url.lastPathComponent).font(.title2.weight(.semibold)).lineLimit(1).truncationMode(.middle)
-            Form {
-                Section(Tr.importingFile) {
-                    Picker(
-                        metadata.forceDelimiter ? Tr.importingFieldSeparator : Tr.importingFieldSeparatorGuessed,
-                        selection: draft.binding(\.delimiter)
-                    ) {
-                        Text(Tr.importingTab).tag(CsvMetadata.Delimiter.tab)
-                        Text(Tr.importingPipe).tag(CsvMetadata.Delimiter.pipe)
-                        Text(Tr.importingSemicolon).tag(CsvMetadata.Delimiter.semicolon)
-                        Text(Tr.importingColon).tag(CsvMetadata.Delimiter.colon)
-                        Text(Tr.importingComma).tag(CsvMetadata.Delimiter.comma)
-                        Text(Tr.studyingSpace).tag(CsvMetadata.Delimiter.space)
-                    }
-                    .disabled(metadata.forceDelimiter)
-                    .help(Tr.importingFieldSeparatorHelp)
-                    Toggle(Tr.importingAllowHtmlInFields, isOn: draft.binding(\.isHtml))
-                        .disabled(metadata.forceIsHtml)
-                        .help(Tr.importingAllowHtmlInFieldsHelp)
-                    CsvPreview(metadata: metadata, columns: columns)
+        // The settings scroll between the name and the buttons, which stay
+        // on the canvas with no hairline, as the main window's pages.
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) {
+                    fileSection
+                    optionsSection
+                    mappingSection
                 }
-                Section(Tr.importingImportOptions) {
-                    notetypeRow
-                    deckRow
-                    Picker(Tr.importingExistingNotes, selection: draft.binding(\.dupeResolution)) {
-                        Text(Tr.importingUpdate).tag(CsvMetadata.DupeResolution.update)
-                        Text(Tr.importingPreserve).tag(CsvMetadata.DupeResolution.preserve)
-                        Text(Tr.importingDuplicate).tag(CsvMetadata.DupeResolution.duplicate)
-                    }
-                    .help(Tr.importingExistingNotesHelp)
-                    Picker(Tr.importingMatchScope, selection: draft.binding(\.matchScope)) {
-                        Text(Tr.notetypesNotetype).tag(CsvMetadata.MatchScope.notetype)
-                        Text(Tr.importingNotetypeAndDeck).tag(CsvMetadata.MatchScope.notetypeAndDeck)
-                    }
-                    .help(Tr.importingMatchScopeHelp)
-                    LabeledContent(Tr.importingTagAllNotes) {
-                        TagField(tags: draft.binding(\.globalTags), complete: draft.completeTags)
-                    }
-                    .help(Tr.importingTagAllNotesHelp)
-                    LabeledContent(Tr.importingTagUpdatedNotes) {
-                        TagField(tags: draft.binding(\.updatedTags), complete: draft.completeTags)
-                    }
-                    .help(Tr.importingTagUpdatedNotesHelp)
-                }
-                Section(Tr.importingFieldMapping) {
-                    if case .globalNotetype? = metadata.notetype {
-                        ForEach(Array(draft.fieldNames.enumerated()), id: \.offset) { index, name in
-                            // The first field must take some column, so it has no "nothing".
-                            columnPicker(name, selection: draft.fieldColumn(index), allowsNothing: index > 0)
-                        }
-                    }
-                    columnPicker(Tr.editingTags, selection: draft.binding(\.tagsColumn), allowsNothing: true)
-                }
+                .padding(.horizontal, Theme.CsvImport.margin)
+                .padding(.top, Theme.Spacing.small)
+                .padding(.bottom, Theme.Spacing.large)
             }
-            .formStyle(.grouped)
+            .scrollEdgeEffectHidden(true, for: .vertical)
+            .clipped()
             // A re-query replaces the mapping, so an edit made meanwhile would be lost.
             .disabled(draft.isRefreshing)
-            HStack {
-                if draft.isRefreshing || model.packageOperationInProgress {
-                    ProgressView().controlSize(.small)
-                    Text(Tr.actionsProcessing).foregroundStyle(.secondary)
-                } else if let error = draft.refreshError {
-                    Text(error).foregroundStyle(.red).lineLimit(2)
-                }
-                Spacer()
-                Button(Tr.actionsCancel, role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(model.packageOperationInProgress)
-                Button(Tr.actionsImport) { model.importCsv(draft) }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(draft.isRefreshing || model.packageOperationInProgress)
-            }
+            footer
         }
-        .padding(Theme.Spacing.large)
-        .frame(width: 640, height: 660)
+        .frame(width: Theme.CsvImport.size.width, height: Theme.CsvImport.size.height)
+        .background(Theme.Palette.canvas.ignoresSafeArea())
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
     }
+
+    private var header: some View {
+        Text(draft.url.lastPathComponent)
+            .font(Theme.Fonts.panelTitle)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.horizontal, Theme.CsvImport.margin)
+            .padding(.top, Theme.CsvImport.margin)
+            .padding(.bottom, Theme.Spacing.medium)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Sections
+
+    private var fileSection: some View {
+        OptionSection(
+            title: Tr.importingFile,
+            help: [
+                (separatorTitle, Tr.importingFieldSeparatorHelp),
+                (Tr.importingAllowHtmlInFields, Tr.importingAllowHtmlInFieldsHelp),
+            ]
+        ) {
+            OptionRow(title: separatorTitle, help: Tr.importingFieldSeparatorHelp, revertible: false) {
+                OptionPicker(
+                    selection: draft.binding(\.delimiter),
+                    choices: [
+                        (.tab, Tr.importingTab), (.pipe, Tr.importingPipe), (.semicolon, Tr.importingSemicolon),
+                        (.colon, Tr.importingColon), (.comma, Tr.importingComma), (.space, Tr.studyingSpace),
+                    ])
+                .disabled(metadata.forceDelimiter)
+            }
+            OptionRow(title: Tr.importingAllowHtmlInFields, help: Tr.importingAllowHtmlInFieldsHelp, revertible: false) {
+                SwitchControl(title: Tr.importingAllowHtmlInFields, isOn: draft.binding(\.isHtml))
+                    .disabled(metadata.forceIsHtml)
+            }
+            CsvPreview(metadata: metadata, columns: columns)
+        }
+    }
+
+    private var optionsSection: some View {
+        OptionSection(
+            title: Tr.importingImportOptions,
+            help: [
+                (Tr.notetypesNotetype, Tr.importingNotetypeHelp),
+                (Tr.decksDeck, Tr.importingDeckHelp),
+                (Tr.importingExistingNotes, Tr.importingExistingNotesHelp),
+                (Tr.importingMatchScope, Tr.importingMatchScopeHelp),
+                (Tr.importingTagAllNotes, Tr.importingTagAllNotesHelp),
+                (Tr.importingTagUpdatedNotes, Tr.importingTagUpdatedNotesHelp),
+            ]
+        ) {
+            notetypeRow
+            deckRow
+            if let name = draft.newDeckName, metadata.deckID == 0 {
+                OptionWarning(text: Tr.importingNewDeckWillBeCreated(name: name), level: .info)
+            }
+            OptionRow(title: Tr.importingExistingNotes, help: Tr.importingExistingNotesHelp, revertible: false) {
+                OptionPicker(
+                    selection: draft.binding(\.dupeResolution),
+                    choices: [
+                        (.update, Tr.importingUpdate), (.preserve, Tr.importingPreserve),
+                        (.duplicate, Tr.importingDuplicate),
+                    ])
+            }
+            OptionRow(title: Tr.importingMatchScope, help: Tr.importingMatchScopeHelp, revertible: false) {
+                OptionPicker(
+                    selection: draft.binding(\.matchScope),
+                    choices: [(.notetype, Tr.notetypesNotetype), (.notetypeAndDeck, Tr.importingNotetypeAndDeck)])
+            }
+            tagsRow(Tr.importingTagAllNotes, help: Tr.importingTagAllNotesHelp, tags: draft.binding(\.globalTags))
+            tagsRow(
+                Tr.importingTagUpdatedNotes, help: Tr.importingTagUpdatedNotesHelp, tags: draft.binding(\.updatedTags))
+        }
+    }
+
+    private var mappingSection: some View {
+        OptionSection(title: Tr.importingFieldMapping) {
+            if case .globalNotetype? = metadata.notetype {
+                ForEach(Array(draft.fieldNames.enumerated()), id: \.offset) { index, name in
+                    // The first field must take some column, so it has no "nothing".
+                    columnRow(name, selection: draft.fieldColumn(index), allowsNothing: index > 0)
+                }
+            }
+            columnRow(Tr.editingTags, selection: draft.binding(\.tagsColumn), allowsNothing: true)
+        }
+    }
+
+    // MARK: Rows
 
     /// The note type is one for the whole file, or a column of it, which desktop shows no choice for.
     @ViewBuilder private var notetypeRow: some View {
         if case .globalNotetype? = metadata.notetype {
-            Picker(Tr.notetypesNotetype, selection: draft.binding(\.globalNotetype.id)) {
-                ForEach(draft.notetypes, id: \.id) { Text($0.name).tag($0.id) }
+            OptionRow(title: Tr.notetypesNotetype, help: Tr.importingNotetypeHelp, revertible: false) {
+                OptionPicker(
+                    selection: draft.binding(\.globalNotetype.id),
+                    choices: draft.notetypes.map { ($0.id, $0.name) })
             }
-            .help(Tr.importingNotetypeHelp)
         } else if let column = columns[safe: Int(metadata.notetypeColumn) - 1] {
-            LabeledContent(Tr.notetypesNotetype, value: column.title)
+            OptionRow(title: Tr.notetypesNotetype, revertible: false) { columnName(column.title) }
         }
     }
 
     @ViewBuilder private var deckRow: some View {
         if case .deckColumn? = metadata.deck {
-            LabeledContent(Tr.decksDeck, value: columns[safe: Int(metadata.deckColumn) - 1]?.title ?? "")
+            OptionRow(title: Tr.decksDeck, revertible: false) {
+                columnName(columns[safe: Int(metadata.deckColumn) - 1]?.title ?? "")
+            }
         } else {
-            Picker(Tr.decksDeck, selection: draft.deck) {
-                ForEach(draft.decks, id: \.id) { Text($0.name).tag($0.id) }
-                if let name = draft.newDeckName { Text(name).tag(Int64(0)) }
-            }
-            .help(Tr.importingDeckHelp)
-            if let name = draft.newDeckName, metadata.deckID == 0 {
-                Text(Tr.importingNewDeckWillBeCreated(name: name)).foregroundStyle(.secondary)
-            }
+            OptionRow(title: Tr.decksDeck, help: Tr.importingDeckHelp, revertible: false) { deckMenu }
         }
     }
 
-    private func columnPicker(_ label: String, selection: Binding<UInt32>, allowsNothing: Bool) -> some View {
-        Picker(label, selection: selection) {
-            if allowsNothing { Text(Tr.changeNotetypeNothing).tag(UInt32(0)) }
-            ForEach(columns) { Text($0.title).tag(UInt32($0.index)).disabled($0.isReserved) }
+    /// The deck tree as nested menus, as Add's, holding the decks a note can
+    /// go to, led by the deck the file names when the collection lacks it.
+    private var deckMenu: some View {
+        let deck = draft.deck
+        let name = deck.wrappedValue == 0
+            ? draft.newDeckName ?? "" : draft.decks.first { $0.id == deck.wrappedValue }?.name ?? ""
+        return Menu {
+            if let newDeck = draft.newDeckName {
+                Toggle(newDeck, isOn: Binding { deck.wrappedValue == 0 } set: { _ in deck.wrappedValue = 0 })
+                Divider()
+            }
+            DeckMenuItems(
+                decks: DeckNode.keeping(Set(draft.decks.map(\.id)), in: model.decks), current: deck.wrappedValue,
+                pick: { deck.wrappedValue = $0 })
+        } label: {
+            QuietMenuLabel(value: name.replacingOccurrences(of: "::", with: " \u{203A} "), truncation: .head)
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .padding(.trailing, -Theme.Layout.menuPadding)
+        .accessibilityLabel(Tr.decksDeck)
+        .accessibilityValue(name)
+    }
+
+    private func tagsRow(_ title: String, help: String, tags: Binding<[String]>) -> some View {
+        OptionRow(title: title, help: help, revertible: false) {
+            TagField(tags: tags, complete: draft.completeTags)
+                .frame(width: Theme.CsvImport.tagFieldWidth)
+        }
+    }
+
+    private func columnRow(_ title: String, selection: Binding<UInt32>, allowsNothing: Bool) -> some View {
+        OptionRow(title: title, revertible: false) {
+            ColumnPicker(selection: selection, columns: columns, allowsNothing: allowsNothing)
+        }
+    }
+
+    /// A column that holds the choice for each note: named, not chosen.
+    private func columnName(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.DeckOptions.rowFont)
+            .foregroundStyle(Theme.Palette.secondary)
+            .lineLimit(1)
+    }
+
+    // MARK: Footer
+
+    /// What's happening, or what went wrong, then a dialog's buttons at its
+    /// trailing edge with the default last.
+    private var footer: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            if draft.isRefreshing || model.packageOperationInProgress {
+                ProgressView().controlSize(.small)
+                Text(Tr.actionsProcessing)
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(Theme.Palette.secondary)
+            } else if let error = draft.refreshError {
+                OptionWarning(text: error, level: .danger).lineLimit(2)
+            }
+            Spacer(minLength: Theme.Spacing.small)
+            Button(Tr.actionsCancel) { dismiss() }
+                .buttonStyle(ChipButtonStyle())
+                .keyboardShortcut(.cancelAction)
+                .disabled(model.packageOperationInProgress)
+            Button { model.importCsv(draft) } label: {
+                HStack(spacing: Theme.Layout.keyCapGap) {
+                    Text(Tr.actionsImport)
+                    KeyCap("\u{21A9}", onAccent: true)
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(compact: true))
+            .keyboardShortcut(.defaultAction)
+            .disabled(draft.isRefreshing || model.packageOperationInProgress)
+        }
+        .padding(.horizontal, Theme.CsvImport.margin)
+        .padding(.vertical, Theme.Spacing.medium)
     }
 }
 
-/// The first rows of the file as the backend split them, headed by column.
+/// A field's column as a quiet menu that reads as a column, not as a card:
+/// the index in rounded figures, as the preview heads it, then what the
+/// column holds in Pencil, losing its end where a long value would crowd
+/// the field's name.
+private struct ColumnPicker: View {
+    @Environment(\.optionTitle) private var title
+    @Binding var selection: UInt32
+    let columns: [CsvColumn]
+    let allowsNothing: Bool
+
+    var body: some View {
+        let chosen = columns.first { UInt32($0.index) == selection }
+        Menu {
+            Picker(title, selection: $selection) {
+                if allowsNothing {
+                    Text(Tr.changeNotetypeNothing).tag(UInt32(0))
+                }
+                ForEach(columns) { column in
+                    Text(column.title).tag(UInt32(column.index)).selectionDisabled(column.isReserved)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: Theme.Spacing.xSmall) {
+                if let chosen {
+                    Text("\(chosen.index)")
+                        .font(Theme.CsvImport.columnIndexFont)
+                        .foregroundStyle(Theme.Palette.text)
+                        .fixedSize()
+                    if !chosen.name.isEmpty {
+                        Text(chosen.name)
+                            .foregroundStyle(Theme.Palette.secondary)
+                            .truncationMode(.tail)
+                    }
+                } else {
+                    Text(Tr.changeNotetypeNothing)
+                        .foregroundStyle(Theme.Palette.secondary)
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(Theme.Fonts.menuChevron)
+                    .foregroundStyle(Theme.Palette.secondary)
+            }
+            .font(Theme.Fonts.chip)
+            .lineLimit(1)
+            .frame(height: Theme.Layout.controlHeight)
+            .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .frame(maxWidth: Theme.CsvImport.columnMenuMaxWidth, alignment: .trailing)
+        .padding(.trailing, -Theme.Layout.menuPadding)
+        .accessibilityLabel(title)
+        .accessibilityValue(chosen?.title ?? Tr.changeNotetypeNothing)
+    }
+}
+
+/// The first rows of the file as the backend split them, headed by column,
+/// as dense as the Browser's table: no grid, one hairline under the titles.
 private struct CsvPreview: View {
     let metadata: CsvMetadata
     let columns: [CsvColumn]
@@ -134,32 +303,43 @@ private struct CsvPreview: View {
     var body: some View {
         let rows = metadata.preview.map { Array($0.vals.prefix(Self.maxColumns)) }
         VStack(alignment: .leading, spacing: Theme.Spacing.xSmall) {
-            ScrollView([.horizontal, .vertical]) {
-                Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+            ScrollView(.horizontal) {
+                Grid(alignment: .leading, horizontalSpacing: Theme.CsvImport.previewColumnGap, verticalSpacing: 0) {
                     GridRow {
-                        ForEach(columns.prefix(Self.maxColumns)) { cell($0.shortTitle).background(.quaternary) }
+                        ForEach(columns.prefix(Self.maxColumns)) { column in
+                            cell(column.shortTitle, font: Theme.Fonts.eyebrow)
+                                .foregroundStyle(Theme.Palette.secondary)
+                                .frame(height: Theme.CsvImport.previewHeaderHeight)
+                        }
                     }
+                    // Room for the hairline, drawn across the whole section below.
+                    Color.clear.frame(height: 1)
                     ForEach(rows.indices, id: \.self) { row in
                         GridRow {
                             ForEach(rows[row].indices, id: \.self) { cell(rows[row][$0]) }
                         }
+                        .frame(height: Theme.CsvImport.previewRowHeight)
                     }
                 }
             }
-            .frame(height: 140)
+            .scrollIndicators(.automatic)
+            // Under the titles, as wide as the section's hairlines however narrow the file.
+            .overlay(alignment: .top) {
+                Theme.Palette.hairline.frame(height: 1).offset(y: Theme.CsvImport.previewHeaderHeight)
+            }
             if columns.count > Self.maxColumns {
-                Text(Tr.importingPreviewTruncated(count: Self.maxColumns)).font(.caption).foregroundStyle(.secondary)
+                Text(Tr.importingPreviewTruncated(count: Self.maxColumns))
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(Theme.Palette.secondary)
             }
         }
     }
 
-    private func cell(_ text: String) -> some View {
+    private func cell(_ text: String, font: Font = Theme.CsvImport.previewFont) -> some View {
         Text(text)
+            .font(font)
             .lineLimit(1)
             .truncationMode(.tail)
-            .padding(.horizontal, Theme.Spacing.small)
-            .padding(.vertical, Theme.Spacing.xSmall)
-            .frame(maxWidth: 220, alignment: .leading)
-            .border(Color(nsColor: .separatorColor), width: 0.5)
+            .frame(maxWidth: Theme.CsvImport.previewColumnMaxWidth, alignment: .leading)
     }
 }

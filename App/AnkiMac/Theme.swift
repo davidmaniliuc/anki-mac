@@ -304,8 +304,8 @@ enum Theme {
         static let rowSymbol = Font.system(size: 13)
         /// Tints the glass toward the canvas, as Quick Find's.
         static let tintOpacity = 0.3
-        /// A bordered field (in a sheet) draws this radius around its chips.
-        static let boxRadius: CGFloat = 6
+        /// Around the chips in the quiet box, so one line is as tall as a quiet field.
+        static let boxInset: CGFloat = (DeckOptions.fieldHeight - chipHeight) / 2
     }
 
     enum CustomStudy {
@@ -670,6 +670,24 @@ enum Theme {
         static let floor: Float = -50
         /// The live dot's breath; still under Reduce Motion.
         static let pulse: Double = 1.1
+    }
+
+    /// The text import sheet, drawn as Deck Options' settings.
+    enum CsvImport {
+        static let size = CGSize(width: 600, height: 660)
+        static let margin = DeckOptions.margin
+        /// The tag fields' width at a row's trailing edge; tags wrap within it.
+        static let tagFieldWidth: CGFloat = 280
+        /// The preview: the file's first rows, as dense as the Browser's table.
+        static let previewRowHeight = Browser.denseRowHeight
+        static let previewHeaderHeight = Browser.headerHeight
+        static let previewFont = Font.system(size: 13)
+        static let previewColumnMaxWidth: CGFloat = 220
+        static let previewColumnGap: CGFloat = Spacing.large
+        /// A field's column menu: at most this wide, so a long first value
+        /// loses its end before the field's name wraps.
+        static let columnMenuMaxWidth: CGFloat = 320
+        static let columnIndexFont = Font.system(size: 12.5, weight: .semibold, design: .rounded).monospacedDigit()
     }
 
     enum Editor {

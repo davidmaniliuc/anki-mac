@@ -36,14 +36,12 @@ struct TagField: View {
                 .onKeyPress(phases: .down, action: key)
                 .accessibilityLabel(Tr.editingTags)
         }
-        .padding(borderless ? 0 : Theme.Spacing.xSmall)
+        .padding(.horizontal, borderless ? 0 : Theme.Spacing.xSmall)
+        .padding(.vertical, borderless ? 0 : Theme.Tags.boxInset)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Otherwise the quiet box of Deck Options' fields.
         .background {
-            if !borderless {
-                RoundedRectangle(cornerRadius: Theme.Tags.boxRadius)
-                    .strokeBorder(Theme.Palette.hairline)
-                    .background(Theme.Palette.canvas, in: .rect(cornerRadius: Theme.Tags.boxRadius))
-            }
+            if !borderless { QuietFieldBox(focused: focused) }
         }
         .contentShape(.rect)
         .onTapGesture { focused = true }

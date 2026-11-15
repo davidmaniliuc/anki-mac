@@ -8,6 +8,8 @@ typealias CsvMetadata = Anki_ImportExport_CsvMetadata
 /// A file column as the mapping pickers list it. Indices are one-based, as the backend counts them.
 struct CsvColumn: Identifiable {
     let index: Int
+    /// What the column holds: its header, its first value, or its reserved role.
+    let name: String
     let title: String
     let shortTitle: String
     /// Holds the note type, deck or GUID, so no field can take it.
@@ -28,7 +30,7 @@ extension CsvMetadata {
             let name = reserved ?? (label.isEmpty ? sample : label)
             let title = name.isEmpty ? "\(index)" : "\(index): \(name)"
             return CsvColumn(
-                index: index, title: title, shortTitle: reserved == nil && label.isEmpty ? "\(index)" : title,
+                index: index, name: name, title: title, shortTitle: reserved == nil && label.isEmpty ? "\(index)" : title,
                 isReserved: reserved != nil)
         }
     }

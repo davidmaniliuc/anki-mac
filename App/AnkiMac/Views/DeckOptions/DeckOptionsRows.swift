@@ -19,6 +19,8 @@ struct OptionRow<Control: View>: View {
                 .font(Theme.DeckOptions.rowFont)
                 .foregroundStyle(Theme.Palette.text)
                 .fixedSize(horizontal: false, vertical: true)
+                // A control that can shrink does so before the title wraps.
+                .layoutPriority(1)
                 .help(help)
             Spacer(minLength: Theme.Spacing.small)
             HStack(spacing: Theme.Spacing.xSmall) {
@@ -137,7 +139,7 @@ private struct RevertMenu: View {
 }
 
 /// A text field drawn as a quiet control: a Raised Oat box under a
-/// hairline, the accent ring while it has focus.
+/// hairline, deepened by the selection wash while it has focus.
 private struct QuietField: ViewModifier {
     let focused: Bool
 
@@ -147,10 +149,21 @@ private struct QuietField: ViewModifier {
             .foregroundStyle(Theme.Palette.text)
             .padding(.horizontal, Theme.DeckOptions.fieldPadding)
             .frame(height: Theme.DeckOptions.fieldHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).fill(Theme.Palette.raised))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).strokeBorder(
-                focused ? Theme.Palette.accent : Theme.Palette.hairline,
-                lineWidth: focused ? Theme.Layout.focusRingWidth : 1))
+            .background(QuietFieldBox(focused: focused))
+    }
+}
+
+/// The quiet box of a text field, shared with the tag field: no accent
+/// ring, as the Browser's search field, since the caret already shows
+/// where typing goes.
+struct QuietFieldBox: View {
+    let focused: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
+        shape.fill(Theme.Palette.raised)
+            .overlay { shape.fill(focused ? Theme.Palette.selection : .clear) }
+            .overlay { shape.strokeBorder(Theme.Palette.hairline) }
     }
 }
 
