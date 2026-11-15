@@ -95,11 +95,10 @@ struct FsrsSection: View {
             HStack {
                 Text(help[2].0).font(Theme.DeckOptions.rowFont).help(help[2].1)
                 Spacer()
-                Button(editingParams ? "Done" : "Edit…") { editingParams.toggle() }
+                Button(editingParams ? "Done" : Tr.studyingEdit + "…") { editingParams.toggle() }
                     .font(Theme.Fonts.chip)
                     .frame(height: Theme.DeckOptions.fieldHeight)
                     .buttonStyle(QuietButtonStyle())
-                    .help("Edit the parameters by hand")
             }
             if editingParams {
                 CommitField(text: Self.format(params), prompt: Tr.deckConfigPlaceholderParameters) { text in
@@ -114,7 +113,7 @@ struct FsrsSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        OptionRow(title: "Search", help: "The cards FSRS optimizes from") {
+        OptionRow(title: Tr.actionsSearch, help: Tr.deckConfigComputeOptimalWeightsTooltip2) {
             OptionTextField(text: $model.config.paramSearch, prompt: model.presetSearch)
                 .frame(width: Theme.DeckOptions.searchFieldWidth)
         }
@@ -191,7 +190,7 @@ struct FsrsSection: View {
             Button(Tr.deckConfigFsrsSimulatorExperimental + "…") { openSimulator(workload: false) }
         }
         .alert(Tr.deckConfigFsrsConfirmSaveAndOptimize, isPresented: $confirmingOptimizeAll) {
-            Button("Cancel", role: .cancel) {}
+            Button(Tr.actionsCancel, role: .cancel) {}
             Button(Tr.deckConfigSaveAndOptimize) { optimizeAll() }
         }
     }

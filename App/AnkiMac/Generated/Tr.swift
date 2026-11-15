@@ -1051,6 +1051,12 @@ nonisolated enum Tr {
         ("Unable to record. Please ensure a microphone is connected, and Anki has permission to use the microphone. If other programs are using your microphone, closing them may help.\n\nOriginal error: " + error)
     }
     static let actionsSave = "Save"
+    static let actionsDiscard = "Discard"
+    static let actionsHelp = "Help"
+    static func helpForMoreInfo(link: String) -> String {
+        ("For more information, see " + link + " in the manual.")
+    }
+    static let studyingEdit = "Edit"
     static let actionsRebuild = "Rebuild"
     static let actionsName = "Name:"
     static let actionsFilter = "Filter"

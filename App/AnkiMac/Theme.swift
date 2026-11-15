@@ -119,6 +119,8 @@ enum Theme {
         static let primaryHeight: CGFloat = 36
         static let primaryPadding: CGFloat = 16
         static let compactPrimaryPadding: CGFloat = 12
+        /// Between a primary action's label and its key.
+        static let keyCapGap: CGFloat = 5
         static let segmentPadding: CGFloat = 10
         static let pageWidth: CGFloat = 680
         static let pageMargin: CGFloat = 56
@@ -305,6 +307,17 @@ enum Theme {
         static let secondsWidth: CGFloat = 60
     }
 
+    /// The band under the traffic lights that holds a utility window's
+    /// controls: the Browser's, Add's and Deck Options'.
+    enum Band {
+        /// As tall as a unified toolbar, so the lights sit centred in it.
+        static let height: CGFloat = 52
+        /// Clear of the traffic lights.
+        static let leading: CGFloat = 84
+        /// The window's name in it: "Browse", a deck's path.
+        static let titleFont = Font.system(size: 15, weight: .semibold)
+    }
+
     enum Browser {
         static let defaultSize = CGSize(width: 1100, height: 700)
         static let minWidth: CGFloat = 640
@@ -319,12 +332,12 @@ enum Theme {
         static let headerHeight: CGFloat = 28
         /// The band under the traffic lights that holds the window's
         /// controls, as tall as a unified toolbar so the lights sit centred in it.
-        static let chromeHeight: CGFloat = 52
+        static let chromeHeight = Band.height
         /// Where the sidebar button starts, clear of the traffic lights. It
         /// stays there whether the sidebar is shown or hidden.
-        static let sidebarToggleLeading: CGFloat = 84
+        static let sidebarToggleLeading = Band.leading
         /// "Browse" in the band, beside the counts under it.
-        static let titleFont = Font.system(size: 15, weight: .semibold)
+        static let titleFont = Band.titleFont
         static let searchWidth: CGFloat = 260
         static let searchMinWidth: CGFloat = 120
         /// Section names and top-level icons start this far into the
@@ -507,8 +520,13 @@ enum Theme {
         static let columnWidth: CGFloat = 620
         static let margin: CGFloat = 24
         static let sectionGap: CGFloat = Spacing.xLarge
+        /// Every row is this tall whatever its control, the quiet menu's
+        /// 32pt with its hover inset being the tallest; the padding only
+        /// shows once a title wraps.
         static let rowMinHeight: CGFloat = 40
-        static let rowPadding: CGFloat = Spacing.small
+        static let rowPadding: CGFloat = Spacing.xSmall
+        /// Under a row's note or actions, before the next hairline.
+        static let notePadding: CGFloat = Spacing.small
         static let rowFont = Fonts.row
         /// Values typed in a field, and the FSRS parameters.
         static let figures = Font.system(size: 13, weight: .medium, design: .rounded).monospacedDigit()
@@ -516,8 +534,11 @@ enum Theme {
         static let fieldPadding: CGFloat = 6
         static let numberFieldWidth: CGFloat = 64
         static let stepsFieldWidth: CGFloat = 160
+        static let sliderWidth: CGFloat = 220
         static let searchFieldWidth: CGFloat = 220
         static let customSchedulingHeight: CGFloat = 140
+        /// Where the text view starts a line, so the faded sample sits on it.
+        static let codeLineInset: CGFloat = 5
         static let helpWidth: CGFloat = 360
         static let helpMaxHeight: CGFloat = 480
         static let helpSymbol = Font.system(size: 12, weight: .medium)
@@ -525,6 +546,11 @@ enum Theme {
         static let revertSymbol = Font.system(size: 11, weight: .semibold)
         static let revertSize = CGSize(width: 22, height: 22)
         static let globeSymbol = Font.system(size: 11)
+        /// Pencil, not Faded Pencil: the globe is the only sign that a
+        /// setting reaches past this preset.
+        static let globeColor = Palette.secondary
+        /// Custom scheduling's code, as the editor's HTML source.
+        static let codeFont = Editor.sourceFont
         /// Switches and sliders: a page of them holds no accent blue.
         static let controlTint = Palette.secondary
         /// The icons of desktop's alerts under a setting; the words stay Pencil.

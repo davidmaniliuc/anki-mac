@@ -19,7 +19,11 @@ struct OptionRow<Control: View>: View {
                 .help(help)
             Spacer(minLength: Theme.Spacing.small)
             HStack(spacing: Theme.Spacing.xSmall) {
-                control.environment(\.optionTitle, title)
+                // The tooltip is out of reach without a pointer, so the
+                // control speaks it as its hint.
+                control
+                    .environment(\.optionTitle, title)
+                    .accessibilityHint(plainText(help))
                 RevertMenu(hidden: isDefault, revert: revert)
             }
         }
@@ -56,7 +60,7 @@ struct OptionSection<Content: View>: View {
             Group(subviews: content) { rows in
                 ForEach(rows) { row in
                     if row.containerValues.optionNote {
-                        row.padding(.bottom, Theme.DeckOptions.rowPadding)
+                        row.padding(.bottom, Theme.DeckOptions.notePadding)
                     } else {
                         Theme.Palette.hairline.frame(height: 1)
                         row
@@ -99,13 +103,13 @@ private struct RevertMenu: View {
                 .foregroundStyle(Theme.Palette.secondary)
                 .frame(width: Theme.DeckOptions.revertSize.width, height: Theme.DeckOptions.revertSize.height)
                 .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius), inset: 0))
-                .accessibilityLabel("Restore Default")
+                .accessibilityLabel(Tr.deckConfigRevertButtonTooltip)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Restore Default")
+        .help(Tr.deckConfigRevertButtonTooltip)
         .opacity(hidden || revert == nil ? 0 : 1)
         .disabled(hidden || revert == nil)
         .accessibilityHidden(hidden || revert == nil)
@@ -245,6 +249,9 @@ struct OptionPicker<Value: Hashable>: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
+        // The hover wash's room hangs past the edge, so the chevron ends
+        // where a field or a switch does.
+        .padding(.trailing, -Theme.Layout.menuPadding)
         .accessibilityLabel(title)
         .accessibilityValue(chosen)
     }
@@ -318,10 +325,10 @@ struct OptionSectionHeader: View {
                     Image(systemName: "questionmark.circle")
                         .font(Theme.DeckOptions.helpSymbol)
                         .frame(width: Theme.DeckOptions.helpSize.width, height: Theme.DeckOptions.helpSize.height)
-                        .accessibilityLabel("Help for \(title)")
+                        .accessibilityLabel(Tr.actionsHelp)
                 }
                 .buttonStyle(QuietButtonStyle(inset: 0))
-                .help("Help for \(title)")
+                .help(Tr.actionsHelp)
                 .popover(isPresented: $showingHelp, arrowEdge: .trailing) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
@@ -352,4 +359,9 @@ func markdown(_ text: String) -> AttributedString {
     (try? AttributedString(
         markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
         ?? AttributedString(text)
+}
+
+/// Desktop's help without its Markdown, for VoiceOver.
+func plainText(_ text: String) -> String {
+    String(markdown(text).characters)
 }

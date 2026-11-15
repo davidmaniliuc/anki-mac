@@ -9,10 +9,16 @@ struct DeckOptionsView: View {
     @Bindable var model: DeckOptionsModel
     let chrome: BandChrome
     let actions: DeckOptionsActions
+    @State private var scrolled = false
 
     var body: some View {
         VStack(spacing: 0) {
             PresetBand(model: model, chrome: chrome, actions: actions)
+                // Once the settings scroll under the band, a hairline
+                // marks where they go out of sight.
+                .overlay(alignment: .bottom) {
+                    Theme.Palette.hairline.frame(height: 1).opacity(scrolled ? 1 : 0)
+                }
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) {
                     DailyLimitsSection(model: model)
@@ -32,6 +38,9 @@ struct DeckOptionsView: View {
                 .padding(.top, Theme.Spacing.small)
                 .padding(.bottom, Theme.Layout.pageBottomPadding)
                 .frame(maxWidth: .infinity)
+            }
+            .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 0 } action: {
+                scrolled = $1
             }
             // Scrolls out of sight under the band, not under the lights.
             .clipped()
@@ -154,7 +163,7 @@ struct GlobalToggleRow: View {
             HStack(spacing: Theme.Spacing.xSmall) {
                 Image(systemName: "globe")
                     .font(Theme.DeckOptions.globeSymbol)
-                    .foregroundStyle(Theme.Palette.tertiary)
+                    .foregroundStyle(Theme.DeckOptions.globeColor)
                     .help(Tr.deckConfigAffectsEntireCollection)
                     .accessibilityLabel(Tr.deckConfigAffectsEntireCollection)
                 SwitchControl(title: title, isOn: $isOn)
@@ -517,7 +526,8 @@ private struct EasyDaysSection: View {
     }
 }
 
-/// A slider per weekday, from minimum through reduced to a normal workload.
+/// A row per weekday, its slider from minimum through reduced to a normal
+/// workload, under a scale that names the three stops.
 struct EasyDaysSliders: View {
     @Binding var values: [Float]
 
@@ -527,42 +537,45 @@ struct EasyDaysSliders: View {
         Tr.deckConfigEasyDaysSunday,
     ]
 
+    private static let stops = [
+        Tr.deckConfigEasyDaysMinimum, Tr.deckConfigEasyDaysReduced, Tr.deckConfigEasyDaysNormal,
+    ]
+
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: Theme.Spacing.medium, verticalSpacing: Theme.Spacing.small) {
-            GridRow {
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                HStack {
-                    Text(Tr.deckConfigEasyDaysMinimum)
-                    Spacer()
-                    Text(Tr.deckConfigEasyDaysReduced)
-                    Spacer()
-                    Text(Tr.deckConfigEasyDaysNormal)
-                }
-                .font(Theme.Fonts.caption)
-                .foregroundStyle(Theme.Palette.secondary)
-                .frame(maxWidth: .infinity)
+        // Over the sliders' column, as a table's column title; each slider
+        // reads its stop out instead.
+        OptionRow(title: "") {
+            HStack {
+                Text(Self.stops[0])
+                Spacer()
+                Text(Self.stops[1])
+                Spacer()
+                Text(Self.stops[2])
             }
-            ForEach(Self.days.indices, id: \.self) { index in
-                GridRow {
-                    Text(Self.days[index]).font(Theme.DeckOptions.rowFont)
-                    Slider(
-                        value: Binding {
-                            Double(values[safe: index] ?? 1)
-                        } set: { newValue in
-                            guard values.indices.contains(index) else { return }
-                            values[index] = Float(newValue)
-                        },
-                        in: 0...1, step: 0.5
-                    ) {
-                        Text(Self.days[index])
-                    }
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .tint(Theme.DeckOptions.controlTint)
-                    .frame(maxWidth: .infinity)
+            .font(Theme.Fonts.caption)
+            .foregroundStyle(Theme.Palette.secondary)
+            .frame(width: Theme.DeckOptions.sliderWidth)
+        }
+        .accessibilityHidden(true)
+        .optionNote()
+        ForEach(Self.days.indices, id: \.self) { index in
+            let value = values[safe: index] ?? 1
+            OptionRow(title: Self.days[index], isDefault: value == 1, revert: { set(index, 1) }) {
+                Slider(value: Binding { Double(value) } set: { set(index, Float($0)) }, in: 0...1, step: 0.5) {
+                    Text(Self.days[index])
                 }
+                .labelsHidden()
+                .controlSize(.small)
+                .tint(Theme.DeckOptions.controlTint)
+                .frame(width: Theme.DeckOptions.sliderWidth)
+                .accessibilityValue(Self.stops[min(2, Int((value * 2).rounded()))])
             }
         }
+    }
+
+    private func set(_ index: Int, _ value: Float) {
+        guard values.indices.contains(index) else { return }
+        values[index] = value
     }
 }
 
@@ -665,23 +678,49 @@ private struct CustomSchedulingRow: View {
     let title: String
     let help: String
 
+    /// Desktop's manual chapter on what the code can change.
+    private static let manual = "https://faqs.ankiweb.net/the-2021-scheduler.html#add-ons-and-custom-scheduling"
+
+    /// Shown faded while the box is empty, so it's clear the box takes
+    /// JavaScript and what it works on.
+    private static let sample = """
+        if (states.good.normal?.review) {
+          states.good.normal.review.scheduledDays =
+            Math.min(states.good.normal.review.scheduledDays, 30);
+        }
+        """
+
     var body: some View {
         DisclosureGroup {
-            // Code as an unboxed block, as the editor's HTML source.
-            TextEditor(text: $model.cardStateCustomizer)
-                .font(.body.monospaced())
-                .autocorrectionDisabled()
-                .scrollContentBackground(.hidden)
-                .padding(Theme.DeckOptions.fieldPadding)
-                .frame(height: Theme.DeckOptions.customSchedulingHeight)
-                .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).fill(Theme.Palette.hover))
-                .padding(.top, Theme.Spacing.small)
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                // Code as an unboxed block, as the editor's HTML source.
+                TextEditor(text: $model.cardStateCustomizer)
+                    .font(Theme.DeckOptions.codeFont)
+                    .autocorrectionDisabled()
+                    .scrollContentBackground(.hidden)
+                    .overlay(alignment: .topLeading) {
+                        if model.cardStateCustomizer.isEmpty {
+                            Text(Self.sample)
+                                .font(Theme.DeckOptions.codeFont)
+                                .foregroundStyle(Theme.Palette.tertiary)
+                                .padding(.leading, Theme.DeckOptions.codeLineInset)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .padding(Theme.DeckOptions.fieldPadding)
+                    .frame(height: Theme.DeckOptions.customSchedulingHeight)
+                    .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius).fill(Theme.Palette.hover))
+                OptionWarning(text: help + " " + Tr.helpForMoreInfo(link: "[\(title)](\(Self.manual))"))
+            }
+            .padding(.top, Theme.Spacing.small)
         } label: {
             HStack(spacing: Theme.Spacing.xSmall) {
                 Text(title).font(Theme.DeckOptions.rowFont).help(help)
+                    .accessibilityHint(plainText(help))
                 Image(systemName: "globe")
                     .font(Theme.DeckOptions.globeSymbol)
-                    .foregroundStyle(Theme.Palette.tertiary)
+                    .foregroundStyle(Theme.DeckOptions.globeColor)
                     .help(Tr.deckConfigAffectsEntireCollection)
             }
         }
@@ -704,7 +743,7 @@ private struct PresetBand: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.xSmall) {
             Text(model.deckName.replacingOccurrences(of: "::", with: " \u{203A} "))
-                .font(Theme.Browser.titleFont)
+                .font(Theme.Band.titleFont)
                 .lineLimit(1)
                 .truncationMode(.head)
                 .help(Tr.actionsOptionsFor(val: model.deckName))
@@ -712,26 +751,25 @@ private struct PresetBand: View {
             Spacer(minLength: Theme.Spacing.small)
             presetMenu
             Button { actions.save(.normal) } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: Theme.Layout.keyCapGap) {
                     Text(Tr.deckConfigSaveButton)
                     KeyCap("\u{2318}S", onAccent: true)
                 }
             }
             .buttonStyle(PrimaryButtonStyle(compact: true))
             // File › Save holds ⌘S, for this window while it is key.
-            .help("Save and close (\u{2318}S)")
             .padding(.leading, Theme.Spacing.xSmall)
         }
         // Clear of the traffic lights, which in full screen come down over
         // the band in a pill of their own.
-        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Browser.sidebarToggleLeading)
+        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Band.leading)
         .padding(.trailing, Theme.Spacing.medium)
-        .frame(height: Theme.Browser.chromeHeight)
+        .frame(height: Theme.Band.height)
         .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
         .alert(naming?.title ?? "", isPresented: Binding { naming != nil } set: { if !$0 { naming = nil } }) {
             TextField(Tr.deckConfigNamePrompt, text: $name)
-            Button("Cancel", role: .cancel) {}
-            Button(naming?.action ?? "") {
+            Button(Tr.actionsCancel, role: .cancel) {}
+            Button(naming?.title ?? "") {
                 guard let naming else { return }
                 switch naming {
                 case .add: model.addPreset(named: name, cloning: false)
@@ -741,7 +779,7 @@ private struct PresetBand: View {
             }
         }
         .alert(Tr.deckConfigConfirmRemoveName(name: model.preset.name), isPresented: $confirmingRemove) {
-            Button("Cancel", role: .cancel) {}
+            Button(Tr.actionsCancel, role: .cancel) {}
             Button(Tr.deckConfigRemoveGroup, role: .destructive) { model.removePreset() }
         } message: {
             if model.removalForcesOneWaySync { Text(Tr.deckConfigWillRequireFullSync) }
@@ -752,7 +790,7 @@ private struct PresetBand: View {
     /// with them, as desktop's dropdown and its gear menu.
     private var presetMenu: some View {
         Menu {
-            Picker("Preset", selection: Binding { model.selectedIndex } set: { model.select($0) }) {
+            Picker(Tr.deckConfigSharedPreset, selection: Binding { model.selectedIndex } set: { model.select($0) }) {
                 ForEach(model.presets.indices, id: \.self) { index in
                     Text(model.presets[index].config.name
                         + " (" + Tr.deckConfigUsedByDecks(decks: model.useCount(at: index)) + ")")
@@ -768,7 +806,7 @@ private struct PresetBand: View {
             Button(Tr.deckConfigRemoveGroup + "…", role: .destructive) {
                 if model.isDefaultPresetSelected {
                     actions.showError(
-                        ActionFailure("Couldn’t remove the preset", detail: Tr.schedulingTheDefaultConfigurationCantBeRemoved))
+                        ActionFailure(Tr.schedulingTheDefaultConfigurationCantBeRemoved, detail: ""))
                 } else {
                     confirmingRemove = true
                 }
@@ -776,14 +814,13 @@ private struct PresetBand: View {
             Divider()
             Button(Tr.deckConfigSaveToAllSubdecks) { actions.save(.applyToChildren) }
         } label: {
-            QuietMenuLabel(title: "Preset", value: model.preset.name)
+            QuietMenuLabel(title: Tr.deckConfigSharedPreset, value: model.preset.name)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .layoutPriority(-0.5)
-        .help("The preset this deck uses, and what can be done with presets")
-        .accessibilityLabel("Preset")
+        .accessibilityLabel(Tr.deckConfigSharedPreset)
         .accessibilityValue(model.preset.name)
     }
 
@@ -801,14 +838,6 @@ enum PresetNaming {
         case .add: Tr.deckConfigAddGroup
         case .clone: Tr.deckConfigCloneGroup
         case .rename: Tr.deckConfigRenameGroup
-        }
-    }
-
-    var action: String {
-        switch self {
-        case .add: "Add"
-        case .clone: "Clone"
-        case .rename: "Rename"
         }
     }
 }

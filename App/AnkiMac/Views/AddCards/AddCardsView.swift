@@ -61,7 +61,7 @@ struct AddCardsView: View {
             Spacer(minLength: Theme.Spacing.small)
             historyMenu
             Button(action: actions.add) {
-                HStack(spacing: 5) {
+                HStack(spacing: Theme.Layout.keyCapGap) {
                     Text(Tr.actionsAdd)
                     KeyCap("\u{2318}\u{21A9}", onAccent: true)
                 }
@@ -73,9 +73,9 @@ struct AddCardsView: View {
         }
         // Clear of the traffic lights, which in full screen come down over
         // the band in a pill of their own.
-        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Browser.sidebarToggleLeading)
+        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Band.leading)
         .padding(.trailing, Theme.Spacing.medium)
-        .frame(height: Theme.Browser.chromeHeight)
+        .frame(height: Theme.Band.height)
         .background { Color.clear.contentShape(.rect).gesture(WindowDragGesture()) }
     }
 

@@ -40,7 +40,7 @@ struct FsrsSimulatorView: View {
             Text(verbatim: simulator.failure?.detail ?? "")
         }
         .alert(Tr.deckConfigSaveOptionsToPresetConfirm, isPresented: $confirmingSave) {
-            Button("Cancel", role: .cancel) {}
+            Button(Tr.actionsCancel, role: .cancel) {}
             Button(Tr.deckConfigSaveOptionsToPreset) { simulator.saveToPreset() }
         }
     }

@@ -116,11 +116,12 @@ final class DeckOptionsWindowController: NSWindowController, NSWindowDelegate {
         sender.makeFirstResponder(nil)
         guard !closeAfterSave, model.isModified else { return true }
         let alert = NSAlert()
-        alert.messageText = "Save changes to the options for \(model.deckName)?"
-        alert.informativeText = "Your changes will be lost if you don't save them."
+        // Desktop's question, with the Mac's three answers.
+        alert.messageText = Tr.cardTemplatesDiscardChanges
+        alert.informativeText = Tr.actionsOptionsFor(val: model.deckName)
         alert.addButton(withTitle: Tr.deckConfigSaveButton)
-        alert.addButton(withTitle: "Cancel")
-        let discard = alert.addButton(withTitle: "Don't Save")
+        alert.addButton(withTitle: Tr.actionsCancel)
+        let discard = alert.addButton(withTitle: Tr.actionsDiscard)
         discard.hasDestructiveAction = true
         alert.beginSheetModal(for: sender) { [weak self] response in
             guard let self else { return }
