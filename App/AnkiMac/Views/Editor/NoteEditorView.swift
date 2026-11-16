@@ -17,30 +17,11 @@ struct NoteEditorView: View {
     var barHeight: CGFloat?
 
     var body: some View {
-        if let occlusion = editor.occlusion {
-            // Desktop's Mask and Note tabs: the masks, or the remaining fields.
-            VStack(spacing: 0) {
-                QuietSegments(
-                    selection: Binding { occlusion.tab } set: {
-                        editor.commitPendingEdits()
-                        occlusion.tab = $0
-                    }, choices: [.masks, .note]
-                ) {
-                    switch $0 {
-                    case .masks: Tr.notetypesOcclusionMask
-                    case .note: Tr.notetypesOcclusionNote
-                    }
-                }
-                .accessibilityLabel(Tr.notetypesImageOcclusionName)
-                .padding(.vertical, Theme.Spacing.small)
-                Theme.Palette.hairline.frame(height: 1)
-                switch occlusion.tab {
-                case .masks: ImageOcclusionView(editor: occlusion)
-                case .note: fieldEditors(hiding: occlusion.hiddenFields)
-                }
-            }
+        if let occlusion = editor.occlusion, occlusion.tab == .masks {
+            // Desktop's Mask tab; the Note tab is the remaining fields.
+            ImageOcclusionView(noteEditor: editor, editor: occlusion, barHeight: barHeight)
         } else {
-            fieldEditors(hiding: [])
+            fieldEditors(hiding: editor.occlusion?.hiddenFields ?? [])
         }
     }
 
@@ -210,6 +191,9 @@ struct FormatBar: View {
     var body: some View {
         // Wraps onto more lines in a narrow pane rather than clipping buttons.
         FlowLayout(spacing: Theme.Spacing.xxSmall) {
+            if let occlusion = editor.occlusion {
+                FormatGroup { OcclusionTabs(noteEditor: editor, editor: occlusion) }
+            }
             if let cardLayout {
                 group {
                     Button(action: cardLayout) {
@@ -283,17 +267,8 @@ struct FormatBar: View {
         .labelStyle(.iconOnly)
     }
 
-    /// Buttons that belong together, then a hairline; the line trails the
-    /// group so a wrapped row never starts with one.
     private func group<Content: View>(divided: Bool = true, @ViewBuilder _ content: () -> Content) -> some View {
-        HStack(spacing: Theme.Spacing.xxSmall) {
-            content()
-            if divided {
-                Theme.Palette.hairline
-                    .frame(width: 1, height: Theme.Editor.dividerHeight)
-                    .padding(.horizontal, Theme.Spacing.xSmall)
-            }
-        }
+        FormatGroup(divided: divided, content: content)
     }
 
     private func glyph(_ title: String, _ symbol: String) -> some View {
@@ -338,7 +313,7 @@ struct FormatBar: View {
             }
             .buttonStyle(QuietButtonStyle(inset: 0))
             .help("Change Color")
-            .accessibilityLabel(title)
+            .accessibilityLabel("Change Color")
         }
     }
 
@@ -356,6 +331,24 @@ struct FormatBar: View {
 
 func applyColor(_ kind: ColorKind) {
     NSApp.sendAction(#selector(FieldTextView.applyFieldColor(_:)), to: nil, from: ColorCommand(kind))
+}
+
+/// Buttons that belong together, then a hairline; the line trails the
+/// group so a wrapped row never starts with one.
+struct FormatGroup<Content: View>: View {
+    var divided = true
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xxSmall) {
+            content
+            if divided {
+                Theme.Palette.hairline
+                    .frame(width: 1, height: Theme.Editor.dividerHeight)
+                    .padding(.horizontal, Theme.Spacing.xSmall)
+            }
+        }
+    }
 }
 
 /// Lays its views out in rows, starting a new row when the next one

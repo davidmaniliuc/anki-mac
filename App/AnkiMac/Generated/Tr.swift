@@ -1484,4 +1484,12 @@ nonisolated enum Tr {
     static func browsingCardsDeletedWithDeckname(count: some TrNumber, deckName: String) -> String {
         (count.trValue == 1 ? (Tr.number(count) + " card deleted from " + deckName + ".") : (Tr.number(count) + " cards deleted from " + deckName + "."))
     }
+    static let addonsViewFiles = "View Files"
+    static func mediaErrorExecuting(val: String) -> String {
+        ("Error executing " + val + ".")
+    }
+    static func mediaGeneratedFile(val: String) -> String {
+        ("Generated file: " + val)
+    }
+    static let mediaHaveYouInstalledLatexAndDvipngdvisvgm = "Have you installed latex and dvipng/dvisvgm?"
 }

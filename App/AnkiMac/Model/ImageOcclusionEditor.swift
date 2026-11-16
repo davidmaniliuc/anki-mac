@@ -145,15 +145,21 @@ final class ImageOcclusionEditor {
             message = Tr.notetypesErrorLoadingImageOcclusion
             return
         }
-        if Self.backendImageExtensions.contains(url.pathExtension.lowercased()), let image = NSImage(data: data) {
-            useImage(image, data: data, name: url.lastPathComponent)
+        useImage(data, name: url.lastPathComponent)
+    }
+
+    /// An image file's contents, under the file's name.
+    func useImage(_ data: Data, name: String) {
+        let file = URL(filePath: name)
+        if Self.backendImageExtensions.contains(file.pathExtension.lowercased()), let image = NSImage(data: data) {
+            useImage(image, data: data, name: name)
             return
         }
         guard let png = Self.uprightPNG(data), let image = NSImage(data: png) else {
             message = Tr.notetypesErrorLoadingImageOcclusion
             return
         }
-        useImage(image, data: png, name: url.deletingPathExtension().lastPathComponent + ".png")
+        useImage(image, data: png, name: file.deletingPathExtension().lastPathComponent + ".png")
     }
 
     /// The image types the backend reads an occlusion note's image back

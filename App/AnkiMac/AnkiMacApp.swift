@@ -197,7 +197,11 @@ enum MaintenanceTool: String, Identifiable {
     case database, media, emptyCards
     var id: String { rawValue }
     var title: String {
-        switch self { case .database: "Check Database"; case .media: "Check Media"; case .emptyCards: "Empty Cards" }
+        switch self {
+        case .database: Tr.databaseCheckTitle
+        case .media: Tr.mediaCheckWindowTitle
+        case .emptyCards: Tr.emptyCardsWindowTitle
+        }
     }
 }
 
@@ -205,9 +209,9 @@ struct ToolsCommands: Commands {
     let model: CollectionModel
     var body: some Commands {
         CommandMenu("Tools") {
-            Button("Check Database") { model.maintenanceTool = .database }.disabled(!model.isLoaded)
-            Button("Check Media") { model.maintenanceTool = .media }.disabled(!model.isLoaded)
-            Button("Empty Cards") { model.maintenanceTool = .emptyCards }.disabled(!model.isLoaded)
+            Button(Tr.databaseCheckTitle) { model.runMaintenance(.database) }.disabled(!model.isLoaded)
+            Button(Tr.mediaCheckCheckMediaAction) { model.runMaintenance(.media) }.disabled(!model.isLoaded)
+            Button(Tr.emptyCardsWindowTitle) { model.runMaintenance(.emptyCards) }.disabled(!model.isLoaded)
             Divider()
             Button("Manage Note Types…") { NotetypeManagerWindowController.show(collection: model) }
                 .disabled(!model.isLoaded)

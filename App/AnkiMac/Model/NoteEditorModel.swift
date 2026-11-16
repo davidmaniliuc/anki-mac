@@ -121,6 +121,8 @@ final class NoteEditorModel {
     /// editor is open, as desktop's session options.
     @ObservationIgnored private var collapsedByNotetype: [Int64: [Bool]] = [:]
     @ObservationIgnored private var notetypeID: Int64 = 0
+    /// Whether the note type is a cloze, where the math popover offers a cloze.
+    @ObservationIgnored private(set) var isCloze = false
 
     init(backend: AnkiBackend, mediaFolder: URL?) {
         self.backend = backend
@@ -133,6 +135,7 @@ final class NoteEditorModel {
         notetype: Anki_Notetypes_Notetype, values: [String], occlusion setup: OcclusionSetup?, focus: Bool = true
     ) {
         notetypeID = notetype.id
+        isCloze = notetype.config.kind == .cloze
         let collapsed = collapsedByNotetype[notetype.id] ?? notetype.fields.map(\.config.collapsed)
         fields = notetype.fields.enumerated().map { index, field in
             let config = field.config

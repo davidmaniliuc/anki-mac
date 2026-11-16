@@ -189,6 +189,8 @@ final class CollectionModel {
     var backupMessage: String?
 
     var maintenanceTool: MaintenanceTool?
+    /// The Tools check under way, which its sheet takes once it opens.
+    @ObservationIgnored var maintenanceCheck: Task<MaintenanceReport, Error>?
 
     // Sync account and progress. SyncAuth is kept in the login Keychain item.
     var syncAuth: Anki_Sync_SyncAuth?

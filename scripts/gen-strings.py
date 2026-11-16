@@ -425,6 +425,10 @@ EXTRA = [
     "scheduling-today-new-limit-reached",
     "browsing-sidebar-due-today",
     "browsing-cards-deleted-with-deckname",
+    "addons-view-files",
+    "media-error-executing",
+    "media-generated-file",
+    "media-have-you-installed-latex-and-dvipngdvisvgm",
 ]
 
 

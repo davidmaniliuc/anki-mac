@@ -331,6 +331,29 @@ enum Theme {
         static let textColumnWidth: CGFloat = 340
     }
 
+    /// Tools › Check Database, Check Media and Empty Cards: their reports
+    /// on a sheet drawn as Deck Options' settings.
+    enum Maintenance {
+        static let width = settingsSheetWidth
+        /// A long report scrolls past this.
+        static let maxHeight: CGFloat = 600
+        /// A report's files and notes, dense as the Browser's rows.
+        static let rowHeight = Browser.denseRowHeight
+        static let rowFont = Font.system(size: 13)
+        /// Numbers in a report's lines, as every count is.
+        static let figures = Font.system(size: 13, weight: .medium, design: .rounded).monospacedDigit()
+        static let browseSymbol = Font.system(size: 12, weight: .medium)
+        /// A list's copy button, beside its sentence, as a section's help.
+        static let copySymbol = DeckOptions.helpSymbol
+        static let copySize = DeckOptions.helpSize
+        /// How long a check runs before its sheet opens, as desktop's
+        /// progress window waits, so a quick one that finds nothing doesn't
+        /// open and close a sheet.
+        static let sheetDelay = Duration.milliseconds(600)
+        /// A failure at the foot, room for LaTeX's error and its file.
+        static let statusLines = 3
+    }
+
     /// The deck's description, as Deck Options' settings with the text under them.
     enum DeckDescription {
         static let width = settingsSheetWidth
@@ -725,6 +748,14 @@ enum Theme {
         static let sourceMinHeight: CGFloat = 80
         static let mathEditorWidth: CGFloat = 320
         static let mathEditorMinHeight: CGFloat = 60
+        /// The equation as it renders, over its TeX in the math popover.
+        static let mathPreviewFontSize: CGFloat = 17
+        static let mathPreviewMinHeight: CGFloat = 32
+        static let mathPreviewMaxHeight: CGFloat = 160
+        /// How long TeX can fail to render before the preview fades.
+        static let mathStaleDelay = 0.4
+        /// Where a text editor's first character sits, past its line padding.
+        static let mathTextInset: CGFloat = 5
         /// A field's name over its text.
         static let labelFont = Font.system(size: 12, weight: .medium)
         static let sourceFont = Font.body.monospaced()
@@ -780,7 +811,7 @@ enum Theme {
         /// desktop sizes it on its canvas.
         static let textFontSize: CGFloat = 40
         static let textPadding: CGFloat = 5
-        static let selection = NSColor.controlAccentColor
+        static let selection = Palette.appKit(Palette.accentHex.light, Palette.accentHex.dark)
         static let handleSize: CGFloat = 8
         static let translucentAlpha: CGFloat = 0.4
         /// Smaller masks are dropped, as desktop does.
@@ -790,8 +821,11 @@ enum Theme {
         static let zoomStep: CGFloat = 1.25
         static let minZoom: CGFloat = 0.05
         static let maxZoom: CGFloat = 8
-        static let canvasBackground = NSColor.underPageBackgroundColor
-        static let pickerSpacing: CGFloat = 12
+        /// Around the image, a step darker than the canvas, so a white
+        /// image keeps its edge.
+        static let canvasBackground = Palette.sidebarNS
+        /// The empty mask tab's photo glyph, over its two chips.
+        static let pickerSymbol = Font.system(size: 34, weight: .light)
     }
 
     /// Flag colours in the sidebar and menus, matching the row tints.

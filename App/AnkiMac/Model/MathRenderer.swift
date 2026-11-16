@@ -20,6 +20,13 @@ final class MathRenderer: NSObject {
     private var webView: WKWebView?
     private var ready = false
     private var cache: [Key: (image: NSImage, descent: CGFloat)] = [:]
+    /// The cache's keys, oldest first, so the math popover's half-typed
+    /// equations don't stay for good.
+    private var cacheOrder: [Key] = []
+    private static let cacheLimit = 500
+    /// TeX that MathJax can't render, so it isn't sent again each time
+    /// another equation renders.
+    private var failed: Set<Key> = []
     private var queued: [Key] = []
     private var pending: Set<Key> = []
 
@@ -27,7 +34,7 @@ final class MathRenderer: NSObject {
     func image(_ math: FieldMath, fontSize: CGFloat) -> (image: NSImage, descent: CGFloat)? {
         let key = Key(math: math, fontSize: fontSize, color: Self.hex(.textColor))
         if let cached = cache[key] { return cached }
-        if pending.insert(key).inserted {
+        if !failed.contains(key), pending.insert(key).inserted {
             queued.append(key)
             start()
             if ready { renderQueued() }
@@ -75,10 +82,16 @@ final class MathRenderer: NSObject {
             ) { [weak self] result in
                 guard let self else { return }
                 self.pending.remove(key)
-                guard case .success(let value) = result, let pair = value as? [String], pair.count == 2,
+                guard case .success(let value) = result else { return }
+                guard let pair = value as? [String], pair.count == 2,
                     let rendered = Self.image(svg: pair[0], verticalAlign: pair[1], key: key)
-                else { return }
+                else {
+                    self.failed.insert(key)
+                    return
+                }
                 self.cache[key] = rendered
+                self.cacheOrder.append(key)
+                if self.cacheOrder.count > Self.cacheLimit { self.cache[self.cacheOrder.removeFirst()] = nil }
                 NotificationCenter.default.post(name: Self.didRender, object: self)
             }
         }
