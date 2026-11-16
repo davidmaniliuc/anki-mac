@@ -452,13 +452,21 @@ enum Theme {
         static let sidebarIconSlot: CGFloat = 18
         /// Space above every section name but the first.
         static let sidebarHeaderGap: CGFloat = Spacing.medium
-        /// Sheets for the Cards and Notes actions (set due date, change deck...).
-        static let sheetWidth: CGFloat = 420
-        static let deckListHeight: CGFloat = 260
-        static let changeNotetypeSheetWidth: CGFloat = 480
-        static let changeNotetypeFormHeight: CGFloat = 380
-        static let findDuplicatesSize = CGSize(width: 531, height: 345)
-        static let findDuplicatesMinSize = CGSize(width: 420, height: 260)
+        /// Sheets for the Cards and Notes actions (change deck, tags, find
+        /// and replace), as wide as the study prompts.
+        static let sheetWidth = StudyPrompt.width
+        /// A name or search typed at a row's trailing edge, as the note
+        /// types' prompts.
+        static let fieldWidth = Notetypes.promptFieldWidth
+        /// Add Tags' field; tags wrap within it.
+        static let tagFieldWidth: CGFloat = 240
+        /// Change Deck's list: ten of the sidebar's rows before it scrolls.
+        static let deckListHeight: CGFloat = 10 * Layout.rowHeight
+        static let changeNotetypeWidth = settingsSheetWidth
+        /// Many fields and card types scroll past this.
+        static let changeNotetypeMaxHeight: CGFloat = 600
+        static let findDuplicatesSize = CGSize(width: 560, height: 480)
+        static let findDuplicatesMinSize = CGSize(width: 420, height: 300)
         static let tagSuggestions = 8
         static let editorMinWidth: CGFloat = 260
         static let editorFraction: CGFloat = 0.4
@@ -655,17 +663,30 @@ enum Theme {
     }
 
     enum Notetypes {
-        static let managerSize = CGSize(width: 640, height: 500)
-        static let managerMinSize = CGSize(width: 640, height: 500)
-        static let nameSheetWidth: CGFloat = 340
-        static let optionsSheetSize = CGSize(width: 560, height: 440)
-        static let fieldsSheetSize = CGSize(width: 600, height: 460)
-        static let fieldListWidth: CGFloat = 180
+        static let managerSize = CGSize(width: 560, height: 540)
+        static let managerMinSize = CGSize(width: 420, height: 320)
+        /// A note type's row: a setting's 40pt, since the list holds a few
+        /// dozen at most, each read by name.
+        static let rowHeight = DeckOptions.rowMinHeight
+        static let margin = DeckOptions.margin
+        static let addSymbol = Font.system(size: 14, weight: .medium)
+        static let addSize = AddCards.historySize
+        /// The one-line prompts (a card type's name or position).
+        static let promptWidth = StudyPrompt.width
+        static let promptFieldWidth: CGFloat = 220
+        static let optionsWidth = settingsSheetWidth
+        static let latexHeight: CGFloat = 120
+        static let fieldsSheetSize = CGSize(width: 700, height: 560)
+        static let fieldListWidth: CGFloat = 200
+        /// A field's row in the Fields sheet's list, as the sidebar's.
+        static let fieldRowHeight = Layout.rowHeight
+        static let fontMenuMaxWidth: CGFloat = 200
+        static let descriptionFieldWidth: CGFloat = 260
         static let cardsDefaultSize = CGSize(width: 1040, height: 680)
-        static let cardsMinSize = CGSize(width: 760, height: 480)
-        static let editorMinHeight: CGFloat = 120
-        static let editorFont = Font.system(.body, design: .monospaced)
+        static let cardsMinSize = CGSize(width: 720, height: 420)
+        static let paneMinWidth: CGFloat = 320
         static let previewDelay = Duration.milliseconds(200)
+        static let appearanceFieldWidth: CGFloat = 280
     }
 
     enum AddCards {

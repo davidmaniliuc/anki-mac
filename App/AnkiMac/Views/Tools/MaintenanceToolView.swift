@@ -370,18 +370,6 @@ struct MaintenanceToolView: View {
     }
 }
 
-/// A report's line in the row's face with each number in the rounded one,
-/// as every count is.
-private func figures(_ line: String) -> AttributedString {
-    var text = AttributedString(line)
-    for match in line.matches(of: #/\d+(?:[.,]\d+)*/#) {
-        let start = text.characters.index(text.startIndex, offsetBy: line.distance(from: line.startIndex, to: match.range.lowerBound))
-        let end = text.characters.index(start, offsetBy: match.output.count)
-        text[start..<end].swiftUI.font = Theme.Maintenance.figures
-    }
-    return text
-}
-
 /// The sheet's one primary when there is nothing left to do but read:
 /// Close, which Return and Esc both press, as a Mac alert's OK.
 private struct CloseButton: View {

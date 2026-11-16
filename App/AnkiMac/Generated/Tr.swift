@@ -1131,6 +1131,10 @@ nonisolated enum Tr {
         ("Shortcut key: " + val)
     }
     static let qtMiscBackSideOnly = "Back Side Only"
+    static let qtMiscTheRequestedChangeWillRequireA = "The requested change will require a full upload of the database when you next synchronize your collection. If you have reviews or other changes waiting on another device that haven't been synchronized here yet, they will be lost. Continue?"
+    static let browsingOverrideFrontTemplate = "Override front template:"
+    static let browsingOverrideBackTemplate = "Override back template:"
+    static let browsingOverrideFont = "Override font:"
     static let qtMiscShortcutKeyLeftArrow = "Shortcut key: Left arrow"
     static let qtMiscShortcutKeyRightArrowOrEnter = "Shortcut key: Right arrow or Enter"
     static let qtAccelPreviousCard = "Previous Card"
@@ -1492,4 +1496,18 @@ nonisolated enum Tr {
         ("Generated file: " + val)
     }
     static let mediaHaveYouInstalledLatexAndDvipngdvisvgm = "Have you installed latex and dvipng/dvisvgm?"
+    static let browsingChangeDeck = "Change Deck"
+    static let browsingMoveCards = "Move Cards"
+    static let browsingAddTags2 = "Add Tags..."
+    static let browsingRemoveTags = "Remove Tags..."
+    static let browsingEnterTagsToAdd = "Enter tags to add:"
+    static let browsingEnterTagsToDelete = "Enter tags to delete:"
+    static let browsingFindAndReplace = "Find and Replace"
+    static let browsingFind = "<b>Find</b>:"
+    static let browsingReplaceWith = "<b>Replace With</b>:"
+    static let browsingIn = "<b>In</b>:"
+    static let browsingAllFields = "All Fields"
+    static let browsingSelectedNotesOnly = "Selected notes only"
+    static let browsingIgnoreCase = "Ignore case"
+    static let browsingTreatInputAsRegularExpression = "Treat input as regular expression"
 }

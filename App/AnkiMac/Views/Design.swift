@@ -782,6 +782,8 @@ struct QuietButtonStyle: ButtonStyle {
 struct QuietSegments<Choice: Hashable>: View {
     @Binding var selection: Choice
     let choices: [Choice]
+    /// A segment's help tag, such as its key.
+    var help: ((Choice) -> String)? = nil
     let title: (Choice) -> String
 
     var body: some View {
@@ -790,6 +792,7 @@ struct QuietSegments<Choice: Hashable>: View {
                 let chosen = choice == selection
                 Button(title(choice)) { selection = choice }
                     .buttonStyle(SegmentStyle(chosen: chosen))
+                    .help(help?(choice) ?? "")
                     .accessibilityAddTraits(chosen ? .isSelected : [])
             }
         }
@@ -1153,4 +1156,16 @@ private final class SwipeTracker {
             action(dx > 0)
         }
     }
+}
+
+/// A line in its own face with each number in the rounded one, as every
+/// count is: a report's lines, a note type's "12 notes".
+func figures(_ line: String) -> AttributedString {
+    var text = AttributedString(line)
+    for match in line.matches(of: #/\d+(?:[.,]\d+)*/#) {
+        let start = text.characters.index(text.startIndex, offsetBy: line.distance(from: line.startIndex, to: match.range.lowerBound))
+        let end = text.characters.index(start, offsetBy: match.output.count)
+        text[start..<end].swiftUI.font = Theme.Maintenance.figures
+    }
+    return text
 }

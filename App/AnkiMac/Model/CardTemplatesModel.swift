@@ -29,7 +29,10 @@ final class CardTemplatesModel {
     private var note: Anki_Notes_Note?
     /// A cloze note type has one template and renders the card's own ord, as
     /// desktop's `ephemeral_card(self.ord, ...)` does.
-    private var clozeOrd: Int
+    var clozeOrd: Int { didSet { scheduleRender() } }
+    /// The cloze numbers the preview can show: the note's, and the card
+    /// opened on even when it is empty, as desktop's `cloze_numbers`.
+    private(set) var clozeNumbers: [Int] = []
     private var renderTask: Task<Void, Never>?
 
     /// Opened from an editor, the preview shows that note as written (desktop
@@ -66,6 +69,7 @@ final class CardTemplatesModel {
             selected = ord
         }
         scheduleRender(immediately: true)
+        Task { await loadClozeNumbers() }
     }
 
     // MARK: Text being edited
@@ -202,6 +206,7 @@ final class CardTemplatesModel {
     func loadSampleNote() async {
         guard note == nil else {
             scheduleRender(immediately: true)
+            await loadClozeNumbers()
             return
         }
         let ntid = original.id
@@ -220,6 +225,14 @@ final class CardTemplatesModel {
         }
         note = loaded
         scheduleRender(immediately: true)
+        await loadClozeNumbers()
+    }
+
+    private func loadClozeNumbers() async {
+        guard isCloze, let note else { return }
+        let backend = backend
+        let found = (try? await backend.perform { try $0.clozeNumbersInNote(note).numbers }) ?? []
+        clozeNumbers = Set(found.map(Int.init) + [clozeOrd + 1]).sorted()
     }
 
     func scheduleRender(immediately: Bool = false) {

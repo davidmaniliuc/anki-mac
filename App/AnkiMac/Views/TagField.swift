@@ -10,6 +10,8 @@ struct TagField: View {
     @Binding var tags: [String]
     let complete: (String) -> [String]
     var borderless = false
+    /// Takes the focus as it appears, as the field a sheet is opened for.
+    var focusOnAppear = false
 
     @State private var text = ""
     @State private var selectedChip: Int?
@@ -55,7 +57,10 @@ struct TagField: View {
             }
         }
         .onDisappear { popup.hide() }
-        .onAppear { popup.pick = { [self] in pick($0) } }
+        .onAppear {
+            popup.pick = { [self] in pick($0) }
+            if focusOnAppear { focused = true }
+        }
     }
 
     private func chip(_ tag: String, selected: Bool) -> some View {

@@ -5,13 +5,18 @@ import SwiftUI
 /// spelling corrections, which would corrupt a template.
 struct CodeTextEditor: NSViewRepresentable {
     @Binding var text: String
+    /// Set on the text view itself: SwiftUI's label stops at the wrapper.
+    let label: String
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
         scroll.hasVerticalScroller = true
         scroll.borderType = .noBorder
+        // The block's wash shows through, as the editor's HTML source.
+        scroll.drawsBackground = false
         let view = scroll.documentView as! NSTextView
         view.isRichText = false
+        view.drawsBackground = false
         view.allowsUndo = true
         view.isAutomaticQuoteSubstitutionEnabled = false
         view.isAutomaticDashSubstitutionEnabled = false
@@ -23,11 +28,14 @@ struct CodeTextEditor: NSViewRepresentable {
         view.textContainerInset = Theme.Editor.fieldInset
         view.delegate = context.coordinator
         view.string = text
+        view.setAccessibilityLabel(label)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
-        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
+        guard let view = scroll.documentView as? NSTextView else { return }
+        view.setAccessibilityLabel(label)
+        guard view.string != text else { return }
         let range = view.selectedRange()
         view.string = text
         // A selection beyond the new text would raise; fall back to the start.

@@ -1,5 +1,6 @@
 import AnkiKit
 import AppKit
+import SwiftUI
 
 /// The sidebar's context menu and what its actions ask before they run. The
 /// menu's contents come from `SidebarKind.actionGroups`; the changes
@@ -87,7 +88,11 @@ extension BrowserSidebarController: NSMenuDelegate, NSTextFieldDelegate {
         case .delete:
             delete(items)
         case .saveCurrentSearch:
-            if let name = askText(Tr.browsingPleaseGiveYourFilterAName), !name.isEmpty {
+            ask(
+                sheetTitle(Tr.browsingSidebarSaveCurrentSearch), label: Tr.browsingPleaseGiveYourFilterAName,
+                action: Tr.actionsSave
+            ) { [weak self] name in
+                guard let self else { return }
                 model.saveCurrentSearch(as: name, update: false, confirmOverwrite: confirmOverwrite)
             }
         case .updateSavedSearch:
@@ -189,30 +194,33 @@ extension BrowserSidebarController: NSMenuDelegate, NSTextFieldDelegate {
     private func renameWithParents(_ item: SidebarItem) {
         guard let fullName = item.fullName else { return }
         let title = item.kind == .tag ? Tr.actionsRenameTag : Tr.actionsRenameDeck
-        guard let text = askText(Tr.actionsNewName, title: title, initial: fullName) else { return }
-        let name = text.replacingOccurrences(of: "\"", with: "")
-        guard !name.isEmpty, name != fullName else { return }
-        switch item {
-        case .deck(let id, _): model.renameDeck(id, to: name)
-        case .tag(let full): model.renameTag(full, to: name)
-        default: break
+        ask(title, label: Tr.actionsNewName, action: Tr.actionsRename, initial: fullName) { [weak self] text in
+            let name = text.replacingOccurrences(of: "\"", with: "")
+            guard let self, !name.isEmpty, name != fullName else { return }
+            switch item {
+            case .deck(let id, _): model.renameDeck(id, to: name)
+            case .tag(let full): model.renameTag(full, to: name)
+            default: break
+            }
         }
     }
 
     // MARK: Prompts
 
-    private func askText(_ message: String, title: String? = nil, initial: String = "") -> String? {
-        let alert = NSAlert()
-        alert.messageText = title ?? message
-        alert.informativeText = title == nil ? "" : message
-        let field = NSTextField(string: initial)
-        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-        alert.accessoryView = field
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: Tr.actionsCancel)
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Desktop's one-line prompt as a sheet on the Browser, drawn as the
+    /// note types' prompts: the command as the Headline, desktop's question
+    /// as the row's title, and the action named for what it does.
+    private func ask(
+        _ title: String, label: String, action: String, initial: String = "", then submit: @escaping (String) -> Void
+    ) {
+        guard let content = outline.window?.contentViewController, content.presentedViewControllers?.isEmpty ?? true
+        else { return }
+        let host = NSHostingController(rootView: AnyView(EmptyView()))
+        host.rootView = AnyView(TextPromptSheet(
+            title: title, label: rowTitle(label), action: action, initial: initial,
+            close: { [weak host] in host?.dismiss(nil) }, submit: submit))
+        host.sizingOptions = .preferredContentSize
+        content.presentAsSheet(host)
     }
 
     private func confirmOverwrite(_ name: String) -> Bool {

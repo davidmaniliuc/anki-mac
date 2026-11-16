@@ -1,61 +1,42 @@
 import AnkiKit
+import AppKit
 import SwiftUI
 
-/// Desktop's Manage Note Types dialog (aqt/models.py).
+/// Desktop's Manage Note Types dialog (aqt/models.py), drawn as the
+/// profile list: "Note Types" in the band with Add as a quiet menu, the
+/// note types as rows with their note counts, and desktop's buttons as
+/// chips at the foot. A note type is named in its row, as a deck is in the
+/// sidebar, not in desktop's prompt.
 struct NotetypeManagerView: View {
     @Bindable var model: NotetypeManager
+    let chrome: BandChrome
     let collection: CollectionModel
-    @State private var prompt: NamePrompt?
+    @State private var editing: Editing?
+    @State private var draft = ""
     @State private var optionsFor: Anki_Notetypes_Notetype?
     @State private var fieldsFor: Anki_Notetypes_Notetype?
 
-    private struct NamePrompt: Identifiable {
-        let id = UUID()
-        let title: String
-        let initial: String
-        let action: (String) -> Void
+    private enum Editing: Equatable {
+        case add(NotetypeManager.Stock), clone(Int64), rename(Int64)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            List(model.entries, selection: $model.selectedID) { entry in
-                HStack {
-                    Text(entry.name)
-                    Spacer()
-                    Text(Tr.browsingNoteCount(count: Int(entry.useCount)))
-                        .foregroundStyle(.secondary)
-                }
-                .tag(entry.id)
-                .contextMenu { rowMenu(entry) }
-            }
-            .contextMenu(forSelectionType: Int64.self) { _ in
-            } primaryAction: { ids in
-                if let id = ids.first { rename(id) }
-            }
-            Divider()
-            HStack {
-                addMenu
-                Button(Tr.actionsRename) { if let id = model.selectedID { rename(id) } }
-                Button(Tr.actionsDelete) { if let id = model.selectedID { delete(id) } }
-                Spacer()
-                Button("\(Tr.notetypesFields)…") { load { fieldsFor = $0 } }
-                Button("\(Tr.notetypesCards)…") { openCards() }
-                Button("\(Tr.notetypesOptions)…") { load { optionsFor = $0 } }
-            }
-            .disabled(model.selected == nil)
-            .padding(Theme.Spacing.medium)
+            band
+            list
+            foot
         }
-        .frame(minWidth: Theme.Notetypes.managerMinSize.width, minHeight: Theme.Notetypes.managerMinSize.height)
+        .background(Theme.Palette.canvas)
+        .foregroundStyle(Theme.Palette.text)
+        .tint(Theme.Palette.accent)
         .task { await model.refresh() }
-        .alert(model.failure?.title ?? "", isPresented: Binding(
-            get: { model.failure != nil }, set: { if !$0 { model.failure = nil } })
+        .alert(
+            model.failure?.title ?? "",
+            isPresented: Binding { model.failure != nil } set: { if !$0 { model.failure = nil } }
         ) {
-            Button("OK") { model.failure = nil }
+            Button(Tr.customStudyOk) {}
         } message: {
             Text(verbatim: model.failure?.detail ?? "")
-        }
-        .sheet(item: $prompt) { prompt in
-            NamePromptSheet(title: prompt.title, initial: prompt.initial, action: prompt.action)
         }
         .sheet(item: $fieldsFor) { notetype in
             FieldsSheet(notetype: notetype, useCount: model.selected?.useCount ?? 0) { edited in
@@ -67,66 +48,219 @@ struct NotetypeManagerView: View {
         }
     }
 
-    // MARK: Menus
+    // MARK: Band
 
+    /// The window's name after the traffic lights, and Add at the trailing
+    /// edge, where Add Cards keeps its History.
+    private var band: some View {
+        HStack(spacing: Theme.Spacing.xSmall) {
+            Text(Tr.notetypesNoteTypes)
+                .font(Theme.Band.titleFont)
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Theme.Spacing.small)
+            addMenu
+        }
+        // Clear of the traffic lights, which in full screen come down over
+        // the band in a pill of their own.
+        .padding(.leading, chrome.fullScreen ? Theme.Spacing.medium : Theme.Band.leading)
+        .padding(.trailing, Theme.Spacing.medium)
+        .frame(height: Theme.Band.height)
+        .titleBarBand()
+    }
+
+    /// Desktop's Add list: the stock note types, then a clone of each one.
     private var addMenu: some View {
-        Menu(Tr.actionsAdd) {
-            ForEach(NotetypeManager.Stock.allCases, id: \.self) { stock in
-                Button(Tr.notetypesAdd(val: stock.name)) { add(stock) }
+        Menu {
+            Section(Tr.notetypesAddNoteType) {
+                ForEach(NotetypeManager.Stock.allCases, id: \.self) { stock in
+                    Button(Tr.notetypesAdd(val: stock.name)) { add(stock) }
+                }
             }
-            Divider()
-            ForEach(model.entries) { entry in
-                Button(Tr.notetypesClone(val: entry.name)) { clone(entry.id) }
+            Section {
+                ForEach(model.entries) { entry in
+                    Button(Tr.notetypesClone(val: entry.name)) { begin(.clone(entry.id)) }
+                }
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(Theme.Notetypes.addSymbol)
+                .foregroundStyle(Theme.Palette.secondary)
+                .frame(width: Theme.Notetypes.addSize.width, height: Theme.Notetypes.addSize.height)
+                .modifier(MenuHover(shape: RoundedRectangle(cornerRadius: Theme.Layout.rowRadius), inset: 0))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(editing != nil)
+        .help(Tr.notetypesAddNoteType)
+        .accessibilityLabel(Tr.notetypesAddNoteType)
+    }
+
+    // MARK: List
+
+    private var list: some View {
+        ScrollViewReader { scroller in
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(model.entries) { entry in
+                        if editing == .rename(entry.id) {
+                            nameField
+                        } else {
+                            NotetypeRow(
+                                entry: entry, selected: entry.id == model.selectedID, editing: editing != nil
+                            ) {
+                                model.selectedID = entry.id
+                            } rename: {
+                                if editing == nil { begin(.rename(entry.id)) }
+                            }
+                            .contextMenu { rowMenu(entry.id) }
+                        }
+                    }
+                    if isAdding {
+                        nameField.id(Self.newRow)
+                    }
+                }
+                .padding(.horizontal, Theme.Notetypes.margin)
+                .padding(.vertical, Theme.Spacing.small)
+            }
+            .scrollEdgeEffectHidden(true, for: .vertical)
+            .onChange(of: isAdding) { _, adding in
+                if adding { scroller.scrollTo(Self.newRow, anchor: .bottom) }
+            }
+            .onChange(of: model.selectedID) { _, id in
+                if let id { scroller.scrollTo(id) }
             }
         }
-        .menuIndicator(.visible)
-        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Tr.notetypesNoteTypes)
+        // Up, Down, Return and Delete as shortcuts rather than key presses,
+        // as the profile list's; off while a name is typed, so the field has them.
+        .background {
+            Group {
+                Button("") { step(-1) }.keyboardShortcut(.upArrow, modifiers: [])
+                Button("") { step(1) }.keyboardShortcut(.downArrow, modifiers: [])
+                // Return renames, as in Finder.
+                Button("") { if let id = model.selectedID { begin(.rename(id)) } }
+                    .keyboardShortcut(.return, modifiers: [])
+                Button("") { if let id = model.selectedID { delete(id) } }
+                    .keyboardShortcut(.delete, modifiers: [])
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+            .disabled(editing != nil || model.selected == nil)
+        }
+    }
+
+    private static let newRow = "new"
+
+    private var isAdding: Bool {
+        switch editing {
+        case .add, .clone: true
+        default: false
+        }
+    }
+
+    private var nameField: some View {
+        RowNameField(
+            name: $draft, problem: nil, font: Theme.DeckOptions.rowFont, height: Theme.Notetypes.rowHeight,
+            end: finishEditing)
     }
 
     @ViewBuilder
-    private func rowMenu(_ entry: NotetypeManager.Entry) -> some View {
-        Button(Tr.actionsRename) { rename(entry.id) }
-        Button(Tr.actionsDelete) { delete(entry.id) }
+    private func rowMenu(_ id: Int64) -> some View {
+        Button("\(Tr.notetypesFields)…") { model.selectedID = id; load { fieldsFor = $0 } }
+        Button("\(Tr.notetypesCards)…") { model.selectedID = id; openCards() }
+        Button("\(Tr.notetypesOptions)…") { model.selectedID = id; load { optionsFor = $0 } }
+        Divider()
+        Button(Tr.actionsRename) { begin(.rename(id)) }
+        // Off with one note type left, as the foot's.
+        Button(Tr.actionsDelete) { delete(id) }
+            .disabled(model.entries.count < 2)
+    }
+
+    // MARK: Foot
+
+    /// Desktop's buttons: what opens an editor first, then Rename and,
+    /// set a little apart, Delete. The foot stays on the canvas, as the
+    /// text import sheet's does, with no hairline over it.
+    private var foot: some View {
+        HStack(spacing: Theme.Spacing.small) {
+            Button("\(Tr.notetypesFields)…") { load { fieldsFor = $0 } }
+            Button("\(Tr.notetypesCards)…") { openCards() }
+            Button("\(Tr.notetypesOptions)…") { load { optionsFor = $0 } }
+            Spacer(minLength: Theme.Spacing.small)
+            Button(Tr.actionsRename) { if let id = model.selectedID { begin(.rename(id)) } }
+                .help("\(Tr.actionsRename) (\u{21A9})")
+            // Off with one note type left: desktop's reason is its help tag.
+            Button(Tr.actionsDelete) { if let id = model.selectedID { delete(id) } }
+                .disabled(model.entries.count < 2)
+                .help(model.entries.count < 2 ? Tr.notetypesPleaseAddAnotherNoteTypeFirst : "\(Tr.actionsDelete) (\u{232B})")
+                .padding(.leading, Theme.Spacing.small)
+        }
+        .buttonStyle(ChipButtonStyle())
+        .disabled(model.selected == nil || editing != nil)
+        .padding(.horizontal, Theme.Notetypes.margin)
+        .padding(.vertical, Theme.Spacing.medium)
     }
 
     // MARK: Actions
+
+    /// Up and Down move the selection, stopping at the ends.
+    private func step(_ offset: Int) {
+        let ids = model.entries.map(\.id)
+        guard !ids.isEmpty else { return }
+        let index = model.selectedID.flatMap { ids.firstIndex(of: $0) } ?? (offset > 0 ? -1 : ids.count)
+        model.selectedID = ids[min(max(index + offset, 0), ids.count - 1)]
+    }
 
     private func add(_ stock: NotetypeManager.Stock) {
         // Image Occlusion has a fixed name, so it is added without asking.
         if stock == .imageOcclusion {
             Task { await model.add(stock, name: stock.name) }
-            return
-        }
-        prompt = NamePrompt(title: Tr.notetypesAddNoteType, initial: stock.name) { name in
-            Task { await model.add(stock, name: name) }
+        } else {
+            begin(.add(stock))
         }
     }
 
-    private func clone(_ id: Int64) {
-        prompt = NamePrompt(title: Tr.notetypesAddNoteType, initial: model.defaultName(cloning: id)) { name in
-            Task { await model.clone(id, name: name) }
+    /// The row starts with desktop's suggested name, selected, so typing
+    /// replaces it.
+    private func begin(_ kind: Editing) {
+        switch kind {
+        case .add(let stock): draft = stock.name
+        case .clone(let id): draft = model.defaultName(cloning: id)
+        case .rename(let id): draft = model.entries.first { $0.id == id }?.name ?? ""
         }
+        editing = kind
     }
 
-    private func rename(_ id: Int64) {
-        guard let entry = model.entries.first(where: { $0.id == id }) else { return }
-        prompt = NamePrompt(title: Tr.actionsNewName, initial: entry.name) { name in
-            Task { await model.rename(id, to: name) }
-        }
-    }
-
-    private func delete(_ id: Int64) {
-        guard let entry = model.entries.first(where: { $0.id == id }) else { return }
+    /// Return or clicking away keeps the name; Esc puts things back.
+    private func finishEditing(_ ending: RowNameField.Ending) {
+        guard let kind = editing else { return }
+        editing = nil
+        let name = draft.trimmingCharacters(in: .whitespaces)
+        guard ending != .cancel, !name.isEmpty else { return }
         Task {
-            if model.entries.count < 2 {
-                await NotetypeAlerts.inform(Tr.notetypesPleaseAddAnotherNoteTypeFirst)
-                return
+            switch kind {
+            case .add(let stock): await model.add(stock, name: name)
+            case .clone(let id): await model.clone(id, name: name)
+            case .rename(let id):
+                guard name != model.entries.first(where: { $0.id == id })?.name else { return }
+                await model.rename(id, to: name)
             }
+        }
+    }
+
+    /// Desktop asks whether to delete, then whether to force a full sync;
+    /// one alert asks both, the sync's cost under the question.
+    private func delete(_ id: Int64) {
+        guard let entry = model.entries.first(where: { $0.id == id }), model.entries.count > 1 else { return }
+        Task {
             let question = entry.useCount > 0 ? Tr.notetypesDeleteThisNoteTypeAndAll : Tr.notetypesDeleteThisUnusedNoteType
-            guard await NotetypeAlerts.confirm(question, confirm: Tr.actionsDelete, destructive: true) else { return }
-            if !(await model.schemaAlreadyChanged()),
-               !(await NotetypeAlerts.confirm(NotetypeAlerts.schemaChange, confirm: "Continue"))
-            { return }
+            let cost = await NotetypeAlerts.schemaCost(model.backend)
+            guard await NotetypeAlerts.confirm(question, detail: cost, confirm: Tr.actionsDelete, destructive: true)
+            else { return }
             await model.remove(id)
         }
     }
@@ -150,80 +284,41 @@ struct NotetypeManagerView: View {
 
 extension Anki_Notetypes_Notetype: @retroactive Identifiable {}
 
-/// Desktop's one-line `getText` prompt.
-struct NamePromptSheet: View {
-    let title: String
-    @State var name: String
-    let action: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    init(title: String, initial: String, action: @escaping (String) -> Void) {
-        self.title = title
-        _name = State(initialValue: initial)
-        self.action = action
-    }
+/// A note type in the list: its name in Ink and how many notes use it in
+/// Pencil, the number in the rounded face. A click selects it, a double
+/// click renames it, as desktop's.
+private struct NotetypeRow: View {
+    let entry: NotetypeManager.Entry
+    let selected: Bool
+    let editing: Bool
+    let select: () -> Void
+    let rename: () -> Void
+    @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-            Text(title).font(.headline)
-            TextField(title, text: $name)
-                .labelsHidden()
-                .onSubmit(submit)
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button("OK", action: submit)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+        let count = Tr.browsingNoteCount(count: Int(entry.useCount))
+        HStack(spacing: Theme.Spacing.small) {
+            Text(entry.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: Theme.Spacing.small)
+            Text(figures(count))
+                .foregroundStyle(Theme.Palette.secondary)
+                .lineLimit(1)
+                .fixedSize()
         }
-        .padding(Theme.Spacing.large)
-        .frame(width: Theme.Notetypes.nameSheetWidth)
-    }
-
-    private func submit() {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        action(name)
-        dismiss()
-    }
-}
-
-/// Desktop's note type Options: the LaTeX header and footer, and SVG output.
-struct NotetypeOptionsSheet: View {
-    @State var notetype: Anki_Notetypes_Notetype
-    let save: (Anki_Notetypes_Notetype) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    init(notetype: Anki_Notetypes_Notetype, save: @escaping (Anki_Notetypes_Notetype) -> Void) {
-        _notetype = State(initialValue: notetype)
-        self.save = save
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-            Text(Tr.actionsOptionsFor(val: notetype.name)).font(.headline)
-            Text(Tr.notetypesHeader)
-            TextEditor(text: $notetype.config.latexPre)
-                .font(Theme.Notetypes.editorFont)
-                .border(Theme.Editor.fieldBorder)
-            Text(Tr.notetypesFooter)
-            TextEditor(text: $notetype.config.latexPost)
-                .font(Theme.Notetypes.editorFont)
-                .border(Theme.Editor.fieldBorder)
-            Toggle(Tr.notetypesCreateScalableImagesWithDvisvgm, isOn: $notetype.config.latexSvg)
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button(Tr.deckConfigSaveButton) {
-                    save(notetype)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(Theme.Spacing.large)
-        .frame(width: Theme.Notetypes.optionsSheetSize.width, height: Theme.Notetypes.optionsSheetSize.height)
+        .font(Theme.DeckOptions.rowFont)
+        .listRow(
+            height: Theme.Notetypes.rowHeight,
+            wash: editing ? .clear : selected ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear)
+        .contentShape(.rect)
+        .onHover { hovered = $0 }
+        .onClick(select, doubleClick: rename)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.name)
+        .accessibilityValue(count)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, select)
+        .accessibilityAction(named: Tr.actionsRename, rename)
     }
 }

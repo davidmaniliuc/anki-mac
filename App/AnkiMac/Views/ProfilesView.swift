@@ -139,7 +139,8 @@ struct ProfilesView: View {
     }
 
     private var nameField: some View {
-        ProfileNameField(name: $draft, problem: problem, end: finishEditing)
+        RowNameField(name: $draft, problem: problem, font: Theme.Fonts.listRow, height: Theme.Layout.listRowHeight,
+            end: finishEditing)
     }
 
     /// Why the typed name can't be used, checked as it is typed; nothing while it's empty.
@@ -190,7 +191,7 @@ struct ProfilesView: View {
     /// Return keeps the name, unless it has a problem, which stays under it
     /// with the typing kept; clicking away keeps it only if it can be used,
     /// and Esc puts things back.
-    private func finishEditing(_ ending: ProfileNameField.Ending) {
+    private func finishEditing(_ ending: RowNameField.Ending) {
         guard let kind = editing else { return }
         let name = draft.trimmingCharacters(in: .whitespaces)
         if ending == .submit, problem != nil {
@@ -246,100 +247,15 @@ private struct ProfileRow: View {
     var body: some View {
         Text(name).font(Theme.Fonts.listRow).lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .profileRow(wash: editing ? .clear : selected ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear)
+            .listRow(height: Theme.Layout.listRowHeight,
+                wash: editing ? .clear : selected ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear)
             .contentShape(.rect)
             .onHover { hovered = $0 }
-            .onTapGesture(count: 2, perform: open)
-            .onTapGesture(perform: select)
+            .onClick(select, doubleClick: open)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(name)
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction(.default, select)
             .accessibilityAction(named: Tr.profilesOpen, open)
-    }
-}
-
-/// A profile's name being typed, in its row: a new one at the end of the
-/// list, or the one being renamed in its place. What's wrong with the name
-/// shows under it as it is typed, as Deck Options' alerts do.
-private struct ProfileNameField: View {
-    enum Ending { case submit, leave, cancel }
-
-    @Binding var name: String
-    let problem: String?
-    let end: (Ending) -> Void
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            TextField(Tr.actionsName, text: $name, prompt: Text(Tr.deckConfigNamePrompt))
-                .textFieldStyle(.plain)
-                .font(Theme.Fonts.listRow)
-                .labelsHidden()
-                .focused($focused)
-                .onSubmit { end(.submit) }
-                .onExitCommand { end(.cancel) }
-                .onChange(of: focused) { _, focused in
-                    if !focused { end(.leave) }
-                }
-                // Asked of AppKit: on the sheet, setting the focus state as
-                // the row appears doesn't bring the focus.
-                .background(FieldFocus())
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .profileRow(wash: Theme.Palette.selection)
-            if let problem {
-                OptionWarning(text: problem, level: .danger)
-                    .padding(.vertical, Theme.Spacing.xSmall)
-            }
-        }
-        .accessibilityValue(problem ?? "")
-    }
-}
-
-/// Behind a text field, makes it the window's first responder once the
-/// row is in the window.
-private struct FieldFocus: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { Probe() }
-    func updateNSView(_ view: NSView, context: Context) {}
-
-    private final class Probe: NSView {
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            // A turn later, when the field is in the window beside this view.
-            DispatchQueue.main.async { [weak self] in
-                guard let self, let window, let field = nearestField() else { return }
-                if !window.isKeyWindow { window.makeKey() }
-                window.makeFirstResponder(field)
-            }
-        }
-
-        /// The editable field sharing the closest ancestor with this view.
-        private func nearestField() -> NSTextField? {
-            var ancestor = superview
-            while let view = ancestor {
-                if let field = Self.field(in: view) { return field }
-                ancestor = view.superview
-            }
-            return nil
-        }
-
-        private static func field(in view: NSView) -> NSTextField? {
-            if let field = view as? NSTextField, field.isEditable { return field }
-            for child in view.subviews {
-                if let field = field(in: child) { return field }
-            }
-            return nil
-        }
-    }
-}
-
-private extension View {
-    /// A list row's height, and its wash reaching past the page's edge
-    /// while the name keeps to it, as a deck row's does.
-    func profileRow(wash: Color) -> some View {
-        padding(.horizontal, Theme.Layout.washOutset)
-            .frame(height: Theme.Layout.listRowHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.Layout.listRowRadius).fill(wash))
-            .padding(.horizontal, -Theme.Layout.washOutset)
     }
 }

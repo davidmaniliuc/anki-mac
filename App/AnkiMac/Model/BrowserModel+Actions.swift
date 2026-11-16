@@ -242,20 +242,22 @@ extension BrowserModel {
         }
     }
 
-    /// Applies the sheet's mapping. The sheet stays up if the change fails.
+    /// Applies the sheet's mapping. The sheet stays up if the change fails,
+    /// the failure beside its buttons.
     func changeNotetype(_ request: Anki_Notetypes_ChangeNotetypeRequest) async {
+        promptError = nil
         guard await confirmSchemaChange(),
-            await perform(failing: "Couldn’t change the note type", searchAgain: true, { backend in _ = try backend.changeNotetype(request) })
+            await perform(
+                failing: "", searchAgain: true, failed: { self.promptError = ActionFailure.reason($0) },
+                { backend in _ = try backend.changeNotetype(request) })
         else { return }
         cancelPrompt()
     }
 
     /// Desktop's `confirm_schema_modification`: asks unless a full sync is already due.
     private func confirmSchemaChange() async -> Bool {
-        guard let backend = collection.backend,
-            !((try? await backend.perform { $0.schemaAlreadyChanged() }) ?? false)
-        else { return true }
-        return await NotetypeAlerts.confirm(NotetypeAlerts.schemaChange)
+        guard let backend = collection.backend else { return true }
+        return await NotetypeAlerts.confirmSchemaChange(backend)
     }
 
     // MARK: Plumbing

@@ -154,9 +154,12 @@ struct DeckOptionsCommands: Commands {
                 .keyboardShortcut("w")
             Divider()
             let options = KeyDeckOptions.shared.controller
-            Button(Tr.deckConfigSaveButton) { options?.save() }
-                .keyboardShortcut("s")
-                .disabled(options == nil)
+            let templates = KeyCardTemplates.shared.controller
+            Button(Tr.deckConfigSaveButton) {
+                if let options { options.save() } else { templates?.save() }
+            }
+            .keyboardShortcut("s")
+            .disabled(options == nil && templates == nil)
             Button(Tr.deckConfigSaveToAllSubdecks) { options?.save(mode: .applyToChildren) }
                 .disabled(options == nil)
         }
@@ -213,7 +216,7 @@ struct ToolsCommands: Commands {
             Button(Tr.mediaCheckCheckMediaAction) { model.runMaintenance(.media) }.disabled(!model.isLoaded)
             Button(Tr.emptyCardsWindowTitle) { model.runMaintenance(.emptyCards) }.disabled(!model.isLoaded)
             Divider()
-            Button("Manage Note Types…") { NotetypeManagerWindowController.show(collection: model) }
+            Button("\(Tr.browsingManageNoteTypes)…") { NotetypeManagerWindowController.show(collection: model) }
                 .disabled(!model.isLoaded)
         }
     }

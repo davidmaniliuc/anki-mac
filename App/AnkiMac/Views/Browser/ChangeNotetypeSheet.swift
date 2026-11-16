@@ -3,7 +3,9 @@ import SwiftUI
 
 /// Notes › Change Note Type: pick the new note type, then for each of its
 /// fields and card types say which current one it takes its content from.
-/// Upstream's page for desktop (ts/routes/change-notetype) does the same.
+/// Upstream's page for desktop (ts/routes/change-notetype) does the same;
+/// here it is drawn as Deck Options' settings, each new field or card type
+/// a row holding the current one as a quiet menu.
 struct ChangeNotetypeSheet: View {
     let browser: BrowserModel
     @State private var model: ChangeNotetypeModel
@@ -17,70 +19,83 @@ struct ChangeNotetypeSheet: View {
     }
 
     var body: some View {
-        PromptLayout(
-            title: Tr.browsingChangeNotetype, action: "Change", canSubmit: !model.isUnchanged && !model.isLoading && !saving,
-            width: Theme.Browser.changeNotetypeSheetWidth, cancel: browser.cancelPrompt, submit: save
+        SettingsSheet(
+            title: Tr.browsingChangeNotetype, width: Theme.Browser.changeNotetypeWidth,
+            maxHeight: Theme.Browser.changeNotetypeMaxHeight
         ) {
-            Form {
-                LabeledContent(Tr.changeNotetypeCurrent) { Text(model.oldNotetypeName) }
-                Picker(Tr.changeNotetypeNew, selection: Binding(get: { model.newNotetypeID }, set: { model.chooseNotetype($0) })) {
-                    ForEach(model.notetypes) { Text($0.name).tag($0.id) }
+            OptionSection {
+                OptionRow(title: Tr.changeNotetypeCurrent, revertible: false) {
+                    Text(model.oldNotetypeName)
+                        .font(Theme.DeckOptions.rowFont)
+                        .foregroundStyle(Theme.Palette.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Section(Tr.changeNotetypeFields) {
-                    ForEach(Array(model.info.newFieldNames.enumerated()), id: \.offset) { index, name in
-                        if model.fields.indices.contains(index) {
-                            mapping(
-                                name, oldNames: model.info.oldFieldNames,
-                                selection: Binding { model.field(index) } set: { model.setField(index, to: $0) })
-                        }
-                    }
-                    discarded(Tr.changeNotetypeWillDiscardContent, model.discardedFields)
-                }
-                Section(Tr.changeNotetypeTemplates) {
-                    if model.templates.isEmpty {
-                        Text(Tr.changeNotetypeToFromCloze)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        ForEach(Array(model.info.newTemplateNames.enumerated()), id: \.offset) { index, name in
-                            if model.templates.indices.contains(index) {
-                                mapping(
-                                    name, oldNames: model.info.oldTemplateNames,
-                                    selection: Binding { model.template(index) } set: { model.setTemplate(index, to: $0) })
-                            }
-                        }
-                        discarded(Tr.changeNotetypeWillDiscardCards, model.discardedTemplates)
-                    }
+                OptionRow(title: Tr.changeNotetypeNew, revertible: false) {
+                    OptionPicker(
+                        selection: Binding { model.newNotetypeID } set: { model.chooseNotetype($0) },
+                        choices: model.notetypes.map { ($0.id, $0.name) })
                 }
             }
-            .formStyle(.grouped)
-            .frame(height: Theme.Browser.changeNotetypeFormHeight)
+            OptionSection(title: Tr.changeNotetypeFields) {
+                ForEach(Array(model.info.newFieldNames.enumerated()), id: \.offset) { index, name in
+                    if model.fields.indices.contains(index) {
+                        mapping(
+                            name, oldNames: model.info.oldFieldNames,
+                            selection: Binding { model.field(index) } set: { model.setField(index, to: $0) })
+                    }
+                }
+                discarded(Tr.changeNotetypeWillDiscardContent, model.discardedFields)
+            }
+            OptionSection(title: Tr.changeNotetypeTemplates) {
+                if model.templates.isEmpty {
+                    Text(Tr.changeNotetypeToFromCloze)
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, Theme.DeckOptions.rowPadding)
+                } else {
+                    ForEach(Array(model.info.newTemplateNames.enumerated()), id: \.offset) { index, name in
+                        if model.templates.indices.contains(index) {
+                            mapping(
+                                name, oldNames: model.info.oldTemplateNames,
+                                selection: Binding { model.template(index) } set: { model.setTemplate(index, to: $0) })
+                        }
+                    }
+                    discarded(Tr.changeNotetypeWillDiscardCards, model.discardedTemplates)
+                }
+            }
             .disabled(saving)
+        } footer: {
+            if saving || model.isLoading {
+                ProgressView().controlSize(.small)
+            } else if let failure = browser.promptError ?? model.failure?.detail {
+                OptionWarning(text: failure, level: .danger).lineLimit(2)
+            }
+            Spacer(minLength: Theme.Spacing.small)
+            DialogButtons(
+                action: Tr.actionsSave, disabled: model.isUnchanged || model.isLoading || saving, cancelDisabled: saving,
+                cancel: browser.cancelPrompt, submit: save)
         }
-        .alert(
-            model.failure?.title ?? "", isPresented: Binding { model.failure != nil } set: { _ in model.failure = nil },
-            actions: {}, message: { Text(verbatim: model.failure?.detail ?? "") })
+        .onChange(of: model.request) {
+            browser.promptError = nil
+            model.failure = nil
+        }
     }
 
     /// One new field or card type, and the current one it takes its content from.
     private func mapping(_ newName: String, oldNames: [String], selection: Binding<Int32>) -> some View {
-        Picker(newName, selection: selection) {
-            ForEach(Array(oldNames.enumerated()), id: \.offset) { Text($1).tag(Int32($0)) }
-            Divider()
-            Text(Tr.changeNotetypeNothing).tag(ChangeNotetypeModel.nothing)
+        OptionRow(title: newName, revertible: false) {
+            OptionPicker(
+                selection: selection,
+                choices: oldNames.enumerated().map { (Int32($0), $1) } + [(ChangeNotetypeModel.nothing, Tr.changeNotetypeNothing)])
         }
     }
 
     @ViewBuilder
     private func discarded(_ message: String, _ names: [String]) -> some View {
         if !names.isEmpty {
-            Label {
-                Text(message + " " + names.formatted(.list(type: .and, width: .narrow)))
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-            }
-            .font(.callout)
+            OptionWarning(text: message + " " + names.formatted(.list(type: .and, width: .narrow)))
         }
     }
 

@@ -97,9 +97,7 @@ final class NotetypeManager {
         let schemaChange = new.fields.map { $0.hasOrd ? Int($0.ord.val) : -1 } != Array(0..<old.fields.count)
             || new.templates.map { $0.hasOrd ? Int($0.ord.val) : -1 } != Array(0..<old.templates.count)
             || new.config.sortFieldIdx != old.config.sortFieldIdx
-        if schemaChange, !(await schemaAlreadyChanged()),
-           !(await NotetypeAlerts.confirm(NotetypeAlerts.schemaChange, confirm: "Continue"))
-        { return false }
+        if schemaChange, !(await NotetypeAlerts.confirmSchemaChange(backend)) { return false }
         return await save(new)
     }
 
@@ -166,15 +164,11 @@ final class NotetypeManager {
         } catch { failure = ActionFailure("Couldn’t clone the note type", error: error) }
     }
 
-    /// Whether the collection already needs a full upload at the next sync,
-    /// so another schema change costs nothing more (desktop's `schema_changed`).
-    func schemaAlreadyChanged() async -> Bool {
-        let backend = backend
-        return (try? await backend.perform { $0.schemaAlreadyChanged() }) ?? false
-    }
 }
 
 extension AnkiBackend {
+    /// Whether the collection already needs a full upload at the next sync,
+    /// so another schema change costs nothing more (desktop's `schema_changed`).
     nonisolated func schemaAlreadyChanged() -> Bool {
         let query: [String: Any] = ["kind": "query", "sql": "select scm > ls from col", "args": [], "first_row_only": true]
         guard let reply = try? dbCommand(try JSONSerialization.data(withJSONObject: query)),
