@@ -170,6 +170,8 @@ struct DeckOptionsCommands: Commands {
                 .disabled(!model.isLoaded)
             Button(Tr.actionsRename) { if let deck { model.beginRenaming(deck.id) } }
                 .disabled(deck == nil)
+            Button("\(Tr.actionsRenameWithParents)…") { if let deck { model.beginRenamingWithParents(deck.id) } }
+                .disabled(deck == nil || deck?.fullName == deck?.name)
             Button(Tr.actionsDelete) { if let deck { model.deleteDeck(deck.id) } }
                 .disabled(deck == nil)
             Divider()

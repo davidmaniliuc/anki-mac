@@ -123,6 +123,8 @@ final class BrowserModel {
     /// changed and tried again.
     var promptError: String?
     var failure: ActionFailure?
+    /// The notes Export Notes… is exporting, while its sheet is open on this window.
+    var exportNoteIDs: [Int64]?
     /// A short result ("3 notes updated.") that the window shows for a few seconds.
     private(set) var toast: String?
 
@@ -476,10 +478,7 @@ final class BrowserModel {
         guard let selection, let backend = collection.backend else { return }
         Task {
             do {
-                let noteIDs = try await backend.perform { try Self.noteIDs(selection, backend: $0) }
-                collection.selectedExportNoteIDs = noteIDs
-                collection.exportDeckID = nil
-                collection.exportSheetPresented = true
+                exportNoteIDs = try await backend.perform { try Self.noteIDs(selection, backend: $0) }
             } catch {
                 failure = ActionFailure("Couldn’t export the selected notes", error: error)
             }

@@ -530,6 +530,8 @@ private struct EasyDaysSection: View {
 /// workload, under a scale that names the three stops.
 struct EasyDaysSliders: View {
     @Binding var values: [Float]
+    /// False in the simulator, whose values aren't the preset's.
+    var revertible = true
 
     private static let days = [
         Tr.deckConfigEasyDaysMonday, Tr.deckConfigEasyDaysTuesday, Tr.deckConfigEasyDaysWednesday,
@@ -544,7 +546,7 @@ struct EasyDaysSliders: View {
     var body: some View {
         // Over the sliders' column, as a table's column title; each slider
         // reads its stop out instead.
-        OptionRow(title: "") {
+        OptionRow(title: "", revertible: revertible) {
             HStack {
                 Text(Self.stops[0])
                 Spacer()
@@ -560,7 +562,7 @@ struct EasyDaysSliders: View {
         .optionNote()
         ForEach(Self.days.indices, id: \.self) { index in
             let value = values[safe: index] ?? 1
-            OptionRow(title: Self.days[index], isDefault: value == 1, revert: { set(index, 1) }) {
+            OptionRow(title: Self.days[index], isDefault: value == 1, revert: { set(index, 1) }, revertible: revertible) {
                 Slider(value: Binding { Double(value) } set: { set(index, Float($0)) }, in: 0...1, step: 0.5) {
                     Text(Self.days[index])
                 }

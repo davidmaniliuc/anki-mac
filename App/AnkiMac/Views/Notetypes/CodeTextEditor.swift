@@ -33,10 +33,14 @@ struct CodeTextEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.parent = self
         guard let view = scroll.documentView as? NSTextView else { return }
         view.setAccessibilityLabel(label)
         guard view.string != text else { return }
         let range = view.selectedRange()
+        // Other text, such as Card Types' Back after its Front: the undo
+        // steps typed into the old text would land at their places in this.
+        context.coordinator.undo.removeAllActions()
         view.string = text
         // A selection beyond the new text would raise; fall back to the start.
         let length = (text as NSString).length
@@ -46,8 +50,13 @@ struct CodeTextEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        let parent: CodeTextEditor
+        var parent: CodeTextEditor
+        /// The text view's own, not the window's, so it can be emptied
+        /// when the text is replaced.
+        let undo = UndoManager()
         init(_ parent: CodeTextEditor) { self.parent = parent }
+
+        func undoManager(for view: NSTextView) -> UndoManager? { undo }
 
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }

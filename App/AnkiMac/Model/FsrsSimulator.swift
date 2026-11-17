@@ -104,6 +104,7 @@ final class FsrsSimulator: Identifiable {
         let request = request
         let workload = workload
         simulating = true
+        failure = nil
         Task {
             defer { simulating = false }
             do {
@@ -152,6 +153,7 @@ final class FsrsSimulator: Identifiable {
         let backend = options.backend
         computingRetention = true
         retentionIterations = nil
+        failure = nil
         let poll = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Theme.DeckOptions.progressInterval)

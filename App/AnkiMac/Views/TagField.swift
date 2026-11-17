@@ -12,6 +12,8 @@ struct TagField: View {
     var borderless = false
     /// Takes the focus as it appears, as the field a sheet is opened for.
     var focusOnAppear = false
+    /// The text being typed, not yet a tag, for a sheet whose action takes it too.
+    var onTyping: ((String) -> Void)? = nil
 
     @State private var text = ""
     @State private var selectedChip: Int?
@@ -47,7 +49,10 @@ struct TagField: View {
         }
         .contentShape(.rect)
         .onTapGesture { focused = true }
-        .onChange(of: text) { _, new in typed(new) }
+        .onChange(of: text) { _, new in
+            typed(new)
+            onTyping?(text)
+        }
         .onChange(of: focused) { _, focused in
             if !focused {
                 commit(text)

@@ -23,46 +23,49 @@ struct ChangeNotetypeSheet: View {
             title: Tr.browsingChangeNotetype, width: Theme.Browser.changeNotetypeWidth,
             maxHeight: Theme.Browser.changeNotetypeMaxHeight
         ) {
-            OptionSection {
-                OptionRow(title: Tr.changeNotetypeCurrent, revertible: false) {
-                    Text(model.oldNotetypeName)
-                        .font(Theme.DeckOptions.rowFont)
-                        .foregroundStyle(Theme.Palette.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                OptionRow(title: Tr.changeNotetypeNew, revertible: false) {
-                    OptionPicker(
-                        selection: Binding { model.newNotetypeID } set: { model.chooseNotetype($0) },
-                        choices: model.notetypes.map { ($0.id, $0.name) })
-                }
-            }
-            OptionSection(title: Tr.changeNotetypeFields) {
-                ForEach(Array(model.info.newFieldNames.enumerated()), id: \.offset) { index, name in
-                    if model.fields.indices.contains(index) {
-                        mapping(
-                            name, oldNames: model.info.oldFieldNames,
-                            selection: Binding { model.field(index) } set: { model.setField(index, to: $0) })
+            // All of it, the note type too, so nothing changes while it's written.
+            Group {
+                OptionSection {
+                    OptionRow(title: Tr.changeNotetypeCurrent, revertible: false) {
+                        Text(model.oldNotetypeName)
+                            .font(Theme.DeckOptions.rowFont)
+                            .foregroundStyle(Theme.Palette.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    OptionRow(title: Tr.changeNotetypeNew, revertible: false) {
+                        OptionPicker(
+                            selection: Binding { model.newNotetypeID } set: { model.chooseNotetype($0) },
+                            choices: model.notetypes.map { ($0.id, $0.name) })
                     }
                 }
-                discarded(Tr.changeNotetypeWillDiscardContent, model.discardedFields)
-            }
-            OptionSection(title: Tr.changeNotetypeTemplates) {
-                if model.templates.isEmpty {
-                    Text(Tr.changeNotetypeToFromCloze)
-                        .font(Theme.Fonts.caption)
-                        .foregroundStyle(Theme.Palette.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.vertical, Theme.DeckOptions.rowPadding)
-                } else {
-                    ForEach(Array(model.info.newTemplateNames.enumerated()), id: \.offset) { index, name in
-                        if model.templates.indices.contains(index) {
+                OptionSection(title: Tr.changeNotetypeFields) {
+                    ForEach(Array(model.info.newFieldNames.enumerated()), id: \.offset) { index, name in
+                        if model.fields.indices.contains(index) {
                             mapping(
-                                name, oldNames: model.info.oldTemplateNames,
-                                selection: Binding { model.template(index) } set: { model.setTemplate(index, to: $0) })
+                                name, oldNames: model.info.oldFieldNames,
+                                selection: Binding { model.field(index) } set: { model.setField(index, to: $0) })
                         }
                     }
-                    discarded(Tr.changeNotetypeWillDiscardCards, model.discardedTemplates)
+                    discarded(Tr.changeNotetypeWillDiscardContent, model.discardedFields)
+                }
+                OptionSection(title: Tr.changeNotetypeTemplates) {
+                    if model.templates.isEmpty {
+                        Text(Tr.changeNotetypeToFromCloze)
+                            .font(Theme.Fonts.caption)
+                            .foregroundStyle(Theme.Palette.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, Theme.DeckOptions.rowPadding)
+                    } else {
+                        ForEach(Array(model.info.newTemplateNames.enumerated()), id: \.offset) { index, name in
+                            if model.templates.indices.contains(index) {
+                                mapping(
+                                    name, oldNames: model.info.oldTemplateNames,
+                                    selection: Binding { model.template(index) } set: { model.setTemplate(index, to: $0) })
+                            }
+                        }
+                        discarded(Tr.changeNotetypeWillDiscardCards, model.discardedTemplates)
+                    }
                 }
             }
             .disabled(saving)

@@ -182,7 +182,6 @@ struct CardTemplatesView: View {
                 .fixedSize()
                 .padding(.trailing, -Theme.Layout.menuPadding)
                 .disabled(model.editor == .styling)
-                .opacity(model.editor == .styling ? 0.4 : 1)
             }
             CodeBlock(text: $model.text, label: Self.title(model.editor))
             Text(figures(Tr.cardTemplatesChangesWillAffectNotes(count: Int(model.useCount))))

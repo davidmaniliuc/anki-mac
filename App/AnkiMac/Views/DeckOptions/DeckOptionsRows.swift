@@ -370,7 +370,7 @@ struct SettingsSheet<Content: View, Footer: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            SheetHeader(eyebrow: eyebrow, title: title)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight[0] = $0 }
             if let limit = height ?? maxHeight {
                 ScrollView {
@@ -394,7 +394,22 @@ struct SettingsSheet<Content: View, Footer: View>: View {
         .tint(Theme.Palette.accent)
     }
 
-    private var header: some View {
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) { content }
+            .padding(.horizontal, Theme.DeckOptions.margin)
+            .padding(.top, Theme.Spacing.small)
+            .padding(.bottom, Theme.Spacing.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A sheet's Headline at its top margins, under an eyebrow when the sheet
+/// belongs to a deck; shared with the sheets that size themselves.
+struct SheetHeader: View {
+    var eyebrow = ""
+    let title: String
+
+    var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
             if !eyebrow.isEmpty {
                 Eyebrow(eyebrow).lineLimit(1).truncationMode(.head)
@@ -409,14 +424,6 @@ struct SettingsSheet<Content: View, Footer: View>: View {
         .padding(.top, Theme.DeckOptions.margin)
         .padding(.bottom, Theme.Spacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var rows: some View {
-        VStack(alignment: .leading, spacing: Theme.DeckOptions.sectionGap) { content }
-            .padding(.horizontal, Theme.DeckOptions.margin)
-            .padding(.top, Theme.Spacing.small)
-            .padding(.bottom, Theme.Spacing.large)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -476,11 +483,13 @@ enum WarningLevel {
 struct OptionWarning: View {
     let text: String
     var level = WarningLevel.warning
+    /// An error's own words, a server's or the backend's, aren't Markdown.
+    var verbatim = false
 
     var body: some View {
         if !text.isEmpty {
             Label {
-                Text(markdown(text)).fixedSize(horizontal: false, vertical: true)
+                Text(verbatim ? AttributedString(text) : markdown(text)).fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: level.symbol).foregroundStyle(level.color)
             }

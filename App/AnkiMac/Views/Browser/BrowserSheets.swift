@@ -96,7 +96,10 @@ private struct ChangeDeckSheet: View {
                         .id(deck.id)
                     }
                 }
+                // Room for the washes' rounded ends, which reach past the text.
+                .padding(.horizontal, Theme.Layout.washOutset)
             }
+            .padding(.horizontal, -Theme.Layout.washOutset)
             .scrollEdgeEffectHidden(true, for: .vertical)
             .frame(height: Theme.Browser.deckListHeight)
             .accessibilityLabel(Tr.browsingChangeDeck)
@@ -170,6 +173,15 @@ private struct TagsSheet: View {
     let notes: Int
     let known: [String]
     @State private var tags: [String] = []
+    /// A tag still being typed, which the action takes as desktop's line does.
+    @State private var typing = ""
+
+    /// The chips, and the tag being typed.
+    private var allTags: [String] {
+        let typed = typing.trimmingCharacters(in: .whitespaces)
+        return typed.isEmpty || tags.contains(where: { $0.caseInsensitiveCompare(typed) == .orderedSame })
+            ? tags : tags + [typed]
+    }
 
     var body: some View {
         let action = sheetTitle(adding ? Tr.browsingAddTags2 : Tr.browsingRemoveTags)
@@ -177,14 +189,14 @@ private struct TagsSheet: View {
         SettingsSheet(eyebrow: Tr.browsingNoteCount(count: notes), title: action, width: Theme.Browser.sheetWidth) {
             OptionSection {
                 OptionRow(title: question, revertible: false) {
-                    TagField(tags: $tags, complete: complete, focusOnAppear: true)
+                    TagField(tags: $tags, complete: complete, focusOnAppear: true, onTyping: { typing = $0 })
                         .frame(width: Theme.Browser.tagFieldWidth)
                 }
             }
         } footer: {
             Spacer()
-            DialogButtons(action: action, disabled: tags.isEmpty, cancel: model.cancelPrompt) {
-                model.changeTags(adding: adding, tags: tags.joined(separator: " "))
+            DialogButtons(action: action, disabled: allTags.isEmpty, cancel: model.cancelPrompt) {
+                model.changeTags(adding: adding, tags: allTags.joined(separator: " "))
             }
         }
     }

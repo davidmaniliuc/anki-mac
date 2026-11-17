@@ -156,6 +156,8 @@ final class CollectionModel {
     private(set) var undoState = UndoState()
     /// The deck whose name is being edited in the sidebar.
     var renamingDeckID: Int64?
+    /// The deck whose full name the Rename with Parents prompt is asking for.
+    var renamingWithParentsDeckID: Int64?
     /// The Custom Study dialog, while it's open.
     var customStudy: CustomStudyModel?
     /// The selected deck's buried cards, which the overview loads.
@@ -172,14 +174,17 @@ final class CollectionModel {
     var filteredDeck: FilteredDeckModel?
     /// Import and export (File menu, Finder, the Browser's Export Notes).
     var importResult: ImportResult?
-    var importMessage: String?
     var packageImportURL: URL?
+    /// The collection's presets for the .apkg import sheet, read before it opens.
+    var packageImportOptions = Anki_ImportExport_ImportAnkiPackageOptions()
     var packageImportPresented = false
     var csvImport: CsvImportModel?
     var exportSheetPresented = false
     var selectedExportNoteIDs: [Int64]?
     var exportDeckID: Int64?
     var packageOperationInProgress = false
+    /// Why the export or package import on its sheet failed, shown at the sheet's foot.
+    var packageFailure: String?
     /// True while the backend has the collection closed for a package export or replacement.
     var collectionClosed = false
     /// A backup was restored, so for the rest of the session there are no
@@ -493,8 +498,10 @@ final class CollectionModel {
         }
     }
 
-    func login(username: String, password: String) async {
-        guard let backend else { return }
+    /// Signs in and syncs; why it failed otherwise, which the sign-in
+    /// sheet keeps at its foot so the details can be fixed and sent again.
+    func login(username: String, password: String) async -> String? {
+        guard let backend else { return nil }
         do {
             var request = Anki_Sync_SyncLoginRequest()
             request.username = username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -507,8 +514,9 @@ final class CollectionModel {
             scope?.set(request.username, for: "syncUsername")
             syncLoginPresented = false
             await synchronize()
+            return nil
         } catch {
-            syncAlert = ActionFailure.reason(error)
+            return ActionFailure.reason(error)
         }
     }
 

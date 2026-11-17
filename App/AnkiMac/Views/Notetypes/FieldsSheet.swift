@@ -16,8 +16,9 @@ struct FieldsSheet: View {
 
     let original: Anki_Notetypes_Notetype
     let useCount: UInt32
-    /// Writes the edited note type; true when it was saved.
-    let save: (Anki_Notetypes_Notetype) async -> Bool
+    /// Writes the edited note type; true when it was saved, false when the
+    /// sync question was declined. A failure is thrown, to show at the foot.
+    let save: (Anki_Notetypes_Notetype) async throws -> Bool
     @State private var rows: [Row]
     @State private var selection: UUID?
     @State private var sortID: UUID?
@@ -26,9 +27,14 @@ struct FieldsSheet: View {
     @State private var repositioning = false
     /// Desktop's refusal (the last field, a required one), until the next change.
     @State private var message: String?
+    /// While the note type is written, so a second press doesn't write it again.
+    @State private var saving = false
     @Environment(\.dismiss) private var dismiss
 
-    init(notetype: Anki_Notetypes_Notetype, useCount: UInt32, save: @escaping (Anki_Notetypes_Notetype) async -> Bool) {
+    init(
+        notetype: Anki_Notetypes_Notetype, useCount: UInt32,
+        save: @escaping (Anki_Notetypes_Notetype) async throws -> Bool
+    ) {
         original = notetype
         self.useCount = useCount
         self.save = save
@@ -239,7 +245,7 @@ struct FieldsSheet: View {
             Spacer(minLength: Theme.Spacing.small)
             // Off while a name is typed, so Return and Esc are the field's.
             DialogButtons(
-                action: Tr.actionsSave, disabled: editing != nil, cancelDisabled: editing != nil,
+                action: Tr.actionsSave, disabled: editing != nil || saving, cancelDisabled: editing != nil || saving,
                 cancel: cancel, submit: commit)
         }
         .padding(.horizontal, Theme.DeckOptions.margin)
@@ -351,9 +357,16 @@ struct FieldsSheet: View {
     }
 
     private func commit() {
+        guard !saving else { return }
+        saving = true
         let edited = edited
         Task {
-            if await save(edited) { dismiss() }
+            defer { saving = false }
+            do {
+                if try await save(edited) { dismiss() }
+            } catch {
+                message = ActionFailure.reason(error)
+            }
         }
     }
 }

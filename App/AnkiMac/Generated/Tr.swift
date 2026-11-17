@@ -1261,6 +1261,16 @@ nonisolated enum Tr {
     static let exportingIncludeNotetype = "Include note type name"
     static let exportingIncludeGuid = "Include unique identifier"
     static let exportingCollection = "collection"
+    static func exportingNoteExported(count: some TrNumber) -> String {
+        (count.trValue == 1 ? (Tr.number(count) + " note exported.") : (Tr.number(count) + " notes exported."))
+    }
+    static func exportingCardExported(count: some TrNumber) -> String {
+        (count.trValue == 1 ? (Tr.number(count) + " card exported.") : (Tr.number(count) + " cards exported."))
+    }
+    static let exportingCollectionExported = "Collection exported."
+    static func importingUnableToImportFilename(filename: String) -> String {
+        ("Unable to import " + filename + ": file type not supported")
+    }
     static let importingMergeNotetypes = "Merge note types"
     static let importingMergeNotetypesHelp = "If checked, and you or the deck author altered the schema of a note type, Anki will merge the two versions instead of keeping both.\n\nAltering a note type's schema means adding, removing, or reordering fields or templates, or changing the sort field. As a counterexample, changing the front side of an existing template does *not* constitute a schema change.\n\nWarning: This will require a one-way sync, and may mark existing notes as modified."
     static let importingUpdateIfNewer = "If newer"
@@ -1293,12 +1303,21 @@ nonisolated enum Tr {
     static func importingNotesFailed(count: some TrNumber) -> String {
         (count.trValue == 1 ? (Tr.number(count) + " note could not be imported.") : (Tr.number(count) + " notes could not be imported."))
     }
-    static func importingConflictingNotesSkipped(count: some TrNumber) -> String {
-        (count.trValue == 1 ? (Tr.number(count) + " note was not imported, because its note type has changed.") : (Tr.number(count) + " notes were not imported, because their note type has changed."))
-    }
-    static func importingConflictingNotesSkipped2(count: some TrNumber) -> String {
-        (count.trValue == 1 ? (Tr.number(count) + " note was not imported, because its note type has changed, and '" + "Merge note types" + "' was not enabled.") : (Tr.number(count) + " notes were not imported, because their note type has changed, and '" + "Merge note types" + "' was not enabled."))
-    }
+    static let importingAlsoImportProgress = "Import any learning progress"
+    static let importingOverview = "Overview"
+    static let importingDetails = "Details"
+    static let importingShow = "Show"
+    static let importingAdded = "Added"
+    static let importingSkipped = "Skipped"
+    static let importingUpdated = "Updated"
+    static let importingAddedNewNote = "New note added"
+    static let importingDuplicateNoteAdded = "Duplicate note added"
+    static let importingExistingNoteSkipped = "Note skipped, as an up-to-date copy is already in your collection"
+    static let importingNoteUpdatedAsFileHadNewer = "Note updated, as file had newer version"
+    static let importingNoteSkippedUpdateDueToNotetype2 = ("Note not updated, as note type has been modified since you first imported the note, and '" + "Merge note types" + "' was not enabled")
+    static let importingNoteSkippedDueToMissingNotetype = "Note skipped, as its notetype was missing"
+    static let importingNoteSkippedDueToMissingDeck = "Note skipped, as its deck was missing"
+    static let importingNoteSkippedDueToEmptyFirstField = "Note skipped, as its first field is empty"
     static let importingImportOptions = "Import options"
     static let importingUpdates = "Updates"
     static let importingTab = "Tab"
@@ -1439,6 +1458,9 @@ nonisolated enum Tr {
     }
     static func browsingNotesUpdated(count: some TrNumber) -> String {
         (count.trValue == 1 ? (Tr.number(count) + " note updated.") : (Tr.number(count) + " notes updated."))
+    }
+    static func browsingCardsUpdated(count: some TrNumber) -> String {
+        (count.trValue == 1 ? (Tr.number(count) + " card updated.") : (Tr.number(count) + " cards updated."))
     }
     static let browsingAddNotes = "Add Notes..."
     static let editingImageOcclusionSelectTool = "Select"

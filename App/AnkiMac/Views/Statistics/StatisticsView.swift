@@ -543,12 +543,16 @@ extension IntervalRange: TitledChoice {}
 extension PercentageRange: TitledChoice {}
 extension TrueRetentionGraph.Mode: TitledChoice {}
 
-/// Desktop's empty graph.
-private struct NoData: View {
+/// Desktop's empty graph, in its chart's place. Upstream writes "NO DATA";
+/// capitals are the eyebrows' alone, so it reads as a sentence.
+struct NoData: View {
+    var height = Theme.Statistics.chartHeight
+
     var body: some View {
-        Text(Tr.statisticsNoData)
+        let words = Tr.statisticsNoData.lowercased()
+        Text(words.prefix(1).uppercased() + words.dropFirst())
             .font(Theme.Fonts.lead)
             .foregroundStyle(Theme.Palette.tertiary)
-            .frame(maxWidth: .infinity, minHeight: Theme.Statistics.chartHeight)
+            .frame(maxWidth: .infinity, minHeight: height)
     }
 }

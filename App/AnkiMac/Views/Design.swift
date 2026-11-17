@@ -767,7 +767,7 @@ struct QuietButtonStyle: ButtonStyle {
             configuration.label
                 .padding(.horizontal, inset)
                 .foregroundStyle(selected || hovered && isEnabled ? Theme.Palette.text : Theme.Palette.secondary)
-                .opacity(isEnabled ? 1 : 0.4)
+                .opacity(isEnabled ? 1 : Theme.Layout.disabledOpacity)
                 .background(RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
                     .fill(configuration.isPressed || selected ? Theme.Palette.selection
                         : hovered && isEnabled ? Theme.Palette.hover : .clear))
@@ -810,16 +810,19 @@ struct QuietSegments<Choice: Hashable>: View {
         private struct SegmentBody: View {
             let configuration: Configuration
             let chosen: Bool
+            @Environment(\.isEnabled) private var isEnabled
             @State private var hovered = false
 
             var body: some View {
+                let lit = hovered && isEnabled
                 configuration.label
                     .font(Theme.Fonts.chip)
-                    .foregroundStyle(chosen || hovered ? Theme.Palette.text : Theme.Palette.secondary)
+                    .foregroundStyle(chosen || lit ? Theme.Palette.text : Theme.Palette.secondary)
                     .padding(.horizontal, Theme.Layout.segmentPadding)
                     .frame(height: Theme.Layout.controlHeight)
                     .background(Capsule().fill(
-                        chosen || configuration.isPressed ? Theme.Palette.selection : hovered ? Theme.Palette.hover : .clear))
+                        chosen || configuration.isPressed ? Theme.Palette.selection : lit ? Theme.Palette.hover : .clear))
+                    .opacity(isEnabled ? 1 : Theme.Layout.disabledOpacity)
                     .contentShape(Capsule())
                     .onHover { hovered = $0 }
             }
@@ -833,17 +836,20 @@ struct MenuHover<S: InsettableShape>: ViewModifier {
     let shape: S
     var fill: Color = .clear
     var inset = Theme.Layout.menuPadding
+    @Environment(\.isEnabled) private var isEnabled
     @State private var hovered = false
 
+    /// Off, it fades as a chip does and takes no hover wash.
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, inset)
             .padding(.vertical, Theme.Spacing.xxSmall)
             .background {
                 shape.fill(fill)
-                shape.fill(hovered ? Theme.Palette.hover : .clear)
+                shape.fill(hovered && isEnabled ? Theme.Palette.hover : .clear)
             }
             .overlay { if fill != .clear { shape.strokeBorder(Theme.Palette.hairline) } }
+            .opacity(isEnabled ? 1 : Theme.Layout.disabledOpacity)
             .contentShape(shape)
             .onHover { hovered = $0 }
     }
@@ -978,14 +984,27 @@ struct PrimaryButtonStyle: ButtonStyle {
     var muted = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(compact ? Theme.Fonts.compactButton : Theme.Fonts.button)
-            .foregroundStyle(muted ? Theme.Palette.secondary : .white)
-            .padding(.horizontal, compact ? Theme.Layout.compactPrimaryPadding : Theme.Layout.primaryPadding)
-            .frame(height: compact ? Theme.Layout.controlHeight : Theme.Layout.primaryHeight)
-            .contentShape(.capsule)
-            .glassEffect(.regular.tint(muted ? nil : Theme.Palette.accent).interactive(), in: Capsule())
-            .animation(.easeOut(duration: 0.2), value: muted)
+        PrimaryButton(label: configuration.label, compact: compact, muted: muted)
+    }
+
+    /// Off reads as muted too, but doesn't answer the press.
+    private struct PrimaryButton: View {
+        let label: Configuration.Label
+        let compact: Bool
+        let muted: Bool
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            let grey = muted || !isEnabled
+            label
+                .font(compact ? Theme.Fonts.compactButton : Theme.Fonts.button)
+                .foregroundStyle(grey ? Theme.Palette.secondary : .white)
+                .padding(.horizontal, compact ? Theme.Layout.compactPrimaryPadding : Theme.Layout.primaryPadding)
+                .frame(height: compact ? Theme.Layout.controlHeight : Theme.Layout.primaryHeight)
+                .contentShape(.capsule)
+                .glassEffect(.regular.tint(grey ? nil : Theme.Palette.accent).interactive(isEnabled), in: Capsule())
+                .animation(.easeOut(duration: 0.2), value: grey)
+        }
     }
 }
 
@@ -1020,6 +1039,33 @@ struct DialogButtons: View {
     }
 }
 
+/// The sheet's one primary when there is nothing left to do but read:
+/// Close, which Return and Esc both press, as a Mac alert's OK.
+struct CloseButton: View {
+    let disabled: Bool
+    let close: () -> Void
+
+    var body: some View {
+        Button(action: close) {
+            HStack(spacing: Theme.Layout.keyCapGap) {
+                Text(Tr.actionsClose)
+                KeyCap("\u{21A9}", onAccent: true)
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle(compact: true))
+        .keyboardShortcut(.defaultAction)
+        .disabled(disabled)
+        .background {
+            Button(Tr.actionsClose, action: close)
+                .keyboardShortcut(.cancelAction)
+                .disabled(disabled)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 /// Secondary actions, as small rounded chips that brighten under the
 /// pointer and dip when pressed.
 struct ChipButtonStyle: ButtonStyle {
@@ -1045,7 +1091,7 @@ struct ChipButtonStyle: ButtonStyle {
                         : hovered && isEnabled ? Theme.Palette.hover : .clear)
                 }
                 .overlay(Capsule().strokeBorder(Theme.Palette.hairline))
-                .opacity(isEnabled ? 1 : 0.4)
+                .opacity(isEnabled ? 1 : Theme.Layout.disabledOpacity)
                 .contentShape(Capsule())
                 .onHover { hovered = $0 }
         }
@@ -1159,13 +1205,14 @@ private final class SwipeTracker {
 }
 
 /// A line in its own face with each number in the rounded one, as every
-/// count is: a report's lines, a note type's "12 notes".
-func figures(_ line: String) -> AttributedString {
+/// count is: a report's lines, a note type's "12 notes". A denser table
+/// passes its own figures.
+func figures(_ line: String, font: Font = Theme.Maintenance.figures) -> AttributedString {
     var text = AttributedString(line)
     for match in line.matches(of: #/\d+(?:[.,]\d+)*/#) {
         let start = text.characters.index(text.startIndex, offsetBy: line.distance(from: line.startIndex, to: match.range.lowerBound))
         let end = text.characters.index(start, offsetBy: match.output.count)
-        text[start..<end].swiftUI.font = Theme.Maintenance.figures
+        text[start..<end].swiftUI.font = font
     }
     return text
 }

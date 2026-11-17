@@ -116,7 +116,49 @@ struct BarsDescriptor: AXChartDescriptorRepresentable {
     }
 }
 
+/// The same for a chart of lines: each line a series by name, at most
+/// `limit` of its points, since a curve is drawn from a thousand.
+struct LinesDescriptor: AXChartDescriptorRepresentable {
+    struct Line {
+        let name: String
+        let points: [(x: Double, y: Double)]
+    }
+
+    let title: String
+    let xTitle: String
+    let yTitle: String
+    let lines: [Line]
+    let xLabel: (Double) -> String
+    let yLabel: (Double) -> String
+    var limit = 200
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let xs = lines.flatMap { $0.points.map(\.x) }
+        let ys = lines.flatMap { $0.points.map(\.y) }
+        let x = AXNumericDataAxisDescriptor(
+            title: xTitle, range: (xs.min() ?? 0)...(xs.max() ?? 0), gridlinePositions: []) { xLabel($0) }
+        let y = AXNumericDataAxisDescriptor(
+            title: yTitle, range: (ys.min() ?? 0)...(ys.max() ?? 0), gridlinePositions: []) { yLabel($0) }
+        let series = lines.map { line in
+            let stride = max(1, Int((Double(line.points.count) / Double(limit)).rounded(.up)))
+            return AXDataSeriesDescriptor(
+                name: line.name, isContinuous: true,
+                dataPoints: line.points.indices.filter { $0 % stride == 0 }.map {
+                    AXDataPoint(x: line.points[$0].x, y: line.points[$0].y)
+                })
+        }
+        return AXChartDescriptor(title: title, summary: nil, xAxis: x, yAxis: y, additionalAxes: [], series: series)
+    }
+}
+
 extension View {
+    /// Names a chart and hands VoiceOver its lines.
+    func chartAccessibility(_ lines: LinesDescriptor) -> some View {
+        accessibilityElement(children: .ignore)
+            .accessibilityLabel(lines.title)
+            .accessibilityChartDescriptor(lines)
+    }
+
     /// Names a chart and hands VoiceOver its bars.
     func chartAccessibility(_ title: String, _ points: [BarsDescriptor.Point],
                             valueLabel: @escaping (Double) -> String = { localizedNumber($0) }) -> some View {

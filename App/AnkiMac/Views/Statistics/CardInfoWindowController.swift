@@ -57,16 +57,36 @@ final class CardInfoWindowController: NSWindowController, NSWindowDelegate {
         self.kind = kind
         model = CardInfoModel(backend: collection.backend!)
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: Theme.Statistics.cardInfoSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(origin: .zero, size: Theme.CardInfo.size),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = kind.title
-        let host = NSHostingController(rootView: CardInfoView(model: model))
+        let host = NSHostingView(rootView: CardInfoView(
+            model: model, title: kind.title, close: { [weak window] in window?.close() }))
+        // The band starts at the window's top, under the traffic lights.
+        host.safeAreaRegions = []
         host.sizingOptions = []
-        window.contentViewController = host
-        window.setContentSize(Theme.Statistics.cardInfoSize)
-        window.contentMinSize = Theme.Statistics.cardInfoMinSize
+        // Inside a plain view, as Add's, so the hosting view never resizes the window.
+        host.autoresizingMask = [.width, .height]
+        let content = NSView(frame: NSRect(origin: .zero, size: Theme.CardInfo.size))
+        host.frame = content.bounds
+        content.addSubview(host)
+        window.contentView = content
+        // The title names the window in the Window menu; the band shows it too.
+        window.title = kind.title
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = Theme.Palette.canvasNS
+        // An empty toolbar, only so the traffic lights sit centred in the band.
+        let toolbar = NSToolbar(identifier: "CardInfo")
+        toolbar.allowsDisplayModeCustomization = false
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        // It sits beside the study screen or the Browser, so it can join
+        // their full-screen space, and its green button zooms.
+        window.collectionBehavior = [.fullScreenAuxiliary]
+        window.contentMinSize = Theme.CardInfo.minSize
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self

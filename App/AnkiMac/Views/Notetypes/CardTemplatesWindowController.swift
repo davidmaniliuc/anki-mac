@@ -12,6 +12,8 @@ final class CardTemplatesWindowController: NSWindowController, NSWindowDelegate 
     private let model: CardTemplatesModel
     private let chrome = BandChrome()
     private var closing = false
+    /// While the note type is written, so ⌘S twice doesn't write it twice.
+    private var saving = false
 
     static func show(
         manager: NotetypeManager, notetype: Anki_Notetypes_Notetype, useCount: UInt32, mediaFolder: URL?,
@@ -93,8 +95,13 @@ final class CardTemplatesWindowController: NSWindowController, NSWindowDelegate 
 
     /// Saves, closing once the note type is written; a failure stays open.
     func save() {
+        guard !saving else { return }
+        saving = true
         window?.makeFirstResponder(nil)
-        Task { if await model.save() { forceClose() } }
+        Task {
+            defer { saving = false }
+            if await model.save() { forceClose() }
+        }
     }
 
     private func forceClose() {

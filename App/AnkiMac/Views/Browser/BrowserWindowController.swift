@@ -17,6 +17,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var previewer: BrowserPreviewWindowController?
     private var presentingAlert = false
     private var promptSheet: NSViewController?
+    private var exportSheet: NSViewController?
     private var findDuplicates: FindDuplicatesWindowController?
 
     /// Shows the browser, creating it on first use. The first search starts
@@ -134,7 +135,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         }
         track { [weak self] in
             guard let self else { return }
-            showPrompt(model.prompt)
+            // Shown outside the tracking: presenting lays the sheet out, and
+            // whatever that reads would otherwise take it down and put it
+            // back at the next change, losing what was typed in it.
+            let prompt = model.prompt
+            DispatchQueue.main.async { self.showPrompt(prompt) }
+        }
+        track { [weak self] in
+            guard let self else { return }
+            // Outside the tracking, as the prompt is.
+            let noteIDs = model.exportNoteIDs
+            DispatchQueue.main.async { self.showExport(noteIDs) }
         }
         track { [weak self] in
             guard let self else { return }
@@ -143,14 +154,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             let selection = model.selection
             DispatchQueue.main.async { self.editor?.show(selection) }
         }
-        track { [weak self] in
-            guard let self else { return }
-            if let notes = model.notesToDelete {
-                confirmDelete(count: notes.count)
-            } else if let failure = model.failure {
-                showError(failure)
-            }
-        }
+        track { [weak self] in self?.showAlert() }
     }
 
     func showFindDuplicates() {
@@ -193,6 +197,37 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         content.presentAsSheet(sheet)
     }
 
+    /// Export Notes… on this window, where it was asked for, rather than on
+    /// the main window behind it. Its result is the window's toast.
+    private func showExport(_ noteIDs: [Int64]?) {
+        if let exportSheet {
+            exportSheet.dismiss(nil)
+            self.exportSheet = nil
+        }
+        guard let noteIDs, let content = window?.contentViewController else { return }
+        let sheet = NSHostingController(rootView: ImportExportSheet(
+            selectedNoteIDs: noteIDs, initialDeckID: nil,
+            close: { [weak model] in model?.exportNoteIDs = nil },
+            notify: { [weak model] text in
+                model?.showToast(text)
+                AccessibilityNotification.Announcement(text).post()
+            }
+        ).environment(model.collection))
+        sheet.sizingOptions = .preferredContentSize
+        exportSheet = sheet
+        content.presentAsSheet(sheet)
+    }
+
+    /// The delete question or a failure, one at a time: what arrives while
+    /// one is up waits for it to close.
+    private func showAlert() {
+        if let notes = model.notesToDelete {
+            confirmDelete(count: notes.count)
+        } else if let failure = model.failure {
+            showError(failure)
+        }
+    }
+
     private func confirmDelete(count: Int) {
         guard let window, !presentingAlert else { return }
         presentingAlert = true
@@ -212,6 +247,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             } else {
                 model.notesToDelete = nil
             }
+            showAlert()
         }
     }
 
@@ -224,6 +260,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         alert.beginSheetModal(for: window) { [weak self] _ in
             self?.presentingAlert = false
             self?.model.failure = nil
+            self?.showAlert()
         }
     }
 

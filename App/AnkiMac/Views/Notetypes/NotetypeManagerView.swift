@@ -40,11 +40,13 @@ struct NotetypeManagerView: View {
         }
         .sheet(item: $fieldsFor) { notetype in
             FieldsSheet(notetype: notetype, useCount: model.selected?.useCount ?? 0) { edited in
-                await model.confirmAndSave(old: notetype, new: edited)
+                try await model.confirmAndSave(old: notetype, new: edited)
             }
         }
         .sheet(item: $optionsFor) { notetype in
-            NotetypeOptionsSheet(notetype: notetype) { changed in Task { await model.save(changed) } }
+            NotetypeOptionsSheet(notetype: notetype) { changed in
+                Task { await model.save(changed, editedFrom: notetype) }
+            }
         }
     }
 

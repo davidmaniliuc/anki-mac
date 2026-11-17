@@ -21,6 +21,8 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     /// The row whose name is being edited in place.
     var editing: Row?
     var cancelledEdit = false
+    /// A reload that came while a name was typed, done once it's kept.
+    var reloadAfterEdit = false
     /// Set by the window before the view loads, for the sidebar button.
     var chrome: BrowserChrome?
 
@@ -59,6 +61,9 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         outline.outlineTableColumn = column
         outline.dataSource = self
         outline.delegate = self
+        outline.registerForDraggedTypes([BrowserDrag.row, BrowserDrag.deck, BrowserDrag.tag])
+        outline.setDraggingSourceOperationMask(.move, forLocal: true)
+        outline.setDraggingSourceOperationMask([], forLocal: false)
 
         let scroll = NSScrollView()
         scroll.contentView = VerticalClipView()
@@ -127,11 +132,15 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
     /// Shows the sections again after a change, keeping what was expanded and
     /// selected. A header or parent that gained its first children opens, and
     /// the row the change made or renamed is revealed and selected.
-    private func show(_ sections: [SidebarSection]?) {
+    func show(_ sections: [SidebarSection]?) {
         // Empty until the first load: shown as a tree, it would count as
         // one with every row folded, and the load after it as a reload.
         guard let sections, !sections.isEmpty, sections != shown else { return }
-        cancelEdit()
+        // It waits for a name being typed, rather than dropping it.
+        guard editing == nil else {
+            reloadAfterEdit = true
+            return
+        }
         let change = model.sidebarChange
         var kept = shown == nil ? nil : snapshot(roots)
         if let rename = change?.tagRename { kept?.renameTags(rename) }
@@ -327,6 +336,77 @@ final class BrowserSidebarController: NSViewController, NSOutlineViewDataSource,
         model.search(item)
     }
 
+    // MARK: Drag and drop
+
+    /// Decks and tags drag, to move under another, as desktop's sidebar.
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+        switch (item as? Row)?.item {
+        case .deck(let id, _): BrowserDrag.item(String(id), type: BrowserDrag.deck)
+        case .tag(let name): BrowserDrag.item(name, type: BrowserDrag.tag)
+        default: nil
+        }
+    }
+
+    /// Always onto the row under the pointer, never between rows: a drop
+    /// files what's dragged under that row, wherever the outline would put it.
+    func outlineView(
+        _ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int
+    ) -> NSDragOperation {
+        let point = outline.convert(info.draggingLocation, from: nil)
+        guard let target = outline.item(atRow: outline.row(at: point)) as? Row else { return [] }
+        let operation = dropOperation(info.draggingPasteboard, on: target)
+        if !operation.isEmpty { outline.setDropItem(target, dropChildIndex: NSOutlineViewDropOnItemIndex) }
+        return operation
+    }
+
+    /// Table rows go onto a deck, tag or flag; decks onto another deck or the
+    /// Decks section, for the top level; tags likewise. A deck or tag can't
+    /// go inside itself.
+    private func dropOperation(_ pasteboard: NSPasteboard, on target: Row) -> NSDragOperation {
+        if BrowserDrag.selection(pasteboard) != nil {
+            guard let item = target.item, model.acceptsRows(on: item) else { return [] }
+            return item.kind == .deck ? .move : .generic
+        }
+        let deckIDs = Set(BrowserDrag.deckIDs(pasteboard))
+        if !deckIDs.isEmpty {
+            if target.id == .header(.deckRoot) { return .move }
+            // A filtered deck can't hold others.
+            guard case .deck(let id, _) = target.item, model.collection.deck(id)?.filtered != true else { return [] }
+            var ancestor: Row? = target
+            while let row = ancestor {
+                if case .deck(let rowID, _) = row.item, deckIDs.contains(rowID) { return [] }
+                ancestor = outline.parent(forItem: row) as? Row
+            }
+            return .move
+        }
+        let tags = BrowserDrag.tags(pasteboard)
+        if !tags.isEmpty {
+            if target.id == .header(.tagRoot) { return .move }
+            guard case .tag(let name) = target.item else { return [] }
+            let inside = tags.contains { tag in
+                name.caseInsensitiveCompare(tag) == .orderedSame
+                    || name.lowercased().hasPrefix(tag.lowercased() + "::")
+            }
+            return inside ? [] : .move
+        }
+        return []
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        guard let target = item as? Row, !dropOperation(info.draggingPasteboard, on: target).isEmpty else { return false }
+        let pasteboard = info.draggingPasteboard
+        if let selection = BrowserDrag.selection(pasteboard), let item = target.item {
+            model.dropRows(selection, on: item)
+        } else if !BrowserDrag.deckIDs(pasteboard).isEmpty {
+            var parentID: Int64 = 0
+            if case .deck(let id, _) = target.item { parentID = id }
+            model.moveDecks(BrowserDrag.deckIDs(pasteboard), under: parentID)
+        } else {
+            model.moveTags(BrowserDrag.tags(pasteboard), under: target.item?.fullName ?? "")
+        }
+        return true
+    }
+
     /// NSOutlineView keys rows by object identity, so the value-type tree is
     /// wrapped in objects once per load.
     final class Row {
@@ -480,6 +560,12 @@ private final class SidebarRowView: WashRowView {
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
         if hovered, !isSelected, !isGroupRowStyle { fillWash(Theme.Palette.hoverNS) }
+    }
+
+    /// The row a drag would drop on takes an accent wash in the selection's
+    /// shape, in place of the system's blue frame.
+    override func drawDraggingDestinationFeedback(in dirtyRect: NSRect) {
+        fillWash(Theme.Palette.dropTargetNS)
     }
 }
 

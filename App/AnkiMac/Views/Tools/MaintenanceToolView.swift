@@ -370,33 +370,6 @@ struct MaintenanceToolView: View {
     }
 }
 
-/// The sheet's one primary when there is nothing left to do but read:
-/// Close, which Return and Esc both press, as a Mac alert's OK.
-private struct CloseButton: View {
-    let disabled: Bool
-    let close: () -> Void
-
-    var body: some View {
-        Button(action: close) {
-            HStack(spacing: Theme.Layout.keyCapGap) {
-                Text(Tr.actionsClose)
-                KeyCap("\u{21A9}", onAccent: true)
-            }
-        }
-        .buttonStyle(PrimaryButtonStyle(compact: true))
-        .keyboardShortcut(.defaultAction)
-        .disabled(disabled)
-        .background {
-            Button(Tr.actionsClose, action: close)
-                .keyboardShortcut(.cancelAction)
-                .disabled(disabled)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
 /// A note with empty cards: its id in rounded Pencil, as desktop links it,
 /// then which cards are empty. A click shows it in the Browser, the arrow
 /// appearing under the pointer as a row's actions do.
@@ -422,6 +395,7 @@ private struct EmptyNoteRow: View {
                     .font(Theme.Maintenance.browseSymbol)
                     .foregroundStyle(Theme.Palette.secondary)
                     .opacity(hovered ? 1 : 0)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, Theme.Spacing.small)
             .frame(height: Theme.Maintenance.rowHeight)

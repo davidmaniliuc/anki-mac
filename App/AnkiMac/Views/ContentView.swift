@@ -267,21 +267,15 @@ private struct ImportExportPrompts: ViewModifier {
                 .environment(model)
         }
         .sheet(isPresented: Binding { model.packageImportPresented } set: { model.packageImportPresented = $0 }) {
-            if let url = model.packageImportURL { ImportOptionsSheet(url: url).environment(model) }
+            if let url = model.packageImportURL {
+                ImportOptionsSheet(url: url, presets: model.packageImportOptions).environment(model)
+            }
         }
         .sheet(item: Binding { model.csvImport } set: { model.csvImport = $0 }) { draft in
             CsvImportSheet(draft: draft).environment(model)
         }
         .sheet(item: Binding { model.importResult } set: { model.importResult = $0 }) { result in
             ImportLogSheet(result: result)
-        }
-        .alert(
-            Tr.importingImportingComplete,
-            isPresented: Binding { model.importMessage != nil } set: { if !$0 { model.importMessage = nil } }
-        ) {
-            Button("OK") {}
-        } message: {
-            Text(model.importMessage ?? "")
         }
     }
 }
@@ -327,6 +321,19 @@ private struct DeckPrompts: ViewModifier {
                     study: study, deckName: model.deck(study.deckID)?.fullName ?? "",
                     cancel: { model.customStudy = nil },
                     done: { model.customStudyDone(selecting: $0) })
+            }
+            .sheet(isPresented: Binding { model.renamingWithParentsDeckID != nil } set: {
+                if !$0 { model.renamingWithParentsDeckID = nil }
+            }) {
+                if let deck = model.renamingWithParentsDeckID.flatMap(model.deck) {
+                    TextPromptSheet(
+                        title: Tr.actionsRenameDeck, label: rowTitle(Tr.actionsNewName), action: Tr.actionsRename,
+                        initial: deck.fullName
+                    ) { text in
+                        let name = text.replacingOccurrences(of: "\"", with: "")
+                        if !name.isEmpty, name != deck.fullName { model.renameDeck(deck.id, to: name) }
+                    }
+                }
             }
             .sheet(item: Binding { model.descriptionEdit } set: { model.descriptionEdit = $0 }) { edit in
                 DeckDescriptionSheet(

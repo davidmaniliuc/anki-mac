@@ -50,6 +50,9 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         // Typing jumps to a row by its first column, which means little when
         // that column is a due date; desktop has no type-select either.
         table.allowsTypeSelect = false
+        // Rows drag onto the sidebar's decks, tags and flags, and nowhere else.
+        table.setDraggingSourceOperationMask([.move, .generic], forLocal: true)
+        table.setDraggingSourceOperationMask([], forLocal: false)
         table.dataSource = self
         table.delegate = self
         rowMenu.delegate = self
@@ -207,6 +210,11 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             ?? BrowserRowView()
         view.color = model.row(at: row)?.color ?? .default
         return view
+    }
+
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard model.ids.indices.contains(row) else { return nil }
+        return BrowserDrag.item(model.mode, id: model.ids[row])
     }
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {

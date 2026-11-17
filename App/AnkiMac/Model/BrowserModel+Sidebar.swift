@@ -60,6 +60,80 @@ extension BrowserModel {
         }
     }
 
+    /// Moves the decks under `parentID`, 0 for the top level, as desktop's
+    /// sidebar does when decks are dropped.
+    func moveDecks(_ deckIDs: [Int64], under parentID: Int64) {
+        let moving = deckIDs.filter { $0 != parentID }
+        guard let first = moving.first else { return }
+        change(failing: (moving.count == 1 ? "Couldn’t move the deck" : "Couldn’t move the decks"), searchAgain: true, sidebar: SidebarChange(reveal: .deck(first))) { backend in
+            var request = Anki_Decks_ReparentDecksRequest()
+            request.deckIds = moving
+            request.newParent = parentID
+            _ = try backend.reparentDecks(request)
+        }
+    }
+
+    /// Moves the tags and their children under `parent`, "" for the top level.
+    func moveTags(_ names: [String], under parent: String) {
+        guard let first = names.first, let leaf = first.components(separatedBy: "::").last else { return }
+        let reveal = SidebarItem.ID.tag(parent.isEmpty ? leaf : "\(parent)::\(leaf)")
+        change(failing: (names.count == 1 ? "Couldn’t move the tag" : "Couldn’t move the tags"), searchAgain: true, sidebar: SidebarChange(reveal: reveal)) { backend in
+            var request = Anki_Tags_ReparentTagsRequest()
+            request.tags = names
+            request.newParent = parent
+            return Int(try backend.reparentTags(request).count)
+        } then: { count in
+            self.showToast(Tr.browsingNotesUpdated(count: count))
+        }
+    }
+
+    // MARK: Dropped rows
+
+    /// Whether table rows can be dropped on the row: a deck takes their
+    /// cards, unless it's filtered; a tag is added to their notes; a flag is
+    /// set on their cards.
+    func acceptsRows(on item: SidebarItem) -> Bool {
+        switch item {
+        case .deck(let id, _): collection.deck(id)?.filtered != true
+        case .tag, .flag: true
+        case .savedSearch, .cardState, .notetype: false
+        }
+    }
+
+    func dropRows(_ selection: Selection, on item: SidebarItem) {
+        switch item {
+        case .deck(let deckID, _):
+            change(failing: "Couldn’t move the cards", searchAgain: true) { backend in
+                var request = Anki_Cards_SetDeckRequest()
+                request.cardIds = try Self.cardIDs(selection, backend: backend)
+                request.deckID = deckID
+                return Int(try backend.setDeck(request).count)
+            } then: { count in
+                self.showToast(Tr.browsingCardsUpdated(count: count))
+            }
+        case .tag(let name):
+            change(failing: "Couldn’t add the tags", searchAgain: true) { backend in
+                var request = Anki_Tags_NoteIdsAndTagsRequest()
+                request.noteIds = try Self.noteIDs(selection, backend: backend)
+                request.tags = name
+                return Int(try backend.addNoteTags(request).count)
+            } then: { count in
+                self.showToast(Tr.browsingNotesUpdated(count: count))
+            }
+        case .flag(let flag):
+            change(failing: "Couldn’t change the flag") { backend in
+                var request = Anki_Cards_SetFlagRequest()
+                request.cardIds = try Self.cardIDs(selection, backend: backend)
+                request.flag = UInt32(flag.rawValue)
+                return Int(try backend.setFlag(request).count)
+            } then: { count in
+                self.showToast(Tr.browsingCardsUpdated(count: count))
+            }
+        case .savedSearch, .cardState, .notetype:
+            break
+        }
+    }
+
     // MARK: Saved searches
 
     func savedSearch(named name: String) -> String? {

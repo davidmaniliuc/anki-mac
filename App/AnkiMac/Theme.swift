@@ -16,6 +16,7 @@ enum Theme {
         static let raised = Color(nsColor: raisedNS)
         static let hover = Color(nsColor: hoverNS)
         static let selection = Color(nsColor: selectionNS)
+        static let dropTarget = Color(nsColor: dropTargetNS)
         static let hairline = Color(nsColor: hairlineNS)
 
         static let text = Color(nsColor: textNS)
@@ -31,6 +32,8 @@ enum Theme {
         static let raisedNS = appKit(raisedHex.light, raisedHex.dark)
         static let selectionNS = appKit(0x000000, 0xFFFFFF, alpha: (0.07, 0.09))
         static let hoverNS = appKit(0x000000, 0xFFFFFF, alpha: (0.04, 0.05))
+        /// The row a drag would drop on: the accent, washed out.
+        static let dropTargetNS = appKit(accentHex.light, accentHex.dark, alpha: (0.16, 0.28))
         static let hairlineNS = appKit(0x000000, 0xFFFFFF, alpha: (0.08, 0.07))
         static let textNS = appKit(textHex.light, textHex.dark)
         static let secondaryNS = appKit(secondaryHex.light, secondaryHex.dark)
@@ -116,6 +119,21 @@ enum Theme {
         static let arrowScroll: CGFloat = 60
         /// Each level of a deck tree steps in this far.
         static let indent: CGFloat = 14
+        /// A deck row's disclosure arrow, or the space a deck without subdecks keeps for it.
+        static let disclosureWidth: CGFloat = 12
+        /// A dragged deck dropped in a row's top or bottom share goes beside
+        /// it, at the line's level; in the rest of the row, inside it.
+        static let dropEdgeShare: CGFloat = 0.28
+        /// How far the pointer moves sideways for a dropped deck to go one
+        /// level in or out: twice the indent, so the top level is easy to reach.
+        static let dropLevelStep: CGFloat = indent * 2
+        static let dropLineWidth: CGFloat = 2
+        static let dropLineDot: CGFloat = 7
+        /// How long a dragged deck hovers on a folded deck before it opens.
+        static let dropSpringDelay: Duration = .milliseconds(700)
+        /// The least room under the deck list for a drop to the top level,
+        /// when the list runs past the sidebar's foot.
+        static let topLevelDropHeight: CGFloat = 60
         /// The slot a page title's icon sits in, centred: the deck ring, the
         /// Anki star and the title symbols all fit it.
         static let titleIconWidth: CGFloat = 26
@@ -137,6 +155,8 @@ enum Theme {
         /// A list row's content keeps to the page's edge; its hover wash
         /// reaches this far past it on both sides, as in Things.
         static let washOutset: CGFloat = 12
+        /// A control that's off: chips, quiet buttons, menus and segments.
+        static let disabledOpacity: Double = 0.4
         /// The dot on a quiet button that has something waiting (Sync).
         static let badgeDot: CGFloat = 7
         /// How far two fingers travel sideways before the sidebar moves.
@@ -352,6 +372,23 @@ enum Theme {
         static let sheetDelay = Duration.milliseconds(600)
         /// A failure at the foot, room for LaTeX's error and its file.
         static let statusLines = 3
+    }
+
+    /// File › Export, an .apkg's import options and the Import Log, drawn
+    /// as Deck Options' settings.
+    enum ImportExport {
+        static let width = settingsSheetWidth
+        /// A long log scrolls past this, as a check's report does.
+        static let logMaxHeight = Maintenance.maxHeight
+        /// An outcome's glyph, in a slot so the sentences start in one column.
+        static let summarySymbol = Font.system(size: 13, weight: .medium)
+        static let summarySymbolWidth: CGFloat = 18
+    }
+
+    /// AnkiWeb's sign-in, drawn as the study prompts.
+    enum SyncLogin {
+        static let width = StudyPrompt.width
+        static let fieldWidth = Notetypes.promptFieldWidth
     }
 
     /// The deck's description, as Deck Options' settings with the text under them.
@@ -580,18 +617,40 @@ enum Theme {
         static let fail = Colors.learnCards
         /// Again, Hard, Good and Easy, as the answer buttons colour them.
         static let grades = [Palette.coral, Palette.amber, Palette.green, Palette.blue]
-        static let cardInfoSize = CGSize(width: 640, height: 760)
-        static let cardInfoMinSize = CGSize(width: 560, height: 300)
+    }
+
+    /// A card's numbers, review log and forgetting curve, in a window with
+    /// Add's chrome, drawn as Deck Options' column and Statistics' graphs.
+    enum CardInfo {
+        static let size = CGSize(width: 640, height: 760)
+        static let minSize = CGSize(width: 480, height: 300)
+        static let columnWidth = DeckOptions.columnWidth
+        static let margin = DeckOptions.margin
+        static let sectionGap = Spacing.xLarge
+        /// The numbers: a label and its value, under hairlines, as tall as a
+        /// sidebar row, since there is no control in them.
+        static let rowHeight = Layout.rowHeight
+        static let font = Font.system(size: 13)
+        /// The review log, dense as the Browser's table.
+        static let revlogRowHeight = Browser.denseRowHeight
+        static let revlogHeaderHeight = Browser.headerHeight
+        static let revlogColumnGap = Spacing.large
+        static let revlogFigures = Font.system(size: 12.5, weight: .medium, design: .rounded).monospacedDigit()
         /// Desktop's colours for a review log's type and a failed rating: the
         /// queue colours, so a Learn row reads as new, Review as review.
         static let revlogLearn = Colors.newCards
         static let revlogReview = Colors.reviewCards
         static let revlogRelearn = Colors.learnCards
-        /// The forgetting curve's gradient: below, at and above desired retention.
-        static let curveLow = Color(red: 1, green: 0.388, blue: 0.278)
-        static let curveTarget = Color(red: 0.275, green: 0.510, blue: 0.706)
-        static let curveHigh = Color(red: 0, green: 0.5, blue: 0)
-        static let curveHeight: CGFloat = 220
+        /// The forgetting curve's gradient: below, at and above desired
+        /// retention, desktop's red-to-green scale as Statistics keeps it,
+        /// each deep or light enough to stay 3:1 on its canvas as a line.
+        static let curveLow = Palette.dynamic(0xE04A2F, 0xFF6347)
+        static let curveTarget = Palette.dynamic(0x4682B4, 0x6FA3D0)
+        static let curveHigh = Palette.dynamic(0x008000, 0x3FA34D)
+        static let curveHeight = Statistics.chartHeight
+        static let curveWidth: CGFloat = 1.5
+        static let curveDash: [CGFloat] = [4, 4]
+        static let hoverPointSize: CGFloat = 36
     }
 
     /// The Settings window's panes, drawn with Deck Options' rows.
@@ -658,6 +717,12 @@ enum Theme {
         static let simulatorSize = CGSize(width: 620, height: 760)
         static let simulatorMinSize = CGSize(width: 460, height: 480)
         static let chartHeight: CGFloat = 260
+        /// The simulator's runs, in desktop's category order (blue, orange,
+        /// green, red, purple) drawn from the palette's hues.
+        static let runColours = [Palette.blue, Palette.amber, Palette.green, Palette.coral, Palette.violet, Palette.teal]
+        static let runLineWidth: CGFloat = 1.5
+        /// A folded section's chevron, after its eyebrow.
+        static let foldSymbol = Font.system(size: 9, weight: .bold)
         /// How often a running FSRS job's progress is read.
         static let progressInterval = Duration.milliseconds(100)
     }

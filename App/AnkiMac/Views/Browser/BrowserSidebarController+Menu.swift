@@ -160,17 +160,13 @@ extension BrowserSidebarController: NSMenuDelegate, NSTextFieldDelegate {
             (outline.view(atColumn: 0, row: index, makeIfNecessary: false) as? SidebarCell)?.endEditing(title: row.title)
         }
         if !cancelledEdit { rename(row, to: field.stringValue) }
+        if reloadAfterEdit {
+            reloadAfterEdit = false
+            show(model.sidebar)
+        }
         Task { @MainActor in
             if outline.window?.firstResponder !== outline { outline.window?.makeFirstResponder(outline) }
         }
-    }
-
-    /// Drops an edit in progress, when a reload is about to replace its row.
-    func cancelEdit() {
-        guard editing != nil else { return }
-        cancelledEdit = true
-        outline.window?.makeFirstResponder(outline)
-        editing = nil
     }
 
     /// `text` replaces the row's own name, whatever the kind. Quotes are

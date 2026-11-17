@@ -21,14 +21,12 @@ struct ForgettingCurveChart: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
             let ranges = ForgettingCurve.Range.available(maxDays: allTimeDays)
             if !ranges.isEmpty {
-                Picker("", selection: Binding(get: { range }, set: { chosenRange = $0 })) {
-                    ForEach(ranges, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                QuietSegments(selection: Binding(get: { range }, set: { chosenRange = $0 }), choices: ranges) { $0.label }
+                    // The first word lines up with the title, the chosen one's wash reaching past it.
+                    .padding(.leading, -Theme.Layout.segmentPadding)
             }
             if points.isEmpty {
-                Text(Tr.cardStatsNoCard).foregroundStyle(.secondary)
+                NoData(height: Theme.CardInfo.curveHeight)
             } else {
                 chart(points, maxDays: maxDays)
             }
@@ -50,28 +48,48 @@ struct ForgettingCurveChart: View {
             ForEach(future) { line($0, series: "future", gradient: gradient(future), dashed: true) }
             if desiredRetention > bottom {
                 RuleMark(y: .value(Tr.cardStatsFsrsForgettingCurveDesiredRetention, desiredRetention))
-                    .foregroundStyle(Theme.Statistics.curveTarget)
-                    .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
+                    .foregroundStyle(Theme.CardInfo.curveTarget)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: Theme.CardInfo.curveDash))
             }
             if let hovered {
                 RuleMark(x: .value("Date", hovered.date))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.Palette.hairline)
                     .annotation(
                         position: .top, spacing: Theme.Spacing.xSmall,
                         overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
                     ) { tooltip(hovered, maxDays: maxDays) }
+                PointMark(x: .value("Date", hovered.date), y: .value(Tr.cardStatsFsrsRetrievability, hovered.retrievability))
+                    .symbolSize(Theme.CardInfo.hoverPointSize)
+                    .foregroundStyle(color(at: hovered.retrievability))
             }
         }
         .chartYScale(domain: bottom...100)
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: Int(Theme.Statistics.xTickCount))) { _ in
+                AxisTick().foregroundStyle(Theme.Statistics.gridLine)
+                AxisValueLabel(collisionResolution: .greedy).font(Theme.Statistics.axisFont)
+            }
+        }
         .chartYAxis {
-            AxisMarks { value in
-                AxisGridLine()
-                AxisValueLabel { if let v = value.as(Double.self) { Text("\(Int(v))%") } }
+            AxisMarks(values: .automatic(desiredCount: Int(Theme.Statistics.yTickCount))) { value in
+                AxisGridLine().foregroundStyle(Theme.Statistics.gridLine)
+                AxisTick().foregroundStyle(Theme.Statistics.gridLine)
+                AxisValueLabel {
+                    if let v = value.as(Double.self) { Text("\(Int(v))%").font(Theme.Statistics.axisFont) }
+                }
             }
         }
         .chartXSelection(value: $hoveredDate)
-        .frame(height: Theme.Statistics.curveHeight)
+        .frame(height: Theme.CardInfo.curveHeight)
         .padding(.top, Theme.Spacing.large)
+        .chartAccessibility(LinesDescriptor(
+            title: Tr.cardStatsFsrsForgettingCurveTitle, xTitle: Tr.cardStatsReviewLogDate,
+            yTitle: Tr.cardStatsFsrsRetrievability,
+            lines: [.init(
+                name: Tr.cardStatsFsrsRetrievability,
+                points: points.map { (x: $0.date.timeIntervalSince1970, y: $0.retrievability) })],
+            xLabel: { Date(timeIntervalSince1970: $0).formatted(date: .abbreviated, time: .omitted) },
+            yLabel: { "\(Int($0.rounded()))%" }))
     }
 
     private func line(_ point: ForgettingCurve.Point, series: String, gradient: LinearGradient, dashed: Bool) -> some ChartContent {
@@ -80,25 +98,24 @@ struct ForgettingCurveChart: View {
             series: .value("Series", series)
         )
         .foregroundStyle(gradient)
-        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: dashed ? [4, 4] : []))
+        .lineStyle(StrokeStyle(lineWidth: Theme.CardInfo.curveWidth, dash: dashed ? Theme.CardInfo.curveDash : []))
     }
 
     private func tooltip(_ point: ForgettingCurve.Point, maxDays: Double) -> some View {
         let date = maxDays >= 365
             ? point.date.formatted(date: .numeric, time: .omitted)
             : point.date.formatted(date: .numeric, time: .shortened)
-        return VStack(alignment: .leading) {
-            Text(date)
-            Text("\(Tr.cardStatsReviewLogElapsedTime): \(CardInfoFormat.timeSpan(point.elapsedDays * 86400))")
-            Text("\(Tr.cardStatsFsrsRetrievability): \(String(format: "%.2f", point.retrievability))%")
-            Text("\(Tr.cardStatsFsrsStability): \(CardInfoFormat.timeSpan(point.stability * 86400))")
-            if abs(point.retrievability - desiredRetention) < 5 {
-                Text("\(Tr.cardStatsFsrsForgettingCurveDesiredRetention): \(String(format: "%.0f", desiredRetention))%")
+        return ChartTooltip {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
+                Text(date)
+                Text("\(Tr.cardStatsReviewLogElapsedTime): \(CardInfoFormat.timeSpan(point.elapsedDays * 86400))")
+                Text("\(Tr.cardStatsFsrsRetrievability): \(String(format: "%.2f", point.retrievability))%")
+                Text("\(Tr.cardStatsFsrsStability): \(CardInfoFormat.timeSpan(point.stability * 86400))")
+                if abs(point.retrievability - desiredRetention) < 5 {
+                    Text("\(Tr.cardStatsFsrsForgettingCurveDesiredRetention): \(String(format: "%.0f", desiredRetention))%")
+                }
             }
         }
-        .font(.caption)
-        .padding(Theme.Spacing.small)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
     }
 
     /// Red up to the desired retention, then blue, then green at 100%, placed
@@ -118,9 +135,9 @@ struct ForgettingCurveChart: View {
     private func color(at value: Double) -> Color {
         let desired = max(desiredRetention, 0.001)
         if value <= desired {
-            return Theme.Statistics.curveLow.mix(with: Theme.Statistics.curveTarget, by: value / desired)
+            return Theme.CardInfo.curveLow.mix(with: Theme.CardInfo.curveTarget, by: value / desired)
         }
-        return Theme.Statistics.curveTarget.mix(
-            with: Theme.Statistics.curveHigh, by: (value - desired) / max(100 - desired, 0.001))
+        return Theme.CardInfo.curveTarget.mix(
+            with: Theme.CardInfo.curveHigh, by: (value - desired) / max(100 - desired, 0.001))
     }
 }

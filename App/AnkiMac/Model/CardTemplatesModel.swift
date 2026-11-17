@@ -196,7 +196,15 @@ final class CardTemplatesModel {
 
     // MARK: Saving
 
-    func save() async -> Bool { await manager.confirmAndSave(old: original, new: draft) }
+    /// A failure shows in this window's alert: the manager's may not be open.
+    func save() async -> Bool {
+        do {
+            return try await manager.confirmAndSave(old: original, new: draft)
+        } catch {
+            failure = ActionFailure("Couldn’t save the note type", error: error)
+            return false
+        }
+    }
 
     // MARK: Preview
 

@@ -93,7 +93,18 @@ extension CollectionModel {
         renamingDeckID = nil
         let name = newName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let deck = deck(deckID), !name.isEmpty, name != deck.name else { return }
-        let fullName = String(deck.fullName.dropLast(deck.name.count)) + name
+        renameDeck(deckID, to: String(deck.fullName.dropLast(deck.name.count)) + name)
+    }
+
+    /// Asks for the deck's whole name, so it can move to another parent or
+    /// the top level, as the Browser's Rename with Parents does.
+    func beginRenamingWithParents(_ deckID: Int64) {
+        guard deck(deckID) != nil else { return }
+        selectedDeckID = deckID
+        renamingWithParentsDeckID = deckID
+    }
+
+    func renameDeck(_ deckID: Int64, to fullName: String) {
         deckOp(failing: "Couldn’t rename the deck") { backend in
             var request = Anki_Decks_RenameDeckRequest()
             request.deckID = deckID

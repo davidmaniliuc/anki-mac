@@ -6,27 +6,32 @@ import SwiftUI
 /// top-level or not, is the same selectable row with one due count, the
 /// breakdown being in the overview. A deck with subdecks has a disclosure
 /// arrow and sits apart from its neighbours by space alone. Up and Down move through the rows, Left and Right fold and
-/// unfold, a double-click renames, and dragging a deck onto another nests it.
+/// unfold, a double-click renames, and a dragged deck goes inside the deck it's dropped on, or beside the
+/// rows at the line it's dropped on (see `DeckDropTarget`).
 struct DeckSidebar: View {
     @Environment(CollectionModel.self) private var model
     @Environment(WindowLayout.self) private var layout
     @State private var expanded: [Int64: Bool] = [:]
     @State private var keyMonitor: Any?
+    @State private var dropState = DeckDropState()
+    /// The scroll view's height and the places' share of it, so the decks'
+    /// drop area can run to the sidebar's foot.
+    @State private var visibleHeight: CGFloat = 0
+    @State private var placesHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollViewReader { scroller in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 1) {
-                        places
-                        decks
-                        // Dropping a deck below the list moves it to the top level.
-                        Color.clear
-                            .frame(maxWidth: .infinity, minHeight: 60)
-                            .contentShape(.rect)
-                            .dropDestination(for: String.self) { items, _ in model.dropDecks(items, on: 0) }
+                        VStack(alignment: .leading, spacing: 1) { places }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { placesHeight = $0 }
+                        droppableDecks
                     }
                     .padding(.horizontal, Theme.Spacing.small + 2)
+                }
+                .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, height in
+                    visibleHeight = height
                 }
                 .scrollIndicators(.never)
                 // Rows scroll out of sight below the title bar, not under the
@@ -97,6 +102,51 @@ struct DeckSidebar: View {
             KeyCap(key)
         }
         .disabled(!model.isLoaded)
+    }
+
+    /// The decks, and room under them, down to the sidebar's foot, where a
+    /// dropped deck goes to the top level.
+    private var droppableDecks: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            decks
+            Color.clear.frame(maxWidth: .infinity, minHeight: Theme.Layout.topLevelDropHeight)
+        }
+        .coordinateSpace(.named(DeckDropState.space))
+        .overlay(alignment: .topLeading) {
+            if case .beside(let y, let depth, _) = dropState.target {
+                DeckDropLine(depth: depth).offset(y: y - Theme.Layout.dropLineDot / 2)
+            }
+        }
+        // Less the places and the 1pt between them and the decks.
+        .frame(minHeight: max(visibleHeight - placesHeight - 1, 0), alignment: .top)
+        .contentShape(.rect)
+        .onDrop(of: [.text], delegate: DeckDropDelegate(state: dropState, rows: dropRows) { id, open in
+            if let node = model.deck(id) { expansion(node).wrappedValue = open }
+        } move: { id, parent in
+            guard DeckNode.parentID(of: id, in: model.decks) != parent else { return }
+            // The deck stays in sight inside its new parent.
+            if let node = model.deck(parent) { expansion(node).wrappedValue = true }
+            model.moveDecks([id], to: parent)
+        })
+        .environment(dropState)
+    }
+
+    /// The deck rows on screen, for the drop.
+    private func dropRows() -> [DeckDropRow] {
+        var rows: [DeckDropRow] = []
+        func walk(_ nodes: [DeckNode], _ parents: [Int64]) {
+            for node in nodes {
+                let open = node.children != nil && (expanded[node.id] ?? !node.collapsed)
+                if let frame = dropState.frames[node.id] {
+                    rows.append(DeckDropRow(
+                        path: parents + [node.id], filtered: node.filtered, folded: node.children != nil && !open,
+                        frame: frame))
+                }
+                if open { walk(node.children ?? [], parents + [node.id]) }
+            }
+        }
+        walk(model.decks, [])
+        return rows
     }
 
     @ViewBuilder private var decks: some View {
@@ -283,13 +333,14 @@ private struct DeckTree: View {
 private struct DeckRow: View {
     @Environment(CollectionModel.self) private var model
     @Environment(WindowLayout.self) private var layout
+    @Environment(DeckDropState.self) private var drop
     let node: DeckNode
     let depth: Int
     @Binding var isExpanded: Bool
 
     var body: some View {
         let selected = model.selectedDeckID == node.id
-        SidebarRowShell(selected: selected) {
+        SidebarRowShell(selected: selected, dropTarget: drop.target == .into(node.id)) {
             model.selectedDeckID = node.id
             layout.picked()
         } doubleClick: {
@@ -299,7 +350,7 @@ private struct DeckRow: View {
                 if node.children != nil {
                     Disclosure(isExpanded: $isExpanded)
                 } else {
-                    Color.clear.frame(width: 12)
+                    Color.clear.frame(width: Theme.Layout.disclosureWidth)
                 }
             }
             .padding(.leading, CGFloat(depth) * Theme.Layout.indent)
@@ -316,6 +367,9 @@ private struct DeckRow: View {
             }
         }
         .deckRowBehaviour(node)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(DeckDropState.space)) } action: {
+            drop.frames[node.id] = $0
+        }
     }
 }
 
@@ -327,7 +381,7 @@ private struct Disclosure: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 9, weight: .bold))
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .frame(width: 12, height: 20)
+                .frame(width: Theme.Layout.disclosureWidth, height: 20)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -345,12 +399,15 @@ private extension View {
 
 private struct DeckRowBehaviour: ViewModifier {
     @Environment(CollectionModel.self) private var model
+    @Environment(DeckDropState.self) private var drop
     let node: DeckNode
 
     func body(content: Content) -> some View {
         content
-            .draggable(DeckDrag.text(node.id))
-            .dropDestination(for: String.self) { items, _ in model.dropDecks(items, on: node.id) }
+            .onDrag {
+                drop.dragged = node.id
+                return DeckDrag.provider(node.id)
+            }
             .contextMenu {
                 Button("Options…") { model.showOptions(node) }
                 if node.filtered {
@@ -361,6 +418,9 @@ private struct DeckRowBehaviour: ViewModifier {
                 }
                 Divider()
                 Button(Tr.actionsRename) { model.beginRenaming(node.id) }
+                if node.fullName != node.name {
+                    Button("\(Tr.actionsRenameWithParents)…") { model.beginRenamingWithParents(node.id) }
+                }
                 Divider()
                 Button(Tr.actionsDelete, role: .destructive) { model.deleteDeck(node.id) }
             }
@@ -368,9 +428,11 @@ private struct DeckRowBehaviour: ViewModifier {
 }
 
 /// The shape every sidebar row shares: a soft rounded highlight that shows
-/// on hover and stays, a little stronger, on the selected row.
+/// on hover and stays, a little stronger, on the selected row. A row a
+/// dragged deck would drop inside takes the accent, washed out.
 struct SidebarRowShell<Content: View>: View {
     let selected: Bool
+    var dropTarget = false
     let action: () -> Void
     var doubleClick: (() -> Void)? = nil
     @ViewBuilder let content: Content
@@ -383,7 +445,9 @@ struct SidebarRowShell<Content: View>: View {
             .frame(height: Theme.Layout.rowHeight)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Layout.rowRadius)
-                    .fill(selected ? Theme.Palette.selection : hovered && isEnabled ? Theme.Palette.hover : .clear))
+                    .fill(
+                        dropTarget ? Theme.Palette.dropTarget
+                            : selected ? Theme.Palette.selection : hovered && isEnabled ? Theme.Palette.hover : .clear))
             .opacity(isEnabled ? 1 : 0.5)
             .contentShape(.rect)
             .onTapGesture(perform: action)
@@ -468,24 +532,5 @@ private struct DeckNameField: View {
                 name = node.name
                 focused = true
             }
-    }
-}
-
-/// A dragged deck travels as text, so no custom type needs declaring.
-enum DeckDrag {
-    private static let prefix = "anki-mac-deck:"
-
-    static func text(_ deckID: Int64) -> String { prefix + String(deckID) }
-
-    static func deckID(_ text: String) -> Int64? {
-        text.hasPrefix(prefix) ? Int64(text.dropFirst(prefix.count)) : nil
-    }
-}
-
-extension CollectionModel {
-    /// Moves the dragged decks under `parentID`, 0 for the top level.
-    func dropDecks(_ items: [String], on parentID: Int64) {
-        let ids = items.compactMap(DeckDrag.deckID)
-        if !ids.isEmpty { moveDecks(ids, to: parentID) }
     }
 }

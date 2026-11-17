@@ -84,12 +84,16 @@ enum CardInfoFormat {
     struct Row: Identifiable {
         let label: String
         let value: String
+        /// False for a name, whose digits stay in its own face.
+        var numeric = true
         var id: String { label }
     }
 
     static func rows(_ stats: Anki_Stats_CardStatsResponse) -> [Row] {
         var rows: [Row] = []
-        func add(_ label: String, _ value: String) { rows.append(Row(label: label, value: value)) }
+        func add(_ label: String, _ value: String, numeric: Bool = true) {
+            rows.append(Row(label: label, value: value, numeric: numeric))
+        }
 
         add(Tr.cardStatsAdded, dateString(stats.added))
         if stats.hasFirstReview { add(Tr.cardStatsFirstReview, dateString(stats.firstReview)) }
@@ -119,13 +123,18 @@ enum CardInfoFormat {
             add(Tr.cardStatsTotalTime, timeSpan(Double(stats.totalSecs)))
         }
 
-        add(Tr.cardStatsCardTemplate, stats.cardType)
-        add(Tr.cardStatsNoteType, stats.notetype)
-        add(Tr.cardStatsDeckName, stats.hasOriginalDeck && !stats.originalDeck.isEmpty ? "\(stats.deck) (\(stats.originalDeck))" : stats.deck)
-        add(Tr.cardStatsPreset, stats.preset)
+        add(Tr.cardStatsCardTemplate, stats.cardType, numeric: false)
+        add(Tr.cardStatsNoteType, stats.notetype, numeric: false)
+        // A deck's path reads as the main window writes it, "M1 › FSGBD".
+        let deck = stats.deck.replacing("::", with: " › ")
+        let originalDeck = stats.originalDeck.replacing("::", with: " › ")
+        add(
+            Tr.cardStatsDeckName, stats.hasOriginalDeck && !originalDeck.isEmpty ? "\(deck) (\(originalDeck))" : deck,
+            numeric: false)
+        add(Tr.cardStatsPreset, stats.preset, numeric: false)
         add(Tr.cardStatsCardId, String(stats.cardID))
         add(Tr.cardStatsNoteId, String(stats.noteID))
-        if !stats.customData.isEmpty { add(Tr.cardStatsCustomData, customData(stats.customData)) }
+        if !stats.customData.isEmpty { add(Tr.cardStatsCustomData, customData(stats.customData), numeric: false) }
         return rows
     }
 

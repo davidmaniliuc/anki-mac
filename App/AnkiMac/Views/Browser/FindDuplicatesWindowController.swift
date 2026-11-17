@@ -179,6 +179,7 @@ private struct DuplicateGroupRow: View {
                     .font(Theme.Maintenance.browseSymbol)
                     .foregroundStyle(Theme.Palette.secondary)
                     .opacity(hovered ? 1 : 0)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, Theme.Spacing.small)
             .frame(height: Theme.Maintenance.rowHeight)

@@ -78,11 +78,12 @@ final class NotetypeManager {
     /// Writes a changed note type; the backend works out what to rewrite from
     /// the fields' and templates' original positions. Returns false on error.
     @discardableResult
-    func save(_ value: Anki_Notetypes_Notetype) async -> Bool {
+    /// Saves, showing a failure in this window's alert. `old` is the note
+    /// type as the editor opened it, so a change made since in another
+    /// window isn't overwritten.
+    func save(_ value: Anki_Notetypes_Notetype, editedFrom old: Anki_Notetypes_Notetype? = nil) async -> Bool {
         do {
-            _ = try await backend.perform { try $0.updateNotetype(value) }
-            await refresh(select: value.id)
-            onChange()
+            try await write(value, editedFrom: old)
             return true
         } catch {
             failure = ActionFailure("Couldn’t save the note type", error: error)
@@ -92,13 +93,31 @@ final class NotetypeManager {
 
     /// Saves an edit from the Fields or Cards editor, first asking, as desktop
     /// does, when it adds, removes or reorders fields or card types (or moves
-    /// the sort field) and so forces a full upload at the next sync.
-    func confirmAndSave(old: Anki_Notetypes_Notetype, new: Anki_Notetypes_Notetype) async -> Bool {
+    /// the sort field) and so forces a full upload at the next sync. False
+    /// when that is declined; a failure is thrown, for the editor to show.
+    func confirmAndSave(old: Anki_Notetypes_Notetype, new: Anki_Notetypes_Notetype) async throws -> Bool {
         let schemaChange = new.fields.map { $0.hasOrd ? Int($0.ord.val) : -1 } != Array(0..<old.fields.count)
             || new.templates.map { $0.hasOrd ? Int($0.ord.val) : -1 } != Array(0..<old.templates.count)
             || new.config.sortFieldIdx != old.config.sortFieldIdx
         if schemaChange, !(await NotetypeAlerts.confirmSchemaChange(backend)) { return false }
-        return await save(new)
+        try await write(new, editedFrom: old)
+        return true
+    }
+
+    /// The Fields sheet, Card Types and Options each edit a copy of the
+    /// note type and write it whole, so one saved after another would undo
+    /// the other's change: a copy older than the collection's is refused.
+    private func write(_ value: Anki_Notetypes_Notetype, editedFrom old: Anki_Notetypes_Notetype?) async throws {
+        if let old, try await notetype(old.id).mtimeSecs != old.mtimeSecs { throw ChangedElsewhere() }
+        _ = try await backend.perform { try $0.updateNotetype(value) }
+        await refresh(select: value.id)
+        onChange()
+    }
+
+    struct ChangedElsewhere: LocalizedError {
+        var errorDescription: String? {
+            "The note type was changed in another window since this one opened. Close this one and open it again to make your changes."
+        }
     }
 
     func rename(_ id: Int64, to name: String) async {
