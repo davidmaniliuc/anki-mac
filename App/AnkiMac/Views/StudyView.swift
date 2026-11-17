@@ -155,7 +155,7 @@ struct StudyView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("More (M)")
-            IconButton("xmark", help: "End Session", shortcut: Tr.actionsShortcutKey(val: "Esc")) { model.stopStudying() }
+            IconButton("xmark", help: "End Session", shortcut: Tr.actionsShortcutKey(val: "\u{238B}")) { model.stopStudying() }
         }
     }
 
@@ -518,10 +518,7 @@ private struct SessionFinished: View {
 
     private var backButton: some View {
         Button { model.stopStudying() } label: {
-            HStack(spacing: 6) {
-                Text(model.sessionReturnsToToday ? "Back to Today" : "Back to Deck")
-                KeyCap("↩", onAccent: true)
-            }
+            Text(model.sessionReturnsToToday ? "Back to Today" : "Back to Deck")
         }
         .buttonStyle(PrimaryButtonStyle())
         .keyboardShortcut(.defaultAction)
@@ -571,7 +568,7 @@ private struct AnswerBar: View {
         switch session?.phase ?? .loading {
         case .question:
             Button { session?.showAnswer() } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: Theme.Layout.keyCapGap) {
                     Text(Tr.studyingShowAnswer).font(Theme.Fonts.button)
                     if !compact { KeyCap("Space") }
                 }
@@ -622,7 +619,7 @@ private struct AnswerButton: View {
                 VStack(alignment: .leading, spacing: 3) {
                     // The key follows the label as part of it, not as a
                     // badge in the corner.
-                    HStack(spacing: 6) {
+                    HStack(spacing: Theme.Layout.keyCapGap) {
                         Text(rating.title).font(Theme.Fonts.button)
                         if !key.isEmpty { KeyCap(key) }
                     }

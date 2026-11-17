@@ -177,10 +177,7 @@ struct FsrsSimulatorView: View {
                 .buttonStyle(ChipButtonStyle())
                 .keyboardShortcut(.cancelAction)
             Button { simulator.simulate() } label: {
-                HStack(spacing: Theme.Layout.keyCapGap) {
-                    Text(Tr.deckConfigSimulate)
-                    KeyCap("\u{21A9}", onAccent: true)
-                }
+                Text(Tr.deckConfigSimulate)
             }
             .buttonStyle(PrimaryButtonStyle(compact: true))
             .keyboardShortcut(.defaultAction)

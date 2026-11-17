@@ -71,10 +71,7 @@ struct DeckOverview: View {
     /// Study Now (Return), the page's one prominent action.
     private var studyButton: some View {
         Button { model.startStudying() } label: {
-            HStack(spacing: 6) {
-                Text("Study Now")
-                KeyCap("↩", onAccent: true)
-            }
+            Text("Study Now")
         }
         .buttonStyle(PrimaryButtonStyle())
         .keyboardShortcut(.defaultAction)

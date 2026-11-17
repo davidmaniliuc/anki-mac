@@ -56,10 +56,7 @@ struct ProfilesView: View {
             .accessibilityLabel(Tr.profilesProfiles)
             ActionRow {
                 Button { if let selection { open(selection) } } label: {
-                    HStack(spacing: 6) {
-                        Text(Tr.profilesOpen)
-                        KeyCap("↩", onAccent: true)
-                    }
+                    Text(Tr.profilesOpen)
                 }
                 // As tall as the chips beside it: on a sheet this small the page's
                 // 36pt primary towers over the row.

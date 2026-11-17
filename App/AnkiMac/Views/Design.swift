@@ -1009,10 +1009,11 @@ struct PrimaryButtonStyle: ButtonStyle {
 }
 
 /// A dialog's buttons at its trailing edge, the default last: Cancel as a
-/// chip, then the action as the sheet's one primary, compact, with its key.
+/// chip, then the action as the sheet's one primary, compact. Its key shows
+/// only when it isn't Return, which the accent fill already says.
 struct DialogButtons: View {
     let action: String
-    var key = "\u{21A9}"
+    var key: String?
     var shortcut = KeyboardShortcut.defaultAction
     var disabled = false
     /// While the action runs, Cancel would leave it half done.
@@ -1029,7 +1030,7 @@ struct DialogButtons: View {
             Button(action: submit) {
                 HStack(spacing: Theme.Layout.keyCapGap) {
                     Text(action)
-                    KeyCap(key, onAccent: true)
+                    if let key { KeyCap(key, onAccent: true) }
                 }
             }
             .buttonStyle(PrimaryButtonStyle(compact: true))
@@ -1046,23 +1047,18 @@ struct CloseButton: View {
     let close: () -> Void
 
     var body: some View {
-        Button(action: close) {
-            HStack(spacing: Theme.Layout.keyCapGap) {
-                Text(Tr.actionsClose)
-                KeyCap("\u{21A9}", onAccent: true)
+        Button(Tr.actionsClose, action: close)
+            .buttonStyle(PrimaryButtonStyle(compact: true))
+            .keyboardShortcut(.defaultAction)
+            .disabled(disabled)
+            .background {
+                Button(Tr.actionsClose, action: close)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(disabled)
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
             }
-        }
-        .buttonStyle(PrimaryButtonStyle(compact: true))
-        .keyboardShortcut(.defaultAction)
-        .disabled(disabled)
-        .background {
-            Button(Tr.actionsClose, action: close)
-                .keyboardShortcut(.cancelAction)
-                .disabled(disabled)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-        }
     }
 }
 

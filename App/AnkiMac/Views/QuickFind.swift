@@ -148,9 +148,9 @@ struct QuickFind: View {
                 Spacer(minLength: Theme.Spacing.small)
                 if selected, case .deck = hit {
                     // Command-Return studies the deck, as desktop's Study Deck does.
-                    HStack(spacing: Theme.Spacing.xSmall) {
+                    HStack(spacing: Theme.Layout.keyCapGap) {
                         Text(Tr.decksStudy).foregroundStyle(Color.white.opacity(0.8))
-                        KeyCap("⌘↩", onAccent: true)
+                        KeyCap("\u{2318}\u{21A9}", onAccent: true)
                     }
                     .font(Theme.Fonts.caption)
                     .foregroundStyle(.white)

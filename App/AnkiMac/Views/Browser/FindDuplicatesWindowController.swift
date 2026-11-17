@@ -141,10 +141,7 @@ private struct FindDuplicatesView: View {
             }
             Spacer(minLength: Theme.Spacing.small)
             Button(action: model.find) {
-                HStack(spacing: Theme.Layout.keyCapGap) {
-                    Text(Tr.actionsSearch)
-                    KeyCap("\u{21A9}", onAccent: true)
-                }
+                Text(Tr.actionsSearch)
             }
             .buttonStyle(PrimaryButtonStyle(compact: true))
             .keyboardShortcut(.defaultAction)

@@ -40,10 +40,7 @@ struct TodayView: View {
     /// Its session ends back here, where the next deck is then first.
     private func studyButton(first deck: DeckNode) -> some View {
         Button { model.studyFromToday(deck.id) } label: {
-            HStack(spacing: 6) {
-                Text("Study Now")
-                KeyCap("↩", onAccent: true)
-            }
+            Text("Study Now")
         }
         .buttonStyle(PrimaryButtonStyle())
         .keyboardShortcut(.defaultAction)
