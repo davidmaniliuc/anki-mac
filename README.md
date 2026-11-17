@@ -10,6 +10,16 @@ A native macOS frontend for [Anki](https://github.com/ankitects/anki), written i
 - `AnkiKit/` is the Swift package: `AnkiBackend`, the generated bindings, and `ankikit-bench`.
 - `App/` is the SwiftUI app (`project.yml` for XcodeGen). Every colour, size and spacing value is in `App/AnkiMac/Theme.swift`. Cards are shown in a WKWebView running upstream's own `reviewer.js` and CSS, served through an `anki://` scheme handler that also serves the collection's media. Audio plays natively.
 
+## Installing
+
+Apple silicon, macOS 26 or later. Alpha: back up your collection first.
+
+```sh
+brew install --cask davidmaniliuc/tap/anki-mac
+```
+
+Or download the DMG from [Releases](https://github.com/davidmaniliuc/anki-mac/releases). The app updates itself. It is not notarized, so a downloaded DMG needs *Open Anyway* in System Settings ▸ Privacy & Security on first launch; the Homebrew cask removes the quarantine flag for you. Releasing is described in [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Building
 
 Requires Xcode 26+, Rust (rustup installs the toolchain upstream pins), Node (for upstream's web build), and `brew install protobuf swift-protobuf ninja xcodegen`.

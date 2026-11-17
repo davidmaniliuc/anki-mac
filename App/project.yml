@@ -11,6 +11,11 @@ options:
 packages:
   AnkiKit:
     path: ../AnkiKit
+  # In-app updates. Keep SPARKLE_VERSION in .github/workflows/release.yml at
+  # this version: its sign_update signs the release.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -46,11 +51,19 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Default
             CFBundleTypeExtensions: [apkg, colpkg]
+        # scripts/build-app.sh stamps the version, the build (the commit count)
+        # and, in a release, Sparkle's public key; see docs/RELEASING.md.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        SUEnableAutomaticChecks: true
+        SUFeedURL: https://raw.githubusercontent.com/davidmaniliuc/anki-mac/appcast/appcast.xml
+        SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
     dependencies:
       - package: AnkiKit
         product: AnkiKit
       - package: AnkiKit
         product: FieldEditor
+      - package: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.davidmaniliuc.AnkiMac
@@ -61,5 +74,5 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         INFOPLIST_KEY_NSHumanReadableCopyright: AGPL-3.0-or-later
         ASSETCATALOG_COMPILER_APPICON_NAME: AnkiMac
-        MARKETING_VERSION: "0.1"
+        MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"

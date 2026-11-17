@@ -6,6 +6,8 @@ struct AnkiMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = CollectionModel()
     @State private var bench: BenchDriver?
+    // Sparkle; inert in a build without the update key (local builds).
+    @StateObject private var updates = SoftwareUpdate()
 
     init() {
         BenchDriver.trace("app_init")
@@ -30,6 +32,7 @@ struct AnkiMacApp: App {
                 }
         }
         .commands {
+            UpdateCommands(updates: updates)
             LayoutCommands()
             StudyCommands(model: model)
             CardCommands(model: model)
