@@ -170,6 +170,9 @@ struct StudyView: View {
     /// Study menu's single-key shortcuts are handled here first. Keys pass
     /// through while a text box (type-in-the-answer) has focus.
     private func handleKey(_ event: NSEvent) -> Bool {
+        // The monitor keeps the view as it was in onAppear, before any
+        // session, so the session is read from the model, not the view.
+        let session = model.session
         // Only the main window, which holds the card view; the browser has its own keys.
         guard let window = event.window, window.isKeyWindow, window === model.reviewer.webView?.window else {
             return false
