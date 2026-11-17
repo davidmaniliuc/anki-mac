@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>AnkiMac</title>
+    <link>https://github.com/davidmaniliuc/anki-mac</link>
+    <item>
+      <title>AnkiMac 0.1.0 (2c6aa3c)</title>
+      <pubDate>Tue, 17 Nov 2026 18:39:46 +0000</pubDate>
+      <link>https://github.com/davidmaniliuc/anki-mac/releases/tag/v0.1.0</link>
+      <sparkle:version>148</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <p>AnkiMac 0.1.0, built from commit <a href="https://github.com/davidmaniliuc/anki-mac/commit/2c6aa3c0f77f7d87306ae322e25cd341c3991bd7">2c6aa3c</a>. Alpha software: back up your collection.</p>
+        <p><a href="https://github.com/davidmaniliuc/anki-mac/releases/tag/v0.1.0">Full release notes on GitHub</a></p>
+      ]]></description>
+      <enclosure url="https://github.com/davidmaniliuc/anki-mac/releases/download/v0.1.0/AnkiMac-0.1.0.dmg" type="application/octet-stream" sparkle:edSignature="jbtw56ikVDJJ35m4QKRpiJQ2ivTmtLtqDNXtkkpgpg2ZLMHw9jNiQ/0gPoklQmq22NZ22CbAgtbQk33OfdQfDw==" length="27154151" />
+    </item>
+  </channel>
+</rss>
