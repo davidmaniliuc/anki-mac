@@ -101,6 +101,9 @@ struct BrowserSearchField: View {
                 suggestions.hide()
             }
         }
+        .onChange(of: model.wantsFocus) { _, wants in
+            if wants { focused = true }
+        }
         .onAppear {
             suggestions.pick = { [self] in pick($0) }
             if focusOnAppear { focused = true }
@@ -157,6 +160,8 @@ struct BrowserSearchField: View {
         Binding(
             get: { text },
             set: { new in
+                // The field hands back what a search put in it.
+                guard new != text else { return }
                 text = new
                 selectedChip = nil
                 model.edited(chips: query.chips.map(\.raw), text: new)
@@ -535,11 +540,15 @@ protocol SearchFieldSource: AnyObject {
     func search(chips: [String], adding item: SidebarItem?, text: String)
     /// The chips and the text as typed, before any search.
     func edited(chips: [String], text: String)
+    /// Set when the field should take focus, for a source that holds it
+    /// back past the first appearance.
+    var wantsFocus: Bool { get }
 }
 
 extension SearchFieldSource {
     var searchesOnReturn: Bool { true }
     func edited(chips: [String], text: String) {}
+    var wantsFocus: Bool { false }
     func search(chips: [String], text: String) { search(chips: chips, adding: nil, text: text) }
 }
 

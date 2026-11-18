@@ -133,7 +133,10 @@ final class StudySession {
     @ObservationIgnored private lazy var sounds = CardSounds(audio: audio, web: reviewer)
     private var shownAt = Date()
     private var timebox = Timebox()
-    private var busy = false
+    /// Not observed: it flips around every answer, and each flip would draw
+    /// the study screen and the menus again. They read it again when the card
+    /// or phase changes, which is when it clears.
+    @ObservationIgnored private var busy = false
     /// The typed text is being compared; a second Return must not start another.
     private var revealing = false
 

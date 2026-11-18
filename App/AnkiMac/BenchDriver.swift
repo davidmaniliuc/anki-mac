@@ -72,10 +72,16 @@ final class BenchDriver {
             quit()
             return
         }
+        // Desktop selects the deck without drawing anything; here selecting
+        // it shows its overview, which is on screen before anyone presses
+        // Study Now. Let it draw before the clock starts.
         model.selectedDeckID = best.id
-        mark("study_start")
-        model.startStudying()
-        model.session?.onDisplayed = { [weak self] phase in self?.displayed(phase) }
+        DispatchQueue.main.async { [self] in
+            NSApp.windows.forEach { $0.displayIfNeeded() }
+            mark("study_start")
+            model.startStudying()
+            model.session?.onDisplayed = { [weak self] phase in self?.displayed(phase) }
+        }
     }
 
     private func displayed(_ shown: StudySession.Phase) {

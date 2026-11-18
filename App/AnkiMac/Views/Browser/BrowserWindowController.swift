@@ -19,6 +19,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var promptSheet: NSViewController?
     private var exportSheet: NSViewController?
     private var findDuplicates: FindDuplicatesWindowController?
+    private var earlyKeys: Any?
 
     /// Shows the browser, creating it on first use. The first search starts
     /// before the window is built, so the two overlap.
@@ -78,6 +79,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.toolbarStyle = .unified
 
         observeModel()
+        catchEarlyKeys()
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -100,7 +102,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         // as glass in full screen; the bar is one piece, as the main window's.
         sidebarItem.allowsFullHeightLayout = false
         split.addSplitViewItem(sidebarItem)
-        let searchField = BrowserSearchField(model: model) { [sidebar] in sidebar.clearSelection() }
+        let searchField = BrowserSearchField(model: model, willSearch: { [sidebar] in sidebar.clearSelection() }, focusOnAppear: false)
         let header = BrowserHeaderBar(model: model, chrome: chrome, searchField: searchField)
         split.addSplitViewItem(NSSplitViewItem(
             viewController: DetailController(header: header, errorBar: errorBar, table: tableController)))
@@ -155,6 +157,24 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             DispatchQueue.main.async { self.editor?.show(selection) }
         }
         track { [weak self] in self?.showAlert() }
+    }
+
+    /// The search field takes focus once the first rows are drawn (see
+    /// `BrowserModel.wantsFocus`); a key typed before then gives it focus at
+    /// once and goes to it, so typing straight after opening still searches.
+    private func catchEarlyKeys() {
+        earlyKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.window === window, !model.wantsFocus else { return event }
+            model.wantsFocus = true
+            // Sent again once SwiftUI has moved the focus.
+            DispatchQueue.main.async { NSApp.postEvent(event, atStart: true) }
+            return nil
+        }
+        track { [weak self] in
+            guard let self, model.wantsFocus, let earlyKeys else { return }
+            NSEvent.removeMonitor(earlyKeys)
+            self.earlyKeys = nil
+        }
     }
 
     func showFindDuplicates() {
@@ -308,6 +328,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         editor?.editor.commitPendingEdits()
         editor?.saveNow()
         findDuplicates?.close()
+        if let earlyKeys { NSEvent.removeMonitor(earlyKeys) }
         if KeyBrowser.shared.model === model { KeyBrowser.shared.model = nil }
         Self.current = nil
     }

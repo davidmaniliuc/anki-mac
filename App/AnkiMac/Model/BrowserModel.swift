@@ -127,6 +127,10 @@ final class BrowserModel {
     var exportNoteIDs: [Int64]?
     /// A short result ("3 notes updated.") that the window shows for a few seconds.
     private(set) var toast: String?
+    /// Set once the first search's rows are on screen, when the search field
+    /// takes focus: focusing sets up the input source, which before the
+    /// first paint holds the window back.
+    var wantsFocus = false
 
     /// Rows by id, for the current search only. nil marks an id whose card or
     /// note no longer exists.
@@ -335,6 +339,8 @@ final class BrowserModel {
             } catch {
                 guard generation == searchGeneration else { return }
                 searchError = ActionFailure.reason(error)
+                // No rows will be drawn to give the field its focus after.
+                if !wantsFocus { wantsFocus = true }
             }
         }
     }

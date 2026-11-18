@@ -62,7 +62,25 @@ struct DeckDescription: Identifiable, Equatable {
     /// and every other resource are dropped: they would be fetched while
     /// converting, and collection media can't resolve here.
     static func attributed(html: String) -> AttributedString {
+        if let cached = converted[html] { return cached }
+        let text = convert(html)
+        converted[html] = text
+        return text
+    }
+
+    /// The importer takes a third of a second on the main thread the first
+    /// time and tens of milliseconds after, so each description is converted once.
+    private static var converted: [String: AttributedString] = [:]
+
+    private static func convert(_ html: String) -> AttributedString {
         let cleaned = sanitized(html: html)
+        // Without tags or entities, HTML only folds the white space: no need
+        // for the importer, which would set the same font.
+        if !cleaned.contains("<"), !cleaned.contains("&") {
+            var text = AttributedString(cleaned.split(whereSeparator: \.isWhitespace).joined(separator: " "))
+            text.appKit.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+            return text
+        }
         let styled = "<style>body { font-family: -apple-system; font-size: \(Int(NSFont.systemFontSize))px; }</style>"
             + cleaned
         guard let data = styled.data(using: .utf8),

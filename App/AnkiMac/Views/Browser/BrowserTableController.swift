@@ -97,6 +97,7 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
             table.selectRowIndexes(keep, byExtendingSelection: false)
             table.scrollRowToVisible(keep.first ?? 0)
             reportPaint(table, idsVersion: idsVersion)
+            focusSearchAfterPaint(table)
         } else if rowsVersion != shownRows {
             shownRows = rowsVersion
             refreshRows(table)
@@ -172,6 +173,15 @@ final class BrowserTableController: NSViewController, NSTableViewDataSource, NST
         settingSort = true
         table.sortDescriptors = shownColumns.contains(sort.column) ? [descriptor] : []
         settingSort = false
+    }
+
+    /// Gives the search field focus once the first rows are drawn.
+    private func focusSearchAfterPaint(_ table: NSTableView) {
+        guard model.idsVersion > 0, !model.wantsFocus else { return }
+        DispatchQueue.main.async { [weak self] in
+            table.window?.displayIfNeeded()
+            self?.model.wantsFocus = true
+        }
     }
 
     /// For the bench: reports once the new rows are drawn. Forcing the

@@ -121,6 +121,7 @@ final class CollectionModel {
     private(set) var isLoaded = false
     private(set) var lastRefresh = Date.distantPast
     private var rolloverTask: Task<Void, Never>?
+    @ObservationIgnored private var answerRefreshTask: Task<Void, Never>?
     private var learnTask: Task<Void, Never>?
     /// Cards in learning that come due later today (not yet due), and when
     /// the first of them does, for Today's line when nothing is due now.
@@ -275,8 +276,61 @@ final class CollectionModel {
         return auth
     }
 
-    /// Started at launch, off the main thread, while SwiftUI builds the window.
-    private let backendStartup = Task.detached(priority: .userInitiated) { try AnkiBackend() }
+    /// Started at launch, off the main thread, while SwiftUI builds the
+    /// window: the backend, then the collection launch opens and its decks.
+    private let launch = Task.detached(priority: .userInitiated) { () throws -> Launch in
+        let backend = try AnkiBackend()
+        return Launch(backend: backend, opened: preopen(backend))
+    }
+    /// The collection the launch task opened, until `open` takes it.
+    private var preopened: Preopened?
+
+    private nonisolated struct Launch: Sendable {
+        let backend: AnkiBackend
+        let opened: Preopened?
+    }
+
+    private nonisolated struct Preopened: Sendable {
+        let paths: CollectionPaths
+        /// nil if they couldn't be loaded; `open` tries again.
+        let decks: DeckLoad?
+    }
+
+    /// What launch opens: the collection named on the command line, or the
+    /// profile desktop would (the only one, or else the one opened last).
+    /// With none, the profiles show, to pick one.
+    private nonisolated enum LaunchTarget {
+        case collection(URL)
+        case profile(String)
+        case choose
+    }
+
+    private nonisolated static func launchTarget() throws -> LaunchTarget {
+        if let collection = CollectionPaths.commandLineCollection { return .collection(collection) }
+        let names = try Profiles.names()
+        if names.count == 1 { return .profile(names[0]) }
+        if let last = Profiles.lastLoaded, names.contains(last) { return .profile(last) }
+        return .choose
+    }
+
+    private nonisolated static func preopen(_ backend: AnkiBackend) -> Preopened? {
+        let paths: CollectionPaths?
+        switch try? launchTarget() {
+        case .collection(let url): paths = try? CollectionPaths.resolve(url)
+        case .profile(let name): paths = try? CollectionPaths.profile(name)
+        case .choose, nil: paths = nil
+        }
+        guard let paths, (try? openCollection(paths, backend: backend)) != nil else { return nil }
+        return Preopened(paths: paths, decks: try? loadDecks(studying: false, backend: backend))
+    }
+
+    private nonisolated static func openCollection(_ paths: CollectionPaths, backend: AnkiBackend) throws {
+        var request = Anki_Collection_OpenCollectionRequest()
+        request.collectionPath = paths.collection.path
+        request.mediaFolderPath = paths.mediaFolder.path
+        request.mediaDbPath = paths.mediaDB.path
+        try backend.openCollection(request)
+    }
 
     init() {
         BenchDriver.trace("model_init")
@@ -291,29 +345,25 @@ final class CollectionModel {
         Self.find(id, in: decks)
     }
 
-    /// Opens the collection named on the command line, or the profile
-    /// desktop would: the only one, or else the one opened last. Otherwise
-    /// the profiles show, to pick one.
+    /// Opens the collection or profile `launchTarget` names, or shows the profiles.
     func start() async {
         // The main window asks again each time it opens.
         guard !started else { return }
         started = true
         do {
-            let backend = try await backendStartup.value
-            self.backend = backend
+            let launch = try await launch.value
+            backend = launch.backend
+            preopened = launch.opened
             BenchDriver.trace("backend_init")
-            if let collection = CollectionPaths.commandLineCollection {
+            let target = try Self.launchTarget()
+            if case .collection(let collection) = target {
                 await open(try CollectionPaths.resolve(collection), scope: .collection(collection.path))
                 return
             }
             Profiles.adoptAppSettings()
-            let names = try Profiles.names()
-            if names.count == 1 {
-                await openProfile(names[0])
-            } else if let last = Profiles.lastLoaded, names.contains(last) {
-                await openProfile(last)
-            } else {
-                choosingProfile = true
+            switch target {
+            case .profile(let name): await openProfile(name)
+            case .collection, .choose: choosingProfile = true
             }
         } catch {
             failure = ActionFailure("Couldn’t open the collection", error: error)
@@ -343,19 +393,25 @@ final class CollectionModel {
         self.scope = scope
         syncAuth = SyncKeychain.load(account: scope.key)
         syncUsername = scope.string("syncUsername") ?? ""
+        let preopened = preopened
+        self.preopened = nil
         do {
-            try await backend.perform { backend in
-                var request = Anki_Collection_OpenCollectionRequest()
-                request.collectionPath = paths.collection.path
-                request.mediaFolderPath = paths.mediaFolder.path
-                request.mediaDbPath = paths.mediaDB.path
-                try backend.openCollection(request)
+            if preopened?.paths.collection != paths.collection {
+                try await backend.perform { backend in
+                    // Launch opened another than the one asked for.
+                    if preopened != nil { try backend.closeCollection(Anki_Collection_CloseCollectionRequest()) }
+                    try Self.openCollection(paths, backend: backend)
+                }
             }
             BenchDriver.trace("collection_open")
             self.paths = paths
             reviewer.mediaFolder = paths.mediaFolder
             // The day starts on Today (no deck selected), not on a deck picked for the user.
-            await refreshDecks()
+            if preopened?.paths.collection == paths.collection, let decks = preopened?.decks {
+                show(decks)
+            } else {
+                await refreshDecks()
+            }
             isLoaded = true
             refreshWhenActivated()
             startPeriodicBackups()
@@ -695,29 +751,53 @@ final class CollectionModel {
         do {
             // Only Today uses the learning cards' times, so a session's refresh after each answer skips them.
             let studying = session != nil
-            let (tree, nextDayAt, undoState, learnDues) = try await backend.perform { backend in
-                var request = Anki_Decks_DeckTreeRequest()
-                request.now = Int64(Date().timeIntervalSince1970)
-                let nextDayAt = try backend.schedTimingToday().nextDayAt
-                return (
-                    try backend.deckTree(request), nextDayAt, try backend.undoState(),
-                    studying ? [] : try Self.learnDues(before: nextDayAt, backend: backend))
-            }
-            learnLaterToday = learnDues.min().map { (Date(timeIntervalSince1970: TimeInterval($0)), learnDues.count) }
-            decks = tree.children.map { DeckNode($0) }
-            self.undoState = undoState
-            if let id = selectedDeckID, deck(id) == nil {
-                page = .today
-            }
-            lastRefresh = Date()
-            scheduleRollover(at: nextDayAt)
-            scheduleLearnRefresh()
-            let sessionDeck = session?.deckID
-            Task { await refreshStudiedToday(around: sessionDeck) }
-            BenchDriver.trace("deck_tree")
+            show(try await backend.perform { backend in try Self.loadDecks(studying: studying, backend: backend) })
         } catch {
             failure = ActionFailure("Couldn’t load your decks", error: error)
         }
+    }
+
+    /// Refreshes the counts a moment after an answer, once for a run of
+    /// quick ones: the deck tree takes up to tens of milliseconds on a
+    /// large collection, and drawing it would hold up the next card.
+    private func refreshDecksAfterAnswer() {
+        guard answerRefreshTask == nil else { return }
+        answerRefreshTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            self?.answerRefreshTask = nil
+            await self?.refreshDecks()
+        }
+    }
+
+    private nonisolated struct DeckLoad: Sendable {
+        let tree: Anki_Decks_DeckTreeNode
+        let nextDayAt: Int64
+        let undoState: UndoState
+        let learnDues: [Int64]
+    }
+
+    private nonisolated static func loadDecks(studying: Bool, backend: AnkiBackend) throws -> DeckLoad {
+        var request = Anki_Decks_DeckTreeRequest()
+        request.now = Int64(Date().timeIntervalSince1970)
+        let nextDayAt = try backend.schedTimingToday().nextDayAt
+        return DeckLoad(
+            tree: try backend.deckTree(request), nextDayAt: nextDayAt, undoState: try backend.undoState(),
+            learnDues: studying ? [] : try learnDues(before: nextDayAt, backend: backend))
+    }
+
+    private func show(_ load: DeckLoad) {
+        learnLaterToday = load.learnDues.min().map { (Date(timeIntervalSince1970: TimeInterval($0)), load.learnDues.count) }
+        decks = load.tree.children.map { DeckNode($0) }
+        undoState = load.undoState
+        if let id = selectedDeckID, deck(id) == nil {
+            page = .today
+        }
+        lastRefresh = Date()
+        scheduleRollover(at: load.nextDayAt)
+        scheduleLearnRefresh()
+        let sessionDeck = session?.deckID
+        Task { await refreshStudiedToday(around: sessionDeck) }
+        BenchDriver.trace("deck_tree")
     }
 
     /// The counts are per scheduler day, so they go stale when the day rolls
@@ -801,8 +881,10 @@ final class CollectionModel {
         let session = StudySession(deckID: deckID, backend: backend, reviewer: reviewer)
         self.session = session
         // The sidebar stays on screen while studying, so its counts follow each answer.
-        session.onCountsChanged = { [weak self] in Task { await self?.refreshDecks() } }
-        Task { await session.start() }
+        session.onCountsChanged = { [weak self] in self?.refreshDecksAfterAnswer() }
+        // Immediate, so the first card's trip to the backend overlaps
+        // drawing the study screen rather than waiting for it.
+        Task.immediate { await session.start() }
     }
 
     /// Stops the study session when it is on one of these decks or inside one,
